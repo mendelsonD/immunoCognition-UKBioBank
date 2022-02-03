@@ -1,0 +1,75 @@
+---
+title: "DescriptiveStats"
+author: "Daniel Mendelson"
+date: "02/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(glue)
+
+df <- read.csv("scratch/UKBB_DM.csv") # Replace with path to proper subset of UKBB data.
+
+```
+
+Descriptive Statistics
+```{r descriptiveStats, echo=FALSE}
+
+varsToDescribe <- c() # list of column names to describe
+
+runDescriptiveStats <- function(){
+  
+}
+
+```
+
+Factor Analysis
+```{r factorAnalysis}
+
+runFactorAnalysis <- function(df, FAVars, FAName){ # df: dataframe; FAVars: list of strings denoting the variables relevant for the factor analysis; FAName: name for the factor analysis
+  df_zFAVars <- df[,FAVars] %>% # standardize FA vars
+    as_tibble() %>%
+    mutate(across(where(is.numeric), scale))
+  cor(df_zFAVars) # correlation table between FAVars
+  
+  # Determine number of components to retain:
+  eigenvalues <- eigen(df[,FAVars])$values
+  plot(eigenvalues, ## print scree plot to determine the number of components to use
+       xlab = "Principal Component",
+       ylab = "Eigenvalues",
+       type = 'b',
+       main = glue("{FAName} Scree plot"))
+  abline(h = 1) # draw horizontal line at eigenvalue = 1 to help see what components to retain in PCA (Kaiser rule)
+  
+  intInput = F
+  while(intInput = F){ 
+    numComponents <- readline(prompt = "Given the above eiganvalues and plots, please enter the number of components to be retained? (integer)")
+    numComponents_int <- as.integer(numComponents) # convert to integer
+    if(is.na(numComponents_int) == F){ # check that input is valid.
+      intInput = T
+    } else {
+      print(c("Error. The input '", numComponents, "', is not an integer."))
+    }
+  } # ask user how many components to retain
+  
+  # Print FA results for interpretation
+  for(i in numComponents_int){
+    eigen(cor(df_zFAVars))$vector[,i]*sqrt(eigen(cor(df_zFAVars))$value[i])  # compute FA linear combo
+  } # ! Requires proper output structure (df or table or something)
+  
+  # compute composite score for each observation
+  pca.eigen <- eigen(cov(df_zFAVars))
+  pca.loading <- pca.eigen$vectors[, 1:numComponents_int]
+  colnams(pca.loading) <- c(glue("PC{rep(1:numComponents_int)}")) # name columns of pca.loading
+  rownames(pca.loading) <- c(df_zFAVars[, FAVars]) # name rows of pca.loading
+  z = as.matrix(df_zFAVars) %*% pca.loading # create composite columns
+  z < -scale(z) # scale these composite scores
+  df_withFA <- as.data.frame(cbind(df, z)) # add the composite scores to df
+  
+} # should save a linear equation for computation of individual scores
+
+```
