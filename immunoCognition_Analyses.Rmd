@@ -22,46 +22,70 @@ library(readxl)
 
 # Mizrahi
 ## Data Preperation & Baseline Description
-
-```{r mizrahi, echo=FALSE}
+Note: RBANS data has column 'Group'. This column is similar to the column 'Groups' from the primary dataset however these columns differ: 
+a) some observations in the primary dataset do not have RBANS data;
+b) RBANS\$Group SCZ in rows where Primary\$Groups is CHR. RBANS\$Group CHR in rows where Primary\$Groups is FEP.
+```{r M_Import, echo=FALSE}
 
 # Import relevant data
 #N.b. re: naming of dataframes: 'M' in "M_#...#" is for Prof Romina Mizrahi.
 M_primary <- read.csv("data/merged_demographics_romina.csv")
-M_MissingCytokinesA <- readxl::read_excel("data/Cytokines_LC.xlsx") # file with missing data from the primary import
-M_MissingCytokinesB <- readxl::read_excel("data/1636401400878_Cytokines_LC.xlsx") # file with missing data from the primary import
 M_RBANS <- read.csv("data/RBANS.csv") # file with RBANS total scores
 # M_RBANS <- M_RBANS[1:183,] # all rows after 183 are empty observations. !! There is certainly a better way of doing this. I.e. remove empty rows. perhaps dplyr::across !!
 # M_RBANS
 M_RBANS_clean <- M_RBANS %>% drop_na # removes rows with any missing values
-
 M_primary_RBANS <- full_join(M_primary, M_RBANS_clean) # Add the RBANS results to the reference dataframe
+# which(colnames(M_primary_RBANS_A) == "Group")
+# which(colnames(M_primary_RBANS_A) == "Groups")
 # M_primary_RBANS[order(M_primary_RBANS$RBANS.Total.Score),c(4,73)]
 # M_primary_RBANS[is.na(M_primary_RBANS$RBANS.Total.Score),]
+# M_primary[9]
 
-M_primary_RBANS_A <- full_join(M_primary_RBANS, M_MissingCytokinesA) # Add the RBANS results to the reference dataframe
+M_MissingCytokines_A <- readxl::read_excel("data/Cytokines_LC.xlsx") # file with missing data from the primary import
+M_MissingCytokines_B <- readxl::read_excel("data/1636401400878_Cytokines_LC.xlsx") # file with missing data from the primary import
+M_MissingCytokines_AB <- full_join(M_MissingCytokines_A, M_MissingCytokines_B) # Combine both additional cytokine results to reference dataframe
+
+M_primary_RBANS_AB <- full_join(M_primary_RBANS, M_MissingCytokines_AB) # Add the RBANS results to the reference dataframe
 # M_primary_RBANS_A[order(M_primary_RBANS_A$FEPPA.IDs),]
 
-M_primary_RBANS_AB <- full_join(M_primary_RBANS_A, M_MissingCytokinesB) # Add the RBANS results to the reference dataframe
-# M_primary_RBANS_AB[order(M_primary_RBANS_B$FEPPA.IDs),]
+# Clean data --------------
+# M_primary_RBANS_AB[is.na(M_primary_RBANS_AB$Groups),c(4, 9,48)] # some of the observations with an NA group have undefined age
+# M_primary_RBANS_AB[is.na(M_primary_RBANS_AB$Age),c(4, 9,48)] # all observations without age have an undefined group
+# thus, remove observations with null Age
+M_primary_RBANS_AB_cleaned <- M_primary_RBANS_AB[!is.na(M_primary_RBANS_AB$Age),] # remove observations missing NA
+# check removal of empty rows
+# dim(M_primary_RBANS_AB)
+# dim(M_primary_RBANS_AB_cleaned) # there should be fewer rows here than in 'M_primary_RBANS_AB'
+# M_primary_RBANS_AB_cleaned[is.na(M_primary_RBANS_AB_cleaned$Age),c(4, 9,48)] # if the above manipulation is correct, no rows should satisfy this condition.
 
-# complete.cases(M_primary_RBANS)
-# typeof(M_primary_RBANS_AB$Group)
-# typeof(M_primary_RBANS_AB$Groups)
+colnames(M_primary_RBANS_AB_cleaned)
 
-colnames(M_primary_RBANS_AB)
-# table(M_primary_RBANS_AB$Group)
-# table(M_primary_RBANS_AB$Groups)
+```
+
+## Descriptive Stats
+```{r M_Describe, echo=FALSE}
+
 # Summarize by condition
+# colnames(M_primary_RBANS_AB_cleaned)
+cat("Tesla of scanner by group:")
+table(M_primary_RBANS_AB_cleaned$Groups, M_primary_RBANS_AB_cleaned$Tesla)
 
-M_primary_RBANS_AB %>%
+cat("Sex by group:")
+table(M_primary_RBANS_AB_cleaned$Groups, M_primary_RBANS_AB_cleaned$Sex)
+
+cat("Summary age")
+M_primary_RBANS_AB_cleaned %>%
     group_by(Groups) %>%
     dplyr::summarise(n = n(), AgeMean = mean(Age, na.rm=TRUE), AgeSD = sd(Age, na.rm=TRUE))
 
-M_primary_RBANS_AB %>%
-    group_by(Group) %>%
-    dplyr::summarise(n = n(), AgeMean = mean(Age, na.rm=TRUE), AgeSD = sd(Age, na.rm=TRUE))
+M_primary_RBANS_AB_cleaned %>%
+    group_by(Groups) %>%
+    dplyr::summarise(boxplot= list( setNames(boxplot.stats(Age)$stats,
+                                      c('lower_whisker','lower_hinge','median','upper_hinge','upper_whisker') ) ) ) %>%
+    unnest_wider(boxplot)
+
+
 
 ```
-## Analysis
 
+## Analysis
