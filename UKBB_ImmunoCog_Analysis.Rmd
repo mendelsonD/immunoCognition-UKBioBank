@@ -1,0 +1,250 @@
+---
+title: "UKBB_ImmunoCog_Analysis"
+author: "Daniel Mendelson"
+date: "22/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(stringr)
+library(dplyr)
+library(tidyr)
+library(arsenal)
+library(reticulate)
+library(psych)
+knitr::knit_engines$set(python = reticulate::eng_python)
+reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
+
+outputPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/Outputs" # working directory to desired output location
+setwd(outputPath)
+date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
+```
+
+# Biobank data
+## Data Preperation
+
+```{r dataPrep, echo=FALSE}
+# import data -----------
+df <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/Daniel_2022-02-23.csv") # import df
+eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
+df <- df[! df$eid %in% eidToRemove, ] # remove rows with eid in this file
+# sort(colnames(df))
+
+# List of variables by type --------------
+
+# factors # list of factors
+# cat_vars # list of categorical variables
+# num_vars # list of numeric variables
+brainVars <- starts_with("brain_", vars = colnames(df))
+cogVars <- starts_with("cog_", vars = colnames(df))
+dxVars <- starts_with("dx_", vars = colnames(df))
+medVars <- starts_with("med_", vars = colnames(df))
+dietVars <- starts_with("diet_", vars = colnames(df))
+# colnames(df[dietVars])
+# View(df[1:100, c(1,brainVars)])
+
+# QC date variables -------------
+# Goal, return all cases when:
+  ## time point 2 age < time point 0 age
+  ## time point 2 asssessment date < time point 0 assessment date
+  ## CRP assaydate < time point 0 date
+
+ageVars <- c(contains("age_assess", vars = colnames(df)))
+dateVars <- c(contains("date_assess", vars = colnames(df)), contains("assaydate", vars = colnames(df))) # creates list of relevant date variables
+df_datesQC <- df[, c(1,ageVars,dateVars)] # create df subset with relevant vars only
+
+# dim(df_datesQC) # check dimensions of this df
+colnames(df_datesQC) # check the variable names in this subset
+head(df_datesQC)
+
+Err_ageAss2 <- c() # array that will hold EIDs with age2 < age0
+Err_dateAss2 <- c() # array that will hold EIDs with date2 < date0
+
+j = 0
+k = 0
+
+for(i in 1:nrow(df_datesQC)){
+    if(df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))] > df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))]){
+      Err_ageAss2 <- c(Err_ageAss2, df_datesQC[i, 1])
+      print(paste("EID: ", df_datesQC[i, 1], "has an AGE at ass. 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))],  ") < AGE at ass. 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))], ")."))
+      j = j + 1
+      if(j == 0){
+        print(paste("STOP CONDITION. EID: ", df_datesQC[i, 1], "AGE at ass. 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))],  "), AGE at ass. 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))], ")."))
+        stop()
+      }
+    }
+    if(df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))] > df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))]){
+      Err_dateAss2 <- c(Err_dateAss2, df_datesQC[i, 1])
+      # print(paste("EID: ", df_datesQC[i, 1], "has an ASSESSMENT DATE 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))],  ") < ASSESSMENT DATE 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))], ")."))
+    } else{
+      k = k+1
+      if(k == 50000){
+        print(paste("STOP CONDITION. EID: ", df_datesQC[i, 1], "has an ASSESSMENT DATE 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))],  "), ASSESSMENT DATE 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))], ")."))
+        stop()
+      }
+    }
+}
+  cat(paste("There are ", length(Err_ageAss2), "rows whose age assess 0 > age asses 2."))
+  cat(paste("There are ", length(Err_dateAss2), "rows whose date assess 0 > date assess 2."))
+# i=which(df_datesQC == 1000116)
+# df_datesQC[i,]
+
+if(max(df_datesQC$date_assess0_t0) < min(df_datesQC$crp_assaydate_t0)){
+  cat(paste("CORRECT. All assessment 0 dates are less than all CRP assay dates. 
+              \n\t Max assess 0 date: ", max(df_datesQC$date_assess0_t0), 
+              "\n\t Min CRP assay date: ", min(df_datesQC$crp_assaydate_t0)))
+} else {
+  cat(paste("WARNING. It is possible that some assessment 0 dates are less than some CRP assay dates. Since max assess 0 date > min CRP assay date.  
+              \n\t Max assess 0 date: ", max(df_datesQC$date_assess0_t0), 
+              "\n\t Min CRP assay date: ", min(df_datesQC$crp_assaydate_t0),
+            "\n It is recommended to compare each instance's assessment 0 date to its CRP assay date to ensure quality of the data."))
+} # !! replace variable names with generalizable var name
+
+min(df_datesQC[,colnames(select(df_datesQC, matches('assaydate+0')))])
+(df_datesQC)
+View(df_datesQC[df_datesQC$eid %in% Err_ageAss2,])
+
+ 
+
+```
+
+## Add columns for any
+```{r addColumns, echo=FALSE}
+# Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
+## Diagnosis
+dx_col <- apply(df, TRUE, function(r) any (r %in% dxVars))
+df %>% 
+  mutate(anyDx = case_when(
+    for(i in dxVars){
+      df[i] == TRUE
+      print(i)
+    }
+  ))
+colnames(df)[diagnosisVars]
+
+## Medication
+# repeat code above for medication
+
+# DATA REDUCTION --------------------
+## Correlations
+### Diet variables
+print("To conduct correlation, these variables must be numeric. Must determine what to do with the special values that are currently being recoded.")
+cor(df[dietVars])
+
+### Cognition variables
+# Recode cog_TMT-alphanumDuration_t2 == "trail not completed" to NA
+length(which(df$`cog_TMT-alphanumDuration_t2`== "trail not completed"))
+# Recode cog_TMT-numericDuration_t2 == "trail not completed" to NA
+length(which(df$`cog_TMT-numericDuration_t2`== "trail not completed"))
+# Recode cog_numMem-maxDigitRemem_t2 == "abandoned" to NA
+length(which(df$`cog_numMem-maxDigitRemem_t2`== "abandoned"))
+
+## PCA (see 536 lecture notes week 10) ---------
+### assumption checks ---------
+## PCA example, cognition variables ----------
+### PCA 1 - standardize numeric data 
+df_zcog <- df[cogVars] %>% 
+  as_tibble() %>% 
+  mutate(across(where(is.numeric), scale))
+describe(df_zcog) # ensure that mean is 0, sd 1
+
+### PCA 2 - number of components to retain
+#### eigenvalue method (eigen value > 1, suggested to keep)
+zcog_eigenValues <- eigen(cor(df_zcog))$values
+for(i in zcog_eigenValues){
+  if(i > 1){
+    cat("Suggestion to keep component i. Eigenvalue: ", i)
+  } else {
+    cat("Suggestion to exclude component i. Eigenvalue: ", i)
+  }
+}
+
+#### scree plot (components before the elbow, suggested to keep)
+plot(zcog_eigenValues,
+     xlab = "Prinicipal component",
+     ylab = "Eigenvalue",
+     type = 'b',
+     main = "Scree plot") + 
+  abline(h = 1)
+
+#### proportion of variance explained
+zcog_PCAvarExplained <- zcog_eigenValues/length(df[cogVars])
+zcog_PCAvarExplained
+print("Looking for components that, together, can explain >80% of variance.")
+
+cat("Note, may need to update these variable names.")
+# add column denoting tertile score
+## CRP
+tertiles_CRP = quantile(df$crp_aliquot_t0, c(0:3/3))# find tertiles
+df$CRP_tert = with(df,
+                   cut(crp_aliquot_t0,
+                       tertiles_CRP,
+                       include.lowest = T,
+                       labels = c("Low", "Medium", "High")))
+
+## Age
+tertiles_age = quantile(df$age_assess0_t0, c(0:3/3))# find tertiles
+df$age_tert = with(df,
+                   cut(age_assess0_t0,
+                       tertiles_CRP,
+                       include.lowest = T,
+                       labels = c("Low", "Medium", "High")))
+
+## Tertile - Cognition
+### Raw scores
+### PCA components
+
+```
+
+```{r subsetCreation, echo=FALSE}
+# Make different data subsets:
+## N.b. should only subset when the main df has all the columns necessary for analysis
+df_dx <- df %>% 
+  group_by(across(any_of(dxVars))) %>% 
+  summarize(median(crp_aliquot_t0))
+df_dx
+df_noDx <- df %>% filter(if_any(diagnosisVars[1] == "FALSE"))
+
+df_noDx <- df %>% filter(diagnosisVars[1] == "FALSE")
+View(df[1:100,c(1,diagnosisVars)])
+
+df_noDx <- df %>% filter(if_all(diagnosisVars == FALSE)) # remove participants with diagnoses from dataframe 
+df_onlyDx <- df %>% filter() # remove participants without diagnoses from dataframe 
+df_noMed <- df %>% filter() # remove participants taking meds from dataframe 
+df_onlyMed <- df %>% filter() # remove participants not taking meds from dataframe 
+df_old <- df %>% filter() # keeps only participants in the top tertile of age
+df_young <- df %>% filter() # keeps participants in the bottom tertile of age
+
+```
+
+## Descriptive Stats
+
+```{python Descriptive_Stats, echo=FALSE}
+import pandas as pd
+import os
+
+os.chdir(r.outputPath)
+fileName = "".join(("UKBBdescriptiveStats_", r.date, ".csv"))
+
+r.df_datesQC.describe(include='all').to_csv(fileName)
+print("The file ", fileName, "was saved to \'", os.getcwd(), "\'.")
+
+```
+
+## Assumption checks
+
+```{r Assumption_Checks, echo=FALSE}
+
+```
+
+## Analysis
+
+```{r Analyses, echo=FALSE}
+# Correlations
+# Moderations
+## Without covariates
+## with covariates
+## On different subsets of data
+```
