@@ -170,7 +170,105 @@ print("The file ", fileName, "was saved to \'", os.getcwd(), "\'.")
 ```
 ## Assumption checks
 ```{r Assumption_Checks, echo=FALSE}
+# see 536 lab 3, lecture notes week 3
+lmAssumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is the lm model of interest. 'y' is the outcome variable in a string.
+## Assumption tests for STEMModel ----------------
+  cat(paste("Assumption tests for the given data and model with dependent variable '", y, "'"))
+  ### Normality  ---
+  ## check skew and kurtosis
+  cat("\n 1. Normality.") 
+  cat("\n 1.a \t Skew and kurtosis.")
+  skew <- skew(df[[colNumofY]]) # determines the skew of the dependent variable's distribution. N.b., the double square brackets '[[]]' is ESSENTIAL for getting the correct results--single brackets '[]' will return inaccurate results.
+  SE_skew <- sqrt(5/dim(df)[1])# Standard error for the skewness
+  t_skew <- skew/SE_skew # t value for the skewness in the dependent variable's distribution
+  
+  kurtosis <- kurtosi(df[[colNumofY]]) # determines the skew of the dependent variable's distribution
+  SE_kurtosis <- sqrt(24/dim(df)[1]) # Standard Error for the kurtosis
+  t_kurtosis <- kurtosis/SE_kurtosis # t value for the kurtosis in the dependent variable's distribution
+  
+  if(abs(t_skew) > 3.2){ # checks if the t-value for skewness is greater than the critical t-value 
+    cat(paste("\n \t\t !! Skewness (", skew, ") is significantly different from 0 (|t| = ", abs(t_skew), "> 3.2). Outcome variable is not normal."))
+  } else {
+    cat(paste("\n \t\t Skewness (", skew, ") is not significantly different from 0 (|t| = ", abs(t_skew), "< 3.2). Outcome variable may be normal."))
+  }
+  
+  if(abs(t_kurtosis) > 3.2){ # checks if the t-value for kurtosis is greater than the critical t-value 
+    cat(paste("\n \t\t !! Kurtosis (", kurtosis, ") is significantly different from 0 (|t| = ", abs(t_kurtosis), "> 3.2). Outcome variable is not normal."))
+  } else {
+    cat(paste("\n \t\t Kurtosis (", kurtosis, ") is not significantly different from 0 (|t| = ", abs(t_kurtosis), "< 3.2). Outcome variable may be normal."))
+  }
+  
+  ## Quantile-quantile plot; points should follow the reference line
+  cat("\n 1.b \t Quantile-quantile plot:")
+  QQPlot <- plot(dfModel,2, main = "1.b Quantile-Quantile plot")
+  cat("\n \t\t If the data is normal, points on the Q-Q plot will follow the reference line.")
+  # ggplot(df, aes(sample = y))+ stat_qq() + stat_qq_line()+ ggtitle("Q-Q Plot for interest in STEM") # alternative QQ plot
+  ###
+  
+  ### Linearity and homoscedasticity ---
+  ## residual plot
+  cat("\n 2. Linearity and homoscedasticity.")
+  cat("\n 2.a \t Residual plot:")
+  residualPlot <- plot(STEMModel, 1, main = "2.a Residual plot") # x is fitted values, y is residuals
+  # plot(dfModel, 3) # alternative to the plot above. Difference is that y-axis is the sqrt(abs(residuals))
+  cat("\n \t\t If the data is linear, best fit of residuals (red line) should be linear.")
+  cat("\n \t\t If the data is homoscedastic, range of residuals should be equivalent/comparable at all values of the 'fitted values' (i.e. y-hat).")
+  ## 
+  ###
+  
+  ### Multicollinearity ---
+  ## Tolerance
+  cat("\n 3. Testing multicollinearity: tolerance.")
+  cat("\n if R^2 is high but there are few significant ")
+  cat("\n 3.a \t Variance Inflation Factors:")
+  # if any VIF value is above 10, this indicates that multicollinearity regression coefs
+  vifPlot <- vif(dfModel, main = "3.a Variance Infation Factors")
+  cat("\n \t\t If any VIF value is above 10, this indicates that the multicollinearity is not true.")
+  
+  ## correl matrix
+  cat("\n 3.b \t Correlation matrix:")
+  print(cor(df)) # cats correlation matrix of all the predictors
+  cat("\n \t\t Ensure that all regression coefficients are insignificant predictors though overall model is significant.")
+  cat("\n \t\t N.b. this is less formal than Tolerance and VIF analysis above.")
+  ## check that all regression coefficients are insignificant predictors though overall model is significant -- though this is less formal
+  ###
+  
+  ### Model correctly specified ----
+  cat("\n 4 Correct specification of model.") 
+  cat("\n 4.a \t Added-variable plots (aka partial-regression):")
+  addedVarPlot <- avPlots(dfModel, main = "4.a Added-variable plots") # if slope is 0 then the predictor is not predicting unique variance in the model. SLope of lines should be equivalent to the regression coefs in the model.
+  cat("\n \t\t The closer to 0 is the slope, the less unique variance this predictor is explaining in the model (slope of 0 = explaining no unique variance). N.b., Slope of lines is equivalent to the regression coefs in the model.")
+  # summary(dfModel) # slope of line
+  cat("\n \t\t Remove variable that is not predicting unique variance. Do so one at a time--excluding the one with a slope closest to 0 if applicable--and do so only at the end!")
+  # !! only remove predictors at the end !!
+  ###
+  
+  ### Outliers (i.e. influencers) ---
+  cat("\n 5. Outlier analysis.")
+  ## Evaluate influence
+  cat("\n 5.a \t Evaluating influence.") 
+  cat("\n 5.a.i \t\t Plot of Cook's distances:")
+  cooksDistance <- plot(dfModel, 4, main = "5.a.i Cook's distance plot") # plot of Cook's distance
+  cat("\n \t\t\t ") # Note what should be looked for.
+  
+  # Influence plot
+  cat("\n 5.a.ii \t\t Influence Plot:")
+  influencePlot <-influencePlot(dfModel, main="5.a.ii Influence Plot")
+  cat("\n \t\t\t Consider removing the point(s) with large influence.") # Note what should be looked for.
+  cat("\n \t\t\t Note. The larger the circle, the more influence the observation has. Studentized residuals indicate distance; hat-values indicate leverage") # Note what should be looked for.
 
+  cat("\n 5.a.iii \t Influence Index Plot:")
+  infIndex <- infIndexPlot(dfModel, main = "5.a.iii Influence Index Plot")
+  
+  allPlots <- 
+    QQPlot + facet_wrap(~ carb, nrow = 1) + theme(legend.position = "none") +
+    ggtitle("Test")
+  
+  # residualPlot, vifPlot, addedVarPlot, cooksDistance, influencePlot, infIndex
+
+  # list(QQPlot, residualPlot, vifPlot, addedVarPlot, cooksDistance, influencePlot, infIndex)
+  # list(plot(dfModel,2, main = "1.b Quantile-Quantile plot"), plot(STEMModel, 1, main = "2.a Residual plot"),vif(dfModel, main = "3.a Variance Infation Factors"),avPlots(dfModel, main = "4.a Added-variable plots"), plot(dfModel, 4, main = "5.a.i Cook's distance plot"),influencePlot(dfModel, main="5.a.ii Influence Plot"), infIndexPlot(dfModel, main = "5.a.iii Influence Index Plot"))
+}
 ```
 ### Normality
 ```{r normalityCheck, echo=FALSE}
@@ -239,7 +337,7 @@ df <- df %>%
 
 ```
 
-# Data reduction
+## Data reduction
 -PCA assumptions: 
 --linear relationship between components
 ```{r PCA, echo=FALSE}
@@ -321,12 +419,38 @@ df_young <- df %>% filter() # keeps participants in the bottom tertile of age
 
 ```
 
-## Analysis
-
+## Mediation analyses
+!! Will need to determine how to include covariate variables in this !!
+For help with interpretation, see PSYC 536 lab 5 script.
+```{r mediationFunction, echo=FALSE}
+# see psyc 536 lecture 5 notes
+mediationFunction <- function(df, X, Y, M, C){
+  # total effect
+  totalEffectModel <- lm(Y ~ X, data = df)
+  summary(totalEffectModel)
+  
+  # a path -- predict M from X
+  aPathModel <- lm(M ~ X, data = df)
+  summary(aPathModel)
+  
+  # b path & direct path -- predict Y from M and X
+  bAndDirectPathModel <- lm(Y ~ X + M, data = df)
+  summary(bAndDirectPathModel)
+  
+  a <- coef(PROMIS_reg_M)[2]
+  a.se <- coefficients(summary(aPathModel))[2,2]
+  
+  b <- coef(bAndDirectPathModel)[3]
+  b.se <- coefficients(summary(bAndDirectPathModel))[3,2]
+  
+  medci(a,b,a.se,b.se, rho=0, alpha=.05, plot=TRUE)
+} # input: 'df' - dataframe containing all relevant variables; 'X' - name of the predictor variable; 'Y' - name of the outcome variable; 'M' - name of the mediator variable; 'C' - list of names of covariate variables
+```
+## Conduct analyses
 ```{r Analyses, echo=FALSE}
 # Correlations
-# Moderations
+# Mediations
 ## Without covariates
 ## with covariates
-## On different subsets of data
+# Repeat above for different subsets of data (i.e. with and with diagnoses, drugs...)
 ```
