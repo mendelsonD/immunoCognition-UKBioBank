@@ -4,7 +4,6 @@ author: "Daniel Mendelson"
 date: "22/02/2022"
 output: html_document
 ---
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(readr)
@@ -14,6 +13,8 @@ library(tidyr)
 library(arsenal)
 library(reticulate)
 library(psych)
+library(lubridate)
+library(glue)
 knitr::knit_engines$set(python = reticulate::eng_python)
 reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
 
@@ -24,41 +25,71 @@ date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", form
 
 # Biobank data
 ## Data Preperation
-
 ```{r dataPrep, echo=FALSE}
 # import data -----------
-df <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/Daniel_2022-02-23.csv") # import df
+df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/Daniel_2022-02-23.csv") # import df
 eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
-df <- df[! df$eid %in% eidToRemove, ] # remove rows with eid in this file
+df_all <- df_all %>% 
+  dplyr::filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
+# remove cases that haven't completed assessment 2
+cat(paste("There are ", count(is.na(brain_timeCompleted)), "cases that have not completed imaging. These cases are will be removed."))
+# %>% dplyr::filter(!(is.na(brain_timeCompleted))) # remove cases without imaging variables variable of interest is brain_timeCompleted, field code 21862
+# remove cases that don't have CRP aliquot
+cat(paste("There are ", count(is.na(crp_aliquot)), "cases that do not have crp-aliquot values. These cases are will be removed."))
+# %>% dplyr::filter(!(is.na(crp_aliquot))) # remove cases without imaging variables variable of interest is brain_timeCompleted, field code 21862
+
+df_small <- df_all[1:100,]
+df <- df_small # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
+rm(df_all, eidToRemove, df_small) # remove dataframes not in use
 # sort(colnames(df))
+# View(df)
+```
 
+```{r variableLists, echo=FALSE}
 # List of variables by type --------------
+  # factors # list of factors
+  # cat_vars # list of categorical variables
+  # num_vars # list of numeric variables
+  brainVars <- starts_with("brain_", vars = colnames(df))
+  cogVars <- starts_with("cog_", vars = colnames(df))
+  dxVars <- starts_with("dx_", vars = colnames(df))
+  medVars <- starts_with("med_", vars = colnames(df))
+  dietVars <- starts_with("diet_", vars = colnames(df))
+  # colnames(df[dietVars])
+  # View(df[1:100, c(1,brainVars)])
+```
 
-# factors # list of factors
-# cat_vars # list of categorical variables
-# num_vars # list of numeric variables
-brainVars <- starts_with("brain_", vars = colnames(df))
-cogVars <- starts_with("cog_", vars = colnames(df))
-dxVars <- starts_with("dx_", vars = colnames(df))
-medVars <- starts_with("med_", vars = colnames(df))
-dietVars <- starts_with("diet_", vars = colnames(df))
-# colnames(df[dietVars])
-# View(df[1:100, c(1,brainVars)])
-
-# QC date variables -------------
+# Quality control of date variables.
+## N.b. variables names may require changing
+```{r formatDates, echo=FALSE}
 # Goal, return all cases when:
   ## time point 2 age < time point 0 age
   ## time point 2 asssessment date < time point 0 assessment date
   ## CRP assaydate < time point 0 date
+birthYearCol <- contains("birthYear", vars = colnames(df))
+df$birthYearModified <- df[birthYearCol]*10000 + 0702 # add july 02, 0702 as the middle day of the year
+print("Added \'0702\' to all birth years, corresponding to the middle day of the year, July 02.")
+head(df$birthYearModified)
+df$birthYearModified <- as.Date(ymd(as.matrix(df$birthYearModified))) # convert YYYYMMDD to YYYY-MM-DD in date format
 
 ageVars <- c(contains("age_assess", vars = colnames(df)))
-dateVars <- c(contains("date_assess", vars = colnames(df)), contains("assaydate", vars = colnames(df))) # creates list of relevant date variables
-df_datesQC <- df[, c(1,ageVars,dateVars)] # create df subset with relevant vars only
-
+date_assess2Cols <- date_assessCols[contains("2", vars = colnames(df_all[,date_assessCols]))] # find variable denoting the date of assessment 2
+df_datesQC <- df[, c(1,contains("birthYear", vars = colnames(df)),dateVars, ageVars)] # create df subset with relevant vars only
 # dim(df_datesQC) # check dimensions of this df
 colnames(df_datesQC) # check the variable names in this subset
 head(df_datesQC)
+head(df$date_assess2_t2)
 
+df_datesQC <- df_datesQC %>% 
+  mutate("derivedAge_0" = round(interval(start = df_datesQC$birthYearModified, end = df_datesQC$date_assess0_t0)/years(1)), .after = "age_assess0_t0") %>% # compute age at assess 0
+  mutate("difInAges_0" = (df_datesQC$"derivedAge_0" - df_datesQC$"age_assess0_t0"), .after = "derivedAge_0") %>% 
+  mutate("derivedAge_2" = round(interval(start = df_datesQC$age_assess0_t0, end = df_datesQC$date_assess2_t2)/years(1)), .after = "age_assess2_t2") %>% # compute age at assess 2 from difference between assess 0 date and assess 2 date
+  mutate("difInAges_2" = (df_datesQC$"derivedAge_2" - df_datesQC$"age_assess2_t2"), .after = "derivedAge_2")
+
+cat(paste("Correlation between computed age at assessment 0 and age_assess0 is: ", cor(df_datesQC$derivedAge_0, df_datesQC$age_assess0_t0), ". \n\t Sum of the difference between both columns: ", sum(df_datesQC$difInAges_0), ". \n\t Max difference between both columns: ", max(df_datesQC$difInAges_0), ". \n Correlation between computed age at assessment 2 and age_assess2 is:", cor(df_datesQC$derivedAge_2, df_datesQC$date_assess2_t2), ". \n\t Sum of the difference between both columns: ", sum(df_datesQC$difInAges_2), ". \n\t Max difference between both columns: ", max(df_datesQC$difInAges_2)))
+```
+## Check if any age at assessment 2 is less than age at assessment 0
+```{r dateQC, echo=FALSE}
 Err_ageAss2 <- c() # array that will hold EIDs with age2 < age0
 Err_dateAss2 <- c() # array that will hold EIDs with date2 < date0
 
@@ -105,12 +136,8 @@ if(max(df_datesQC$date_assess0_t0) < min(df_datesQC$crp_assaydate_t0)){
 min(df_datesQC[,colnames(select(df_datesQC, matches('assaydate+0')))])
 (df_datesQC)
 View(df_datesQC[df_datesQC$eid %in% Err_ageAss2,])
-
- 
-
 ```
-
-## Add columns for any
+# Add columns for any diagnosis or medication
 ```{r addColumns, echo=FALSE}
 # Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
 ## Diagnosis
@@ -126,7 +153,100 @@ colnames(df)[diagnosisVars]
 
 ## Medication
 # repeat code above for medication
+```
 
+# Analyses
+## Descriptive Stats
+```{python Descriptive_Stats, echo=FALSE}
+import pandas as pd
+import os
+
+os.chdir(r.outputPath)
+fileName = "".join(("UKBBdescriptiveStats_", r.date, ".csv"))
+
+r.df.describe(include='all')
+r.df.describe(include='all').to_csv(fileName)
+print("The file ", fileName, "was saved to \'", os.getcwd(), "\'.")
+```
+## Assumption checks
+```{r Assumption_Checks, echo=FALSE}
+
+```
+### Normality
+```{r normalityCheck, echo=FALSE}
+
+```
+#### Normality corrections
+!! Vars in code may need to be renamed !!
+```{r normalityCorrections, echo=FALSE}
+normCorrection <- function(df, xName, correctionType){
+  xColNum <- which(colnames(df) == xName)
+  if(correctionType == "tert"){
+    tertileValues <- quantile(df[xColNum], c(0:3/3), na.rm = T) # find tertile values
+    newColName <- glue(xName, "_tert")
+    df <- df %>% 
+      mutate_(newColName = cut({{ xName }},
+                       breaks = .tertileValues,
+                       labels = FALSE,
+                       include.lowest = T), 
+             .after = {{ xName }})
+    cat(paste("The tertiles for ", xName, "are: \n\t", tertileValues))
+  } else if (correctionType == "log") {
+    newColName <- glue(xName, "_log")
+    df <- df %>% 
+      mutate(newColName = log(df[xColNum]), .after = xName)
+  } else {
+    cat(paste("Error. '", correctionType, "' is not a valid correction type. Accepted values are: \n\t'tert' for tertiles; \n\t'log' for logarithmic. \nNo changes were made to the dataframe for the variable ", xName, "."))
+  }
+  return(df)
+} # takes df: dataframe; xName: name of the variable to correct; correctionType: how the variable should be corrected (possible values: 'tert' tertile, 'log' logarithmic. Returns df with the corrected variable after the original variable.
+
+df <- normCorrection(df, xName = "crp_aliquot_t0", correctionType = "tert")
+df <- normCorrection(df, xName = "age_assess0_t0", correctionType = "tert")
+
+head(as.data.frame(df$age_assess0_t0))
+is.numeric(df$age_assess0_t0)
+xName <- "age_assess0_t0"
+xColNum <- which(colnames(df) == xName)
+tertileValues <- quantile(df[xColNum], c(0:3/3), na.rm = T) # find tertile values
+df <- df %>% 
+      mutate(newColName = cut(age_assess0_t0,
+                       breaks = tertileValues,
+                       labels = FALSE,
+                       include.lowest = T), 
+             .after = xName)
+table(df$age_tert)
+df <- df %>% 
+      mutate(age_tert = cut(age_assess0_t0,
+                       breaks = tertileValues,
+                       labels = c("Low", "Medium", "High"),
+                       include.lowest = T), 
+             .after = xName)
+
+# add column denoting tertile score
+```
+### Linearity
+```{r linearityChecks, echo=FALSE}
+
+```
+### Homoscedasticity
+```{r homoscCheck, echo=FALSE}
+
+```
+
+## Simple Correlation function
+```{r pearsonCor, echo=FALSE}
+
+```
+
+# Data reduction
+-PCA assumptions: 
+--linear relationship between components
+```{r PCA, echo=FALSE}
+PCA <- function(){
+
+}
+simpleFunction(2)
 # DATA REDUCTION --------------------
 ## Correlations
 ### Diet variables
@@ -174,24 +294,6 @@ zcog_PCAvarExplained <- zcog_eigenValues/length(df[cogVars])
 zcog_PCAvarExplained
 print("Looking for components that, together, can explain >80% of variance.")
 
-cat("Note, may need to update these variable names.")
-# add column denoting tertile score
-## CRP
-tertiles_CRP = quantile(df$crp_aliquot_t0, c(0:3/3))# find tertiles
-df$CRP_tert = with(df,
-                   cut(crp_aliquot_t0,
-                       tertiles_CRP,
-                       include.lowest = T,
-                       labels = c("Low", "Medium", "High")))
-
-## Age
-tertiles_age = quantile(df$age_assess0_t0, c(0:3/3))# find tertiles
-df$age_tert = with(df,
-                   cut(age_assess0_t0,
-                       tertiles_CRP,
-                       include.lowest = T,
-                       labels = c("Low", "Medium", "High")))
-
 ## Tertile - Cognition
 ### Raw scores
 ### PCA components
@@ -216,26 +318,6 @@ df_noMed <- df %>% filter() # remove participants taking meds from dataframe
 df_onlyMed <- df %>% filter() # remove participants not taking meds from dataframe 
 df_old <- df %>% filter() # keeps only participants in the top tertile of age
 df_young <- df %>% filter() # keeps participants in the bottom tertile of age
-
-```
-
-## Descriptive Stats
-
-```{python Descriptive_Stats, echo=FALSE}
-import pandas as pd
-import os
-
-os.chdir(r.outputPath)
-fileName = "".join(("UKBBdescriptiveStats_", r.date, ".csv"))
-
-r.df_datesQC.describe(include='all').to_csv(fileName)
-print("The file ", fileName, "was saved to \'", os.getcwd(), "\'.")
-
-```
-
-## Assumption checks
-
-```{r Assumption_Checks, echo=FALSE}
 
 ```
 
