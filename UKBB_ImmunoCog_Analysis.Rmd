@@ -33,10 +33,10 @@ df_all <- df_all %>%
   dplyr::filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
 # remove cases that haven't completed assessment 2
 cat(paste("There are ", count(is.na(brain_timeCompleted)), "cases that have not completed imaging. These cases are will be removed."))
-# %>% dplyr::filter(!(is.na(brain_timeCompleted))) # remove cases without imaging variables variable of interest is brain_timeCompleted, field code 21862
+#df_all <- df_all %>% dplyr::filter(!(is.na(brain_timeCompleted))) # remove cases without imaging variables variable of interest is brain_timeCompleted, field code 21862
 # remove cases that don't have CRP aliquot
-cat(paste("There are ", count(is.na(crp_aliquot)), "cases that do not have crp-aliquot values. These cases are will be removed."))
-# %>% dplyr::filter(!(is.na(crp_aliquot))) # remove cases without imaging variables variable of interest is brain_timeCompleted, field code 21862
+cat(paste("Of with imaging data, there are ", count(is.na(crp_aliquot)), "cases that do not have crp-aliquot values. These cases are will be removed."))
+#df_all <- df_all %>% dplyr::filter(!(is.na(crp_aliquot))) # remove cases without imaging variables variable of interest is brain_timeCompleted, field code 21862
 
 df_small <- df_all[1:100,]
 df <- df_small # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
@@ -137,7 +137,8 @@ min(df_datesQC[,colnames(select(df_datesQC, matches('assaydate+0')))])
 (df_datesQC)
 View(df_datesQC[df_datesQC$eid %in% Err_ageAss2,])
 ```
-# Add columns for any diagnosis or medication
+# Add columns
+## Add columns for any diagnosis or medication
 ```{r addColumns, echo=FALSE}
 # Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
 ## Diagnosis
@@ -154,8 +155,28 @@ colnames(df)[diagnosisVars]
 ## Medication
 # repeat code above for medication
 ```
+## Add dummy code variables
+```{r createDummyCodes, echo=FALSE}
+# goal: 
+## -convert a single categorical variable with >2 categories to dummy codes;
+## -have a list with all dummy codes relevant to each variable
 
+# Vars to dummy code
+
+```
+## Add column controlling for head size
+Note: Controlling for head size is intended for brain volumes that are known to be affected by size. See "UK Biobank Brain Imaging Documentation", p. 19.
+```{r controlForHeadSize, echo=FALSE}
+controlHeadSize <- function(df, brainVarName){ # n.b. this is intended for brain volumes that are known to be affected by total brain size. See UK Biobank Brain Imaging Documentation, p. 19.
+  newColName <- glue(brainVarName, "_headScaleCorrected")
+  df <- df %>% # add column for brain volume * brain head scale, controls for brain size
+  mutate_(newColName = {{ brainVarName }} * "brain_headScale")
+} # takes 'df' - dataframe; 'brainVarName' - name of brain volume to control for brain size
+df <- controlHeadSize(df, "brain_vol-hippocamp-L")
+df <- controlHeadSize(df, "brain_vol-hippocamp-R")
+```
 # Analyses
+Use '_headScaleCorrected' for brain volumes known to be affected by head size.
 ## Descriptive Stats
 ```{python Descriptive_Stats, echo=FALSE}
 import pandas as pd
@@ -171,8 +192,9 @@ print("The file ", fileName, "was saved to \'", os.getcwd(), "\'.")
 ## Assumption checks
 ```{r Assumption_Checks, echo=FALSE}
 # see 536 lab 3, lecture notes week 3
-lmAssumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is the lm model of interest. 'y' is the outcome variable in a string.
+assumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is the lm model of interest. 'y' is the outcome variable in a string.
 ## Assumption tests for STEMModel ----------------
+  colNumofY <- which(colnames(df) == y)
   cat(paste("Assumption tests for the given data and model with dependent variable '", y, "'"))
   ### Normality  ---
   ## check skew and kurtosis
@@ -221,7 +243,6 @@ lmAssumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is 
   cat("\n 3. Testing multicollinearity: tolerance.")
   cat("\n if R^2 is high but there are few significant ")
   cat("\n 3.a \t Variance Inflation Factors:")
-  # if any VIF value is above 10, this indicates that multicollinearity regression coefs
   vifPlot <- vif(dfModel, main = "3.a Variance Infation Factors")
   cat("\n \t\t If any VIF value is above 10, this indicates that the multicollinearity is not true.")
   
@@ -272,7 +293,33 @@ lmAssumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is 
 ```
 ### Normality
 ```{r normalityCheck, echo=FALSE}
-
+normalityCheck <- function(df, y){  
+  colNumofY <- which(colnames(df) == y)
+  cat(paste("Assumption tests for the given data and model with dependent variable '", y, "'"))
+  ### Normality  ---
+  ## check skew and kurtosis
+  cat("\n 1. Normality.") 
+  cat("\n 1.a \t Skew and kurtosis.")
+  skew <- skew(df[[colNumofY]]) # determines the skew of the dependent variable's distribution. N.b., the double square brackets '[[]]' is ESSENTIAL for getting the correct results--single brackets '[]' will return inaccurate results.
+  SE_skew <- sqrt(5/dim(df)[1])# Standard error for the skewness
+  t_skew <- skew/SE_skew # t value for the skewness in the dependent variable's distribution
+  
+  kurtosis <- kurtosi(df[[colNumofY]]) # determines the skew of the dependent variable's distribution
+  SE_kurtosis <- sqrt(24/dim(df)[1]) # Standard Error for the kurtosis
+  t_kurtosis <- kurtosis/SE_kurtosis # t value for the kurtosis in the dependent variable's distribution
+  
+  if(abs(t_skew) > 3.2){ # checks if the t-value for skewness is greater than the critical t-value 
+    cat(paste("\n \t\t !! Skewness (", skew, ") is significantly different from 0 (|t| = ", abs(t_skew), "> 3.2). Outcome variable is not normal."))
+  } else {
+    cat(paste("\n \t\t Skewness (", skew, ") is not significantly different from 0 (|t| = ", abs(t_skew), "< 3.2). Outcome variable may be normal."))
+  }
+  
+  if(abs(t_kurtosis) > 3.2){ # checks if the t-value for kurtosis is greater than the critical t-value 
+    cat(paste("\n \t\t !! Kurtosis (", kurtosis, ") is significantly different from 0 (|t| = ", abs(t_kurtosis), "> 3.2). Outcome variable is not normal."))
+  } else {
+    cat(paste("\n \t\t Kurtosis (", kurtosis, ") is not significantly different from 0 (|t| = ", abs(t_kurtosis), "< 3.2). Outcome variable may be normal."))
+  }
+} # takes 'df' - dataframe; 'y' variable of interest
 ```
 #### Normality corrections
 !! Vars in code may need to be renamed !!
@@ -419,38 +466,128 @@ df_young <- df %>% filter() # keeps participants in the bottom tertile of age
 
 ```
 
-## Mediation analyses
-!! Will need to determine how to include covariate variables in this !!
-For help with interpretation, see PSYC 536 lab 5 script.
+## Function to make appropriate expression for stats::LM functions
 ```{r mediationFunction, echo=FALSE}
+createLMExpression <- function(varNames, X, Y, M, C){
+  colNumsPredictors <- c()
+  for(i in c(X, M, C)){
+    colNum <- which(varNames == i)
+    colNumsPredictors <- append(colNumsPredictors, colNum)
+  } # get column numbers for the relevant predictor variables
+  varNames <- names(df[[colNumsPredictors]])
+  LMpredictors <- toString(paste(varNames, "+ ", collapse = ''))
+  LMpredictors <- substr(LMpredictors, 1, nchar(LMpredictors)-3)
+  model <- paste(Y, " ~ ", LMpredictors)
+  return(model)
+} # Input: 'varNames' - list of variable names in the dataframe to be analysed. Is given by the function colnames(df); 'Y' - name of the dependent variable; 'X' - name of the independent variable; 'M' - name of mediators mediators; 'C' - list of covariate variable names;
+```
+
+## Correlation analyses functions
+```{r mediationFunction, echo=FALSE}
+
+```
+## Mediation functions analyses
+!! Will need to determine how to include covariate variables in this !! -- perhaps just include when (M ~ X) and when (Y ~ X + M)
+--As of March 12, 2022: uses all the covariates in the a path and the c path. See 'mediation: R package for Causal Mediation Analysis' (Tingley et al., 2014)
+For help with interpretation, see PSYC 536 lab 5 script.
+Using package: mediation
+```{r mediationFunction, echo=FALSE}
+library(mediation)
+# where M: continuous mediator; X: independent variable; Y: continuous dependent variable; C: covariates
+runMediation <- function(df, X, Y, M, C){
+  mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = C) # mediator model: predict M from X and C
+  outcomeModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
+  
+  mediatorModel <- lm(eval(parse(text = mediatorModelExpression)), data = df) 
+  outcomeModel <- lm(eval(parse(text = outcomeModelExpression)), data = df)
+  mediation_out <- mediation::mediate(mediatorModel, outcomeModel, treat = X, mediator = M, boot = T)
+  return(mediation_out)
+} # This function runs the mediation analyses and returns the mediation model. Input: 'df' - dataframe; 'X' - name of independent variable; 'Y' - name of dependent variable; 'C' - a list of covariate variable names in string form.
+
+mediationOutputs <- function(mediation_out, M, confounderSameDirection){
+  summary <- summary(mediation_out)
+  sensitivityAnalysis <- medsens(mediation_out, rho.by = .1, effect.type = "indirect")
+  plot(sensitivityAnalysis, sens.par = "R2", r.type = "total", sign.prod = confounderSameDirection, main = M) # plots for R2. N.b. 'sign.prod', does the hypothesized confounder affect the mediator and outcome variables in the same direction or in different directions? If same then sign.prod = positive, else, = negative. See mediationR2 for details. 
+} # Makes output for the mediation analyses, including summary, sensitivity analysis in tabular and plot forms. Input: 'mediation_out' - the mediation model returned by the runMediation function; 'M' - the name of the mediator variable (as string); 'confounderSameDirection' - does the hypothesized confounder affect the mediator and outcome in the same direction?, if true then "positive" is appropriate, if false then "negative" is appropriate.
+```
+Using package: RMediation
+```{r RMediationFunction, echo=FALSE}
+library(RMediation)
 # see psyc 536 lecture 5 notes
-mediationFunction <- function(df, X, Y, M, C){
+runRMediation <- function(df, X, Y, M, C){
+  totModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = "", C = C) # total model: predict Y from X and C
+  aPathExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = C) # a path model: predict M from X and C
+  bPathExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # b path & direct path model: predict Y from X, M, and C
+  
   # total effect
-  totalEffectModel <- lm(Y ~ X, data = df)
-  summary(totalEffectModel)
+  totModel <- lm(eval(parse(text = totModelExpression)), data = df)
+  cat("'total model' linear model expression: \n\t", totModelExpression)
+  print(summary(totModel))
   
   # a path -- predict M from X
-  aPathModel <- lm(M ~ X, data = df)
-  summary(aPathModel)
+  aModel <- lm(eval(parse(text = aPathExpression)), data = df)
+  cat("'a path' linear model expression: \n\t", aPathExpression)
+  print(summary(aModel))
   
-  # b path & direct path -- predict Y from M and X
-  bAndDirectPathModel <- lm(Y ~ X + M, data = df)
-  summary(bAndDirectPathModel)
+  # b path -- predict Y from X, M and C
+  bModel <- lm(eval(parse(text = bPathExpression)), data = df)
+  cat("'b path' linear model expression: \n\t", bPathExpression)
+  print(summary(bModel))
   
-  a <- coef(PROMIS_reg_M)[2]
-  a.se <- coefficients(summary(aPathModel))[2,2]
+  a <- coef(aModel)[which(names(coef(aModel)) == X)] # want coef for effect of X on M
+  a.se <- coef(summary(aModel))[which(names(coef(aModel)) == X),2] # want S.E. of the regression coef of X on M. N.b. index is [row of X, column of standard errors of estimate]
+  b <- coef(bModel)[which(names(coef(bModel)) == M)] # want coef for effect of M on Y
+  b.se <- coefficients(summary(bModel))[which(names(coef(bModel)) == M),2] # want coef for effect of M on Y
   
-  b <- coef(bAndDirectPathModel)[3]
-  b.se <- coefficients(summary(bAndDirectPathModel))[3,2]
-  
-  medci(a,b,a.se,b.se, rho=0, alpha=.05, plot=TRUE)
+  medci(mu.x = a, mu.y = b, se.x = a.se, se.y = b.se, rho = 0, alpha = .05, plot = T, plotCI = T)
+  #format output somehow
 } # input: 'df' - dataframe containing all relevant variables; 'X' - name of the predictor variable; 'Y' - name of the outcome variable; 'M' - name of the mediator variable; 'C' - list of names of covariate variables
 ```
-## Conduct analyses
+## Conduct analyses and return outputs
+```{r analysisSandBox, echo=FALSE}
+X <- "crp_aliquot_t0" # name of independent variable
+Y <- "blood_vitD_t0" # name of dependent variable
+M <- "crp_timeFasting_t0"
+C <- c("demgraph_sex_t0", "ses_townsend_t0", "age_assess0_t0")
+
+mediation_out <- runMediation(df, X = X, Y = Y, M = M, C = C)
+summary(mediation_out)
+
+mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = C) # mediator model: predict M from X and C
+outcomeModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
+mediatorModel <- lm(eval(parse(text = mediatorModelExpression)), data = df) 
+outcomeModel <- lm(eval(parse(text = outcomeModelExpression)), data = df)
+mediation_out <- mediation::mediate(mediatorModel, outcomeModel, treat = X, mediator = M, boot = T)
+
+```
+
 ```{r Analyses, echo=FALSE}
+X <- "CRP_aliquot_t0" # name of independent variable
+Y <- "cogGlobal" # name of dependent variable
+mainCovars <- c("age_assess0", "BMI", "ses_townsend") # list of all main covariates to control for
+
 # Correlations
+## Models without covariates
+cor0_noC <- lm(Y ~ X, data = df)
+cor0 <- lm(Y ~ X + mainCovars, data = df)
+
+## Models with covariates
+
 # Mediations
-## Without covariates
-## with covariates
+## Models without covariates
+model0_noC <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-brainSegNoVent", covars = "") # model between CRP, whole brain volume, general cog
+model1a_noC <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-L", covars = "") # model between CRP, L hippocamp, memory
+model1b_noC <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-R", covars = "") # model between CRP, L hippocamp, memory
+
+## Models with covariates
+model0 <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-brainSegNoVent", covars = mainCovars) # model between CRP, whole brain volume, general cog
+model1a <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-L", covars = mainCovars) # model between CRP, L hippocamp, memory
+model1b <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-R", covars = mainCovars) # model between CRP, L hippocamp, memory
+
+listMedModels <- c(model0_noC, model0, model1a_noC, model1a, model1b_noC, model1b)
+for(i in listMedModels){
+  mediationOutputs(i) # runs the mediationOutput function for each model in the list models list
+}
+
 # Repeat above for different subsets of data (i.e. with and with diagnoses, drugs...)
 ```
