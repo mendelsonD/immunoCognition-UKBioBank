@@ -4,6 +4,7 @@ author: "Daniel Mendelson"
 date: "22/02/2022"
 output: html_document
 ---
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(readr)
@@ -23,172 +24,21 @@ setwd(outputPath)
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
 
-# Biobank data
-## Data Preperation
-```{r dataPrep, echo=FALSE}
-# import data -----------
-df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/Daniel_2022-02-23.csv") # import df
-eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
-df_all <- df_all %>% 
-  dplyr::filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
-# remove cases that haven't completed assessment 2
-cat(paste("There are ", count(is.na(brain_timeCompleted)), "cases that have not completed imaging. These cases are will be removed."))
-#df_all <- df_all %>% dplyr::filter(!(is.na(brain_timeCompleted))) # remove cases without imaging variables variable of interest is brain_timeCompleted, field code 21862
-# remove cases that don't have CRP aliquot
-cat(paste("Of with imaging data, there are ", count(is.na(crp_aliquot)), "cases that do not have crp-aliquot values. These cases are will be removed."))
-#df_all <- df_all %>% dplyr::filter(!(is.na(crp_aliquot))) # remove cases without imaging variables variable of interest is brain_timeCompleted, field code 21862
-
-df_small <- df_all[1:100,]
-df <- df_small # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
-rm(df_all, eidToRemove, df_small) # remove dataframes not in use
-# sort(colnames(df))
-# View(df)
-```
-
-```{r variableLists, echo=FALSE}
-# List of variables by type --------------
-  # factors # list of factors
-  # cat_vars # list of categorical variables
-  # num_vars # list of numeric variables
-  brainVars <- starts_with("brain_", vars = colnames(df))
-  cogVars <- starts_with("cog_", vars = colnames(df))
-  dxVars <- starts_with("dx_", vars = colnames(df))
-  medVars <- starts_with("med_", vars = colnames(df))
-  dietVars <- starts_with("diet_", vars = colnames(df))
-  # colnames(df[dietVars])
-  # View(df[1:100, c(1,brainVars)])
-```
-
-# Quality control of date variables.
-## N.b. variables names may require changing
-```{r formatDates, echo=FALSE}
-# Goal, return all cases when:
-  ## time point 2 age < time point 0 age
-  ## time point 2 asssessment date < time point 0 assessment date
-  ## CRP assaydate < time point 0 date
-birthYearCol <- contains("birthYear", vars = colnames(df))
-df$birthYearModified <- df[birthYearCol]*10000 + 0702 # add july 02, 0702 as the middle day of the year
-print("Added \'0702\' to all birth years, corresponding to the middle day of the year, July 02.")
-head(df$birthYearModified)
-df$birthYearModified <- as.Date(ymd(as.matrix(df$birthYearModified))) # convert YYYYMMDD to YYYY-MM-DD in date format
-
-ageVars <- c(contains("age_assess", vars = colnames(df)))
-date_assess2Cols <- date_assessCols[contains("2", vars = colnames(df_all[,date_assessCols]))] # find variable denoting the date of assessment 2
-df_datesQC <- df[, c(1,contains("birthYear", vars = colnames(df)),dateVars, ageVars)] # create df subset with relevant vars only
-# dim(df_datesQC) # check dimensions of this df
-colnames(df_datesQC) # check the variable names in this subset
-head(df_datesQC)
-head(df$date_assess2_t2)
-
-df_datesQC <- df_datesQC %>% 
-  mutate("derivedAge_0" = round(interval(start = df_datesQC$birthYearModified, end = df_datesQC$date_assess0_t0)/years(1)), .after = "age_assess0_t0") %>% # compute age at assess 0
-  mutate("difInAges_0" = (df_datesQC$"derivedAge_0" - df_datesQC$"age_assess0_t0"), .after = "derivedAge_0") %>% 
-  mutate("derivedAge_2" = round(interval(start = df_datesQC$age_assess0_t0, end = df_datesQC$date_assess2_t2)/years(1)), .after = "age_assess2_t2") %>% # compute age at assess 2 from difference between assess 0 date and assess 2 date
-  mutate("difInAges_2" = (df_datesQC$"derivedAge_2" - df_datesQC$"age_assess2_t2"), .after = "derivedAge_2")
-
-cat(paste("Correlation between computed age at assessment 0 and age_assess0 is: ", cor(df_datesQC$derivedAge_0, df_datesQC$age_assess0_t0), ". \n\t Sum of the difference between both columns: ", sum(df_datesQC$difInAges_0), ". \n\t Max difference between both columns: ", max(df_datesQC$difInAges_0), ". \n Correlation between computed age at assessment 2 and age_assess2 is:", cor(df_datesQC$derivedAge_2, df_datesQC$date_assess2_t2), ". \n\t Sum of the difference between both columns: ", sum(df_datesQC$difInAges_2), ". \n\t Max difference between both columns: ", max(df_datesQC$difInAges_2)))
-```
-## Check if any age at assessment 2 is less than age at assessment 0
-```{r dateQC, echo=FALSE}
-Err_ageAss2 <- c() # array that will hold EIDs with age2 < age0
-Err_dateAss2 <- c() # array that will hold EIDs with date2 < date0
-
-j = 0
-k = 0
-
-for(i in 1:nrow(df_datesQC)){
-    if(df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))] > df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))]){
-      Err_ageAss2 <- c(Err_ageAss2, df_datesQC[i, 1])
-      print(paste("EID: ", df_datesQC[i, 1], "has an AGE at ass. 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))],  ") < AGE at ass. 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))], ")."))
-      j = j + 1
-      if(j == 0){
-        print(paste("STOP CONDITION. EID: ", df_datesQC[i, 1], "AGE at ass. 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))],  "), AGE at ass. 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))], ")."))
-        stop()
-      }
-    }
-    if(df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))] > df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))]){
-      Err_dateAss2 <- c(Err_dateAss2, df_datesQC[i, 1])
-      # print(paste("EID: ", df_datesQC[i, 1], "has an ASSESSMENT DATE 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))],  ") < ASSESSMENT DATE 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))], ")."))
-    } else{
-      k = k+1
-      if(k == 50000){
-        print(paste("STOP CONDITION. EID: ", df_datesQC[i, 1], "has an ASSESSMENT DATE 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))],  "), ASSESSMENT DATE 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))], ")."))
-        stop()
-      }
-    }
-}
-  cat(paste("There are ", length(Err_ageAss2), "rows whose age assess 0 > age asses 2."))
-  cat(paste("There are ", length(Err_dateAss2), "rows whose date assess 0 > date assess 2."))
-# i=which(df_datesQC == 1000116)
-# df_datesQC[i,]
-
-if(max(df_datesQC$date_assess0_t0) < min(df_datesQC$crp_assaydate_t0)){
-  cat(paste("CORRECT. All assessment 0 dates are less than all CRP assay dates. 
-              \n\t Max assess 0 date: ", max(df_datesQC$date_assess0_t0), 
-              "\n\t Min CRP assay date: ", min(df_datesQC$crp_assaydate_t0)))
-} else {
-  cat(paste("WARNING. It is possible that some assessment 0 dates are less than some CRP assay dates. Since max assess 0 date > min CRP assay date.  
-              \n\t Max assess 0 date: ", max(df_datesQC$date_assess0_t0), 
-              "\n\t Min CRP assay date: ", min(df_datesQC$crp_assaydate_t0),
-            "\n It is recommended to compare each instance's assessment 0 date to its CRP assay date to ensure quality of the data."))
-} # !! replace variable names with generalizable var name
-
-min(df_datesQC[,colnames(select(df_datesQC, matches('assaydate+0')))])
-(df_datesQC)
-View(df_datesQC[df_datesQC$eid %in% Err_ageAss2,])
-```
-# Add columns
-## Add columns for any diagnosis or medication
-```{r addColumns, echo=FALSE}
-# Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
-## Diagnosis
-dx_col <- apply(df, TRUE, function(r) any (r %in% dxVars))
-df %>% 
-  mutate(anyDx = case_when(
-    for(i in dxVars){
-      df[i] == TRUE
-      print(i)
-    }
-  ))
-colnames(df)[diagnosisVars]
-
-## Medication
-# repeat code above for medication
-```
-## Add dummy code variables
-```{r createDummyCodes, echo=FALSE}
-# goal: 
-## -convert a single categorical variable with >2 categories to dummy codes;
-## -have a list with all dummy codes relevant to each variable
-
-# Vars to dummy code
-
-```
-## Add column controlling for head size
-Note: Controlling for head size is intended for brain volumes that are known to be affected by size. See "UK Biobank Brain Imaging Documentation", p. 19.
-```{r controlForHeadSize, echo=FALSE}
-controlHeadSize <- function(df, brainVarName){ # n.b. this is intended for brain volumes that are known to be affected by total brain size. See UK Biobank Brain Imaging Documentation, p. 19.
-  newColName <- glue(brainVarName, "_headScaleCorrected")
-  df <- df %>% # add column for brain volume * brain head scale, controls for brain size
-  mutate_(newColName = {{ brainVarName }} * "brain_headScale")
-} # takes 'df' - dataframe; 'brainVarName' - name of brain volume to control for brain size
-df <- controlHeadSize(df, "brain_vol-hippocamp-L")
-df <- controlHeadSize(df, "brain_vol-hippocamp-R")
-```
-# Analyses
-Use '_headScaleCorrected' for brain volumes known to be affected by head size.
-## Descriptive Stats
-```{python Descriptive_Stats, echo=FALSE}
+# Initialize functions
+## Descriptive Stats function
+```{python DescriptiveStatsFx, echo=FALSE}
 import pandas as pd
-import os
-
-os.chdir(r.outputPath)
-fileName = "".join(("UKBBdescriptiveStats_", r.date, ".csv"))
-
-r.df.describe(include='all')
-r.df.describe(include='all').to_csv(fileName)
-print("The file ", fileName, "was saved to \'", os.getcwd(), "\'.")
+import os as os
+  
+def descriptiveStats(df, toSave):
+  if(toSave == True):
+    os.chdir(r.outputPath)
+    fileName = "".join(("UKBBdescriptiveStats_", r.date, ".csv"))
+    df.describe(include='all').to_csv(fileName)
+    print("The file ", fileName, "was saved to \'", os.getcwd(), "\'.")
+  return df.describe(include='all')
 ```
+
 ## Assumption checks
 ```{r Assumption_Checks, echo=FALSE}
 # see 536 lab 3, lecture notes week 3
@@ -291,38 +141,57 @@ assumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is th
   # list(plot(dfModel,2, main = "1.b Quantile-Quantile plot"), plot(STEMModel, 1, main = "2.a Residual plot"),vif(dfModel, main = "3.a Variance Infation Factors"),avPlots(dfModel, main = "4.a Added-variable plots"), plot(dfModel, 4, main = "5.a.i Cook's distance plot"),influencePlot(dfModel, main="5.a.ii Influence Plot"), infIndexPlot(dfModel, main = "5.a.iii Influence Index Plot"))
 }
 ```
+
 ### Normality
 ```{r normalityCheck, echo=FALSE}
-normalityCheck <- function(df, y){  
-  colNumofY <- which(colnames(df) == y)
-  cat(paste("Assumption tests for the given data and model with dependent variable '", y, "'"))
-  ### Normality  ---
-  ## check skew and kurtosis
-  cat("\n 1. Normality.") 
-  cat("\n 1.a \t Skew and kurtosis.")
-  skew <- skew(df[[colNumofY]]) # determines the skew of the dependent variable's distribution. N.b., the double square brackets '[[]]' is ESSENTIAL for getting the correct results--single brackets '[]' will return inaccurate results.
-  SE_skew <- sqrt(5/dim(df)[1])# Standard error for the skewness
-  t_skew <- skew/SE_skew # t value for the skewness in the dependent variable's distribution
+normalityCheck <- function(df, y, toPrint){  
   
-  kurtosis <- kurtosi(df[[colNumofY]]) # determines the skew of the dependent variable's distribution
-  SE_kurtosis <- sqrt(24/dim(df)[1]) # Standard Error for the kurtosis
-  t_kurtosis <- kurtosis/SE_kurtosis # t value for the kurtosis in the dependent variable's distribution
-  
-  if(abs(t_skew) > 3.2){ # checks if the t-value for skewness is greater than the critical t-value 
-    cat(paste("\n \t\t !! Skewness (", skew, ") is significantly different from 0 (|t| = ", abs(t_skew), "> 3.2). Outcome variable is not normal."))
-  } else {
-    cat(paste("\n \t\t Skewness (", skew, ") is not significantly different from 0 (|t| = ", abs(t_skew), "< 3.2). Outcome variable may be normal."))
+  if(is.character(y)){
+    colNumofY <- which(colnames(df) == y)
+  } else if (is.numeric(y)){
+    colNumofY <- y
   }
   
-  if(abs(t_kurtosis) > 3.2){ # checks if the t-value for kurtosis is greater than the critical t-value 
-    cat(paste("\n \t\t !! Kurtosis (", kurtosis, ") is significantly different from 0 (|t| = ", abs(t_kurtosis), "> 3.2). Outcome variable is not normal."))
-  } else {
-    cat(paste("\n \t\t Kurtosis (", kurtosis, ") is not significantly different from 0 (|t| = ", abs(t_kurtosis), "< 3.2). Outcome variable may be normal."))
+  degFree <- length(df[[colNumofY]])
+  
+  skew <- skew(df[[colNumofY]]) # N.b., the double square brackets '[[]]' is ESSENTIAL for getting the correct results--single brackets '[]' will return inaccurate results.
+  SE_skew <- sqrt(5/degFree) # Standard error for skewness
+  t_skew <- skew/SE_skew
+  p_skew <- pt(q = abs(t_skew), df = degFree, lower.tail = TRUE)
+  
+  kurtosis <- kurtosi(df[[colNumofY]])
+  SE_kurtosis <- sqrt(24/degFree) # Standard Error for the kurtosis
+  t_kurtosis <- kurtosis/SE_kurtosis
+  p_kurtosis<- pt(q = abs(t_kurtosis), df = degFree, lower.tail = TRUE)
+  
+    out <- data.frame(. = c("skew", "kurtosis"),
+                      value = c(skew,kurtosis),
+                      SE = c(SE_skew,SE_kurtosis),
+                      t = c(t_skew,t_kurtosis),
+                      p = c(p_skew,p_kurtosis),
+                      issue = c(ifelse(abs(t_skew)>3.2, 1, 0),ifelse(abs(t_kurtosis)>3.2, 1, 0)))
+  
+  if(toPrint == TRUE){
+    cat(paste("Assumption tests for the given data and model with dependent variable '", colname(df[colNumOfY]), "'"))
+    cat("\n 1. Normality.") 
+    cat("\n 1.a \t Skew and kurtosis.")
+    if(abs(t_skew) > 3.2){ # checks if the t-value for skewness is greater than the critical t-value 
+      cat(paste("\n \t\t !! Skewness (", skew, ") is significantly different from 0 (|t| = ", abs(t_skew), "> 3.2). Outcome variable is not normal."))
+    } else {
+      cat(paste("\n \t\t Skewness (", skew, ") is not significantly different from 0 (|t| = ", abs(t_skew), "< 3.2). Outcome variable may be normal."))
+    }
+  
+    if(abs(t_kurtosis) > 3.2){ # checks if the t-value for kurtosis is greater than the critical t-value 
+      cat(paste("\n \t\t !! Kurtosis (", kurtosis, ") is significantly different from 0 (|t| = ", abs(t_kurtosis), "> 3.2). Outcome variable is not normal."))
+    } else {
+      cat(paste("\n \t\t Kurtosis (", kurtosis, ") is not significantly different from 0 (|t| = ", abs(t_kurtosis), "< 3.2). Outcome variable may be normal."))
+    }
   }
-} # takes 'df' - dataframe; 'y' variable of interest
+  
+  return(out)
+} # 'df' - dataframe; 'y' - variable of interest; 'toPrint' - logical specifying if should print messages regarding the normality. Output is a 3 x 6 df with rows 0: column names, 1: 'skew', 2: 'kurtosis'; and columns: 0: '.', 1: 'value', 2: 'SE', 3: 't', 4: 'p', 5: 'issue'
 ```
-#### Normality corrections
-!! Vars in code may need to be renamed !!
+
 ```{r normalityCorrections, echo=FALSE}
 normCorrection <- function(df, xName, correctionType){
   xColNum <- which(colnames(df) == xName)
@@ -345,128 +214,126 @@ normCorrection <- function(df, xName, correctionType){
   }
   return(df)
 } # takes df: dataframe; xName: name of the variable to correct; correctionType: how the variable should be corrected (possible values: 'tert' tertile, 'log' logarithmic. Returns df with the corrected variable after the original variable.
-
-df <- normCorrection(df, xName = "crp_aliquot_t0", correctionType = "tert")
-df <- normCorrection(df, xName = "age_assess0_t0", correctionType = "tert")
-
-head(as.data.frame(df$age_assess0_t0))
-is.numeric(df$age_assess0_t0)
-xName <- "age_assess0_t0"
-xColNum <- which(colnames(df) == xName)
-tertileValues <- quantile(df[xColNum], c(0:3/3), na.rm = T) # find tertile values
-df <- df %>% 
-      mutate(newColName = cut(age_assess0_t0,
-                       breaks = tertileValues,
-                       labels = FALSE,
-                       include.lowest = T), 
-             .after = xName)
-table(df$age_tert)
-df <- df %>% 
-      mutate(age_tert = cut(age_assess0_t0,
-                       breaks = tertileValues,
-                       labels = c("Low", "Medium", "High"),
-                       include.lowest = T), 
-             .after = xName)
-
-# add column denoting tertile score
 ```
+
 ### Linearity
+
 ```{r linearityChecks, echo=FALSE}
 
 ```
+
 ### Homoscedasticity
+
 ```{r homoscCheck, echo=FALSE}
 
 ```
 
-## Simple Correlation function
-```{r pearsonCor, echo=FALSE}
+## Assumption corrections
 
-```
+## Comparative analyses
 
-## Data reduction
--PCA assumptions: 
---linear relationship between components
-```{r PCA, echo=FALSE}
-PCA <- function(){
+!! Have yet to write out TTest function !!
 
-}
-simpleFunction(2)
-# DATA REDUCTION --------------------
-## Correlations
-### Diet variables
-print("To conduct correlation, these variables must be numeric. Must determine what to do with the special values that are currently being recoded.")
-cor(df[dietVars])
+```{r runStatTests, echo=FALSE}
+runTTest <- function(vars, df_a, df_b, toSave){
+  
+} # 'vars' - list of numeric variables to compare; 'df_a' - dataframe with subset of cases; 'df_b' - dataframe with subset to compare to; 'toSave' - logical if the output should be saved to a file. Returns TTest output.
 
-### Cognition variables
-# Recode cog_TMT-alphanumDuration_t2 == "trail not completed" to NA
-length(which(df$`cog_TMT-alphanumDuration_t2`== "trail not completed"))
-# Recode cog_TMT-numericDuration_t2 == "trail not completed" to NA
-length(which(df$`cog_TMT-numericDuration_t2`== "trail not completed"))
-# Recode cog_numMem-maxDigitRemem_t2 == "abandoned" to NA
-length(which(df$`cog_numMem-maxDigitRemem_t2`== "abandoned"))
+runWilcox <- function(vars, df_a, df_b, toSave){
+    wilcoxOutput <- data.frame("value type" = c("statistic","p", "n1", "n2"), row.names = 1) # initialize dataframe for the output
+    i <- integer(0)
+    for(i in vars){ # iterate through the variables of interest. Run wilcoxon-paired rank test. Put results into a dataframe 
+      # print(i)
+      x <- as.numeric(unlist(df_a[i])) # put variable {i} of df_a into a temporary vector, make numeric.
+      y <- as.numeric(unlist(df_b[i])) # put variable {i} of df_b into a temporary vector, make numeric.
+      
+      n1 <- sum(!(is.na(x))) # counts number of non-NA values in x
+      n2 <- sum(!(is.na(y))) # counts number of non-NA values in y
+      
+      if(n1 <= 1 | n2 <= 1){
+        print(paste("Not enough observations to compare ", i, ". This variable was skipped."))
+      } else {
+        wilcoxRaw <- wilcox.test(x, y, alternative = c("two.sided"), paired = F) # run wilcoxon paired-rank
+        wilcoxStat <- format(wilcoxRaw$statistic, scientific = F, digits = 3) # Extract W statistic of test. N.b., the 'W' statistic reported here is equivalent to the U statistic: https://stats.stackexchange.com/questions/79843/is-the-w-statistic-output-by-wilcox-test-in-r-the-same-as-the-u-statistic
+        wilcoxP <- format(wilcoxRaw$p.value, scientific = F, digits = 3) # Extract P statistic of test
+        wilcoxInterest <- c(wilcoxStat, wilcoxP, n1, n2) # combine W statistic, p, n1 and n2 into a vector
+        wilcoxOutput[[i]] <- with(wilcoxOutput, wilcoxInterest) # Add the results for variable {i} to the output dataframe
+        # print(wilcoxInterest)
+      }
+    }
+    if(toSave == T | toSave == TRUE){
+      setwd(outputPath)
+      outputNameWilcox <- str_c("UKBBImmuCog_wilcoxon_", date, ".csv")
+      write.csv(wilcoxOutput, file = outputNameWilcox) # exports wilcoxOutput to a CSV file
+      print(paste("The file '", outputNameWilcox, "' has been saved to '", getwd(), "'."))
+    }
+    return(wilcoxOutput)
+} # 'vars' - list of numeric variables to compare; 'df_a' - dataframe with subset of cases; 'df_b' - dataframe with subset to compare to; 'toSave' - logical if the output should be saved to a file. Returns wilcoxon output.
 
-## PCA (see 536 lecture notes week 10) ---------
-### assumption checks ---------
-## PCA example, cognition variables ----------
-### PCA 1 - standardize numeric data 
-df_zcog <- df[cogVars] %>% 
-  as_tibble() %>% 
-  mutate(across(where(is.numeric), scale))
-describe(df_zcog) # ensure that mean is 0, sd 1
-
-### PCA 2 - number of components to retain
-#### eigenvalue method (eigen value > 1, suggested to keep)
-zcog_eigenValues <- eigen(cor(df_zcog))$values
-for(i in zcog_eigenValues){
-  if(i > 1){
-    cat("Suggestion to keep component i. Eigenvalue: ", i)
-  } else {
-    cat("Suggestion to exclude component i. Eigenvalue: ", i)
+runChiSq <- function(vars, df_a, df_b, toSave){ 
+  chisqOutput <- data.frame("interv_compl" = c("statistic","p")) # initialize dataframe for the output
+  
+  for(i in vars){
+    chisqRaw <- chisq.test(df_a[[i]], df_b[[i]]) # run chisquared
+    chisqStat <- format(chisqRaw$statistic, scientific = F, digits = 3) # Extract X statistic of test.
+    chisqP <- format(chisqRaw$p.value, scientific = F, digits = 3) # Extract P statistic of test
+    varOfInterest <- c(chisqStat, chisqP) # combine X statistic, and p into a vector
+    chisqOutput[[i]] <- with(chisqOutput, varOfInterest) # Add the results for "dem_gender" to the output dataframe
   }
-}
 
-#### scree plot (components before the elbow, suggested to keep)
-plot(zcog_eigenValues,
-     xlab = "Prinicipal component",
-     ylab = "Eigenvalue",
-     type = 'b',
-     main = "Scree plot") + 
-  abline(h = 1)
-
-#### proportion of variance explained
-zcog_PCAvarExplained <- zcog_eigenValues/length(df[cogVars])
-zcog_PCAvarExplained
-print("Looking for components that, together, can explain >80% of variance.")
-
-## Tertile - Cognition
-### Raw scores
-### PCA components
-
+  if(toSave == T | toSave == TRUE){
+    setwd(outputPath)
+    outputNameChisq <- str_c("UKBBImmuCog_chisq_", date, ".csv")
+    write.csv(wilcoxOutput, file = chisqOutput) # exports chisqOutput to a CSV file
+    print(paste("The file '", chisqOutput, "' has been saved to '", getwd(), "'."))
+  }
+  return(chisqOutput)
+} # 'vars' - list of categorical variables to compare; 'df_a' - dataframe with subset of cases; 'df_b' - dataframe with subset to compare to; 'toSave' - logical if the output should be saved to a file. Returns chisq output.
 ```
 
-```{r subsetCreation, echo=FALSE}
-# Make different data subsets:
-## N.b. should only subset when the main df has all the columns necessary for analysis
-df_dx <- df %>% 
-  group_by(across(any_of(dxVars))) %>% 
-  summarize(median(crp_aliquot_t0))
-df_dx
-df_noDx <- df %>% filter(if_any(diagnosisVars[1] == "FALSE"))
+## PCA function
 
-df_noDx <- df %>% filter(diagnosisVars[1] == "FALSE")
-View(df[1:100,c(1,diagnosisVars)])
+```{r PCAFx, echo=FALSE}
+PCA <- function(){
+  
+  
+  #### proportion of variance explained
+  zcog_PCAvarExplained <- zcog_eigenValues/length(df[cogVars])
+  zcog_PCAvarExplained
+  print("Looking for components that, together, can explain >80% of variance.")
+  
+  ## PCA (see 536 lecture notes week 10) ---------
+  ### assumption checks ---------
+  ## PCA example, cognition variables ----------
+  ### PCA 1 - standardize numeric data 
+  df_zcog <- df[cogVars] %>% 
+    as_tibble() %>% 
+    mutate(across(where(is.numeric), scale))
+  describe(df_zcog) # ensure that mean is 0, sd 1
 
-df_noDx <- df %>% filter(if_all(diagnosisVars == FALSE)) # remove participants with diagnoses from dataframe 
-df_onlyDx <- df %>% filter() # remove participants without diagnoses from dataframe 
-df_noMed <- df %>% filter() # remove participants taking meds from dataframe 
-df_onlyMed <- df %>% filter() # remove participants not taking meds from dataframe 
-df_old <- df %>% filter() # keeps only participants in the top tertile of age
-df_young <- df %>% filter() # keeps participants in the bottom tertile of age
+  ### PCA 2 - number of components to retain
+  #### eigenvalue method (eigen value > 1, suggested to keep)
+  zcog_eigenValues <- eigen(cor(df_zcog))$values
+  for(i in zcog_eigenValues){
+    if(i > 1){
+      cat("Suggestion to keep component i. Eigenvalue: ", i)
+    } else {
+      cat("Suggestion to exclude component i. Eigenvalue: ", i)
+    }
+  }
 
+  #### scree plot (components before the elbow, suggested to keep)
+  plot(zcog_eigenValues,
+       xlab = "Prinicipal component",
+       ylab = "Eigenvalue",
+       type = 'b',
+       main = "Scree plot") + 
+    abline(h = 1)
+}
 ```
 
 ## Function to make appropriate expression for stats::LM functions
+
 ```{r mediationFunction, echo=FALSE}
 createLMExpression <- function(varNames, X, Y, M, C){
   colNumsPredictors <- c()
@@ -474,8 +341,8 @@ createLMExpression <- function(varNames, X, Y, M, C){
     colNum <- which(varNames == i)
     colNumsPredictors <- append(colNumsPredictors, colNum)
   } # get column numbers for the relevant predictor variables
-  varNames <- names(df[[colNumsPredictors]])
-  LMpredictors <- toString(paste(varNames, "+ ", collapse = ''))
+  # varNames <- names(df[colNumsPredictors])
+  LMpredictors <- toString(paste(names(df[colNumsPredictors]), "+ ", collapse = ''))
   LMpredictors <- substr(LMpredictors, 1, nchar(LMpredictors)-3)
   model <- paste(Y, " ~ ", LMpredictors)
   return(model)
@@ -483,14 +350,11 @@ createLMExpression <- function(varNames, X, Y, M, C){
 ```
 
 ## Correlation analyses functions
-```{r mediationFunction, echo=FALSE}
 
-```
-## Mediation functions analyses
-!! Will need to determine how to include covariate variables in this !! -- perhaps just include when (M ~ X) and when (Y ~ X + M)
---As of March 12, 2022: uses all the covariates in the a path and the c path. See 'mediation: R package for Causal Mediation Analysis' (Tingley et al., 2014)
-For help with interpretation, see PSYC 536 lab 5 script.
-Using package: mediation
+## Mediation Analyses
+
+### Using package: mediation
+
 ```{r mediationFunction, echo=FALSE}
 library(mediation)
 # where M: continuous mediator; X: independent variable; Y: continuous dependent variable; C: covariates
@@ -503,14 +367,10 @@ runMediation <- function(df, X, Y, M, C){
   mediation_out <- mediation::mediate(mediatorModel, outcomeModel, treat = X, mediator = M, boot = T)
   return(mediation_out)
 } # This function runs the mediation analyses and returns the mediation model. Input: 'df' - dataframe; 'X' - name of independent variable; 'Y' - name of dependent variable; 'C' - a list of covariate variable names in string form.
-
-mediationOutputs <- function(mediation_out, M, confounderSameDirection){
-  summary <- summary(mediation_out)
-  sensitivityAnalysis <- medsens(mediation_out, rho.by = .1, effect.type = "indirect")
-  plot(sensitivityAnalysis, sens.par = "R2", r.type = "total", sign.prod = confounderSameDirection, main = M) # plots for R2. N.b. 'sign.prod', does the hypothesized confounder affect the mediator and outcome variables in the same direction or in different directions? If same then sign.prod = positive, else, = negative. See mediationR2 for details. 
-} # Makes output for the mediation analyses, including summary, sensitivity analysis in tabular and plot forms. Input: 'mediation_out' - the mediation model returned by the runMediation function; 'M' - the name of the mediator variable (as string); 'confounderSameDirection' - does the hypothesized confounder affect the mediator and outcome in the same direction?, if true then "positive" is appropriate, if false then "negative" is appropriate.
 ```
-Using package: RMediation
+
+### Using package: RMediation
+
 ```{r RMediationFunction, echo=FALSE}
 library(RMediation)
 # see psyc 536 lecture 5 notes
@@ -543,8 +403,406 @@ runRMediation <- function(df, X, Y, M, C){
   #format output somehow
 } # input: 'df' - dataframe containing all relevant variables; 'X' - name of the predictor variable; 'Y' - name of the outcome variable; 'M' - name of the mediator variable; 'C' - list of names of covariate variables
 ```
-## Conduct analyses and return outputs
-```{r analysisSandBox, echo=FALSE}
+
+### Functions for figures and tables
+
+### Mediation diagrams
+
+!! Needs to be revised !!
+
+```{r medAnalyses, echo=FALSE}
+# adapted from Omar Wasow's post on https://stackoverflow.com/questions/46465752/drawing-simple-mediation-diagram-in-r
+med_data <- data.frame(
+    lab_x   = "Math\\nAbility",
+    lab_m   = "Math\\nself-efficacy",
+    lab_y   = "Interest in the\\nmath major",
+    coef_xm = ".47*",
+    coef_my = ".36*",
+    coef_xy = "0.33* (.16)"
+  )
+
+med_diagram <- function(data){
+  
+  require(glue)
+  require(DiagrammeR)
+  
+  height = .75
+  width = 2
+  graph_label = NA
+  node_text_size = 12
+  edge_text_size = 12
+  color = "black"
+  ranksep = .2
+  minlen = 3
+  
+  data$height  <- height   # node height
+  data$width   <- width    # node width
+  data$color   <- color    # node + edge border color
+  data$ranksep <- ranksep  # separation btwn mediator row and x->y row
+  data$minlen  <- minlen   # minimum edge length
+  
+  data$node_text_size  <- node_text_size
+  data$edge_text_size  <- edge_text_size
+  
+  data$graph_label <- ifelse(is.na(graph_label), "", paste0("label = '", graph_label, "'"))
+
+  diagram_out <- glue::glue_data(data,
+    "digraph flowchart {
+        fontname = Helvetica
+        <<graph_label>>
+        graph [ranksep = <<ranksep>>]
+  
+        # node definitions with substituted label text
+        node [fontname = Helvetica, shape = rectangle, fixedsize = TRUE, width = <<width>>, height = <<height>>, fontsize = <<node_text_size>>, color = <<color>>]        
+          mm [label = '<<lab_m>>']
+          xx [label = '<<lab_x>>']
+          yy [label = '<<lab_y>>']
+  
+        # edge definitions with the node IDs
+        edge [minlen = <<minlen>>, fontname = Helvetica, fontsize = <<edge_text_size>>, color = <<color>>]
+          mm -> yy [label = '<<coef_my>>'];
+          xx -> mm [label = '<<coef_xm>>'];
+          xx -> yy [label = '<<coef_xy>>'];
+        
+        { rank = same; mm }
+        { rank = same; xx; yy }
+        
+        }
+        ", .open = "<<", .close = ">>")  
+
+
+  DiagrammeR::grViz(diagram_out)  
+}
+
+med_diagram(med_data)
+```
+
+# -------------------------------
+
+# Begin conducting analyses - Biobank data
+
+## Data Preperation
+
+```{r dataPrep, echo=FALSE}
+# import data -----------
+df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/Daniel_2022-02-23.csv") # import df
+eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
+df_all <- df_all %>% 
+  filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
+
+cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
+df_all <- df_all %>% 
+  filter(!(is.na(df_all$date_assess2_t2))) # remove rows without timepoint 2 assessment date
+
+df_small <- df_all[1:1000,]
+df <- df_small # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
+rm(df_all, eidToRemove, df_small) # remove dataframes not in use
+# sort(colnames(df))
+# View(df)
+```
+
+```{r variableLists, echo=FALSE}
+# factors # list of factors
+# cat_vars # list of categorical variables
+# num_vars # list of numeric variables
+demoVars <- starts_with("demo_", vars = colnames(df))
+crpVars <- starts_with("crp_", vars = colnames(df))
+brainVars <- starts_with("brain_", vars = colnames(df))
+cogVars <- starts_with("cog_", vars = colnames(df))
+relevantCogVars <- c(26)
+dxVars <- starts_with("dx_", vars = colnames(df))
+medVars <- starts_with("med_", vars = colnames(df))
+dietVars <- starts_with("diet_", vars = colnames(df))
+
+smokingVars <- starts_with("smoke_", vars = colnames(df))
+exerciseVars <- starts_with("exercise_", vars = colnames(df))
+
+# colnames(df[dietVars])
+# View(df[1:100, c(1,brainVars)])
+```
+
+### Remove cases with missing variables
+
+```{r removeMissing, echo=FALSE}
+essentialVars <- c(demoVars, crpVars, brainVars, relevantCogVars) # list of variable names that must be complete in order for case to be retained
+
+df_removed <- df %>% 
+  filter(if_any(all_of(essentialVars), function(x)(is.na(x)))) # add rows with missing values to new df
+df <- df %>% 
+  filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
+```
+
+#### Summarise removed cases
+
+```{python describeDf_Removed, echo=FALSE}
+descriptiveStats(r.df, toSave = False)
+descriptiveStats(r.df_Removed, toSave = False)
+```
+
+#### Compare removed cases to retained cases
+
+```{r compareMissing, echo=FALSE}
+varsToCompare <- c(demoVars, crpVars, brainVars, dxVars, medVars, dietVars, smokingVars, exerciseVars)
+varsToCompare <- c(smokingVars, medVars, which(colnames(df) == "crp_timeFasting_t0"))
+# group variables according to their type, i.e., numeric vs categorical.
+varForT <- c() # compute t-tests if vars are normally distributed
+varForWil <- c() # wilcox if vars are not normally distributed
+varForChi <- c() # chisq if vars are categorical
+
+i <- which(colnames(df) == "crp_timeFasting_t0")
+is.numeric(i)
+normCheck <- normalityCheck(df, i, FALSE)
+colnames(df[[i]])
+
+for(i in varsToCompare){
+  if(is.numeric(df[[i]]) == TRUE & is.character(df[[i]]) == FALSE){  # if 'i' is a numeric variable
+    normCheck <- normalityCheck(df, i, FALSE)
+    if(1 %in% normCheck[[6]] == FALSE){ # if 'i' is not normally distributed
+      varForT <- append(varForT, i)
+      print(paste("Variable '", colnames(df[i]), "' added to t-test list."))
+    } else {
+      varForWil <- append(varForWil, i)
+      print(paste("Variable '", colnames(df[i]), "' added to wilCox list."))
+    }
+  } else if (is.factor(df[[i]]) == TRUE | is.logical(df[[i]]) | is.character(df[[i]]) == TRUE){ # if 'i' is a categorical variable
+    varForChi <- append(varForChi, i)
+    print(paste("Variable '", colnames(df[i]), "' added to chi-square list."))
+  } else {
+    print(paste("Variable '", colnames(df[i]), "' not added anywhere."))
+  }
+} # determine what test is most appropriate for each variable of interest.
+
+runTTest(varForT, df, df_removed, FALSE)
+runWilcox(varForWil, df, df_removed, FALSE)
+runChiSq(varForChi, df, df_removed, FALSE)
+
+```
+
+# Quality control of date variables.
+
+!! N.b. variables names may require changing !!
+
+```{r formatDates, echo=FALSE}
+# Goal, return all cases when:
+  ## time point 2 age < time point 0 age
+  ## time point 2 asssessment date < time point 0 assessment date
+  ## CRP assaydate < time point 0 date
+birthYearCol <- contains("birthYear", vars = colnames(df))
+df$birthYearModified <- df[birthYearCol]*10000 + 0702 # add july 02, 0702 as the middle day of the year
+print("Added \'0702\' to all birth years, corresponding to the middle day of the year, July 02.")
+head(df$birthYearModified)
+df$birthYearModified <- as.Date(ymd(as.matrix(df$birthYearModified))) # convert YYYYMMDD to YYYY-MM-DD in date format
+
+ageVars <- c(contains("age_assess", vars = colnames(df)))
+date_assess2Cols <- date_assessCols[contains("2", vars = colnames(df_all[,date_assessCols]))] # find variable denoting the date of assessment 2
+df_datesQC <- df[, c(1,contains("birthYear", vars = colnames(df)),dateVars, ageVars)] # create df subset with relevant vars only
+# dim(df_datesQC) # check dimensions of this df
+colnames(df_datesQC) # check the variable names in this subset
+head(df_datesQC)
+head(df$date_assess2_t2)
+
+df_datesQC <- df_datesQC %>% 
+  mutate("derivedAge_0" = round(interval(start = df_datesQC$birthYearModified, end = df_datesQC$date_assess0_t0)/years(1)), .after = "age_assess0_t0") %>% # compute age at assess 0
+  mutate("difInAges_0" = (df_datesQC$"derivedAge_0" - df_datesQC$"age_assess0_t0"), .after = "derivedAge_0") %>% 
+  mutate("derivedAge_2" = round(interval(start = df_datesQC$age_assess0_t0, end = df_datesQC$date_assess2_t2)/years(1)), .after = "age_assess2_t2") %>% # compute age at assess 2 from difference between assess 0 date and assess 2 date
+  mutate("difInAges_2" = (df_datesQC$"derivedAge_2" - df_datesQC$"age_assess2_t2"), .after = "derivedAge_2")
+
+cat(paste("Correlation between computed age at assessment 0 and age_assess0 is: ", cor(df_datesQC$derivedAge_0, df_datesQC$age_assess0_t0), ". \n\t Sum of the difference between both columns: ", sum(df_datesQC$difInAges_0), ". \n\t Max difference between both columns: ", max(df_datesQC$difInAges_0), ". \n Correlation between computed age at assessment 2 and age_assess2 is:", cor(df_datesQC$derivedAge_2, df_datesQC$date_assess2_t2), ". \n\t Sum of the difference between both columns: ", sum(df_datesQC$difInAges_2), ". \n\t Max difference between both columns: ", max(df_datesQC$difInAges_2)))
+```
+\
+## Check if any age at assessment 2 is less than age at assessment 0
+
+```{r dateQC, echo=FALSE}
+Err_ageAss2 <- c() # array that will hold EIDs with age2 < age0
+Err_dateAss2 <- c() # array that will hold EIDs with date2 < date0
+
+j = 0
+k = 0
+
+for(i in 1:nrow(df_datesQC)){
+    if(df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))] > df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))]){
+      Err_ageAss2 <- c(Err_ageAss2, df_datesQC[i, 1])
+      print(paste("EID: ", df_datesQC[i, 1], "has an AGE at ass. 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))],  ") < AGE at ass. 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))], ")."))
+      j = j + 1
+      if(j == 0){
+        print(paste("STOP CONDITION. EID: ", df_datesQC[i, 1], "AGE at ass. 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))],  "), AGE at ass. 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))], ")."))
+        stop()
+      }
+    }
+    if(df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))] > df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))]){
+      Err_dateAss2 <- c(Err_dateAss2, df_datesQC[i, 1])
+      # print(paste("EID: ", df_datesQC[i, 1], "has an ASSESSMENT DATE 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))],  ") < ASSESSMENT DATE 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))], ")."))
+    } else{
+      k = k+1
+      if(k == 50000){
+        print(paste("STOP CONDITION. EID: ", df_datesQC[i, 1], "has an ASSESSMENT DATE 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))],  "), ASSESSMENT DATE 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))], ")."))
+        stop()
+      }
+    }
+}
+  cat(paste("There are ", length(Err_ageAss2), "rows whose age assess 0 > age asses 2."))
+  cat(paste("There are ", length(Err_dateAss2), "rows whose date assess 0 > date assess 2."))
+# i=which(df_datesQC == 1000116)
+# df_datesQC[i,]
+
+if(max(df_datesQC$date_assess0_t0) < min(df_datesQC$crp_assaydate_t0)){
+  cat(paste("CORRECT. All assessment 0 dates are less than all CRP assay dates. 
+              \n\t Max assess 0 date: ", max(df_datesQC$date_assess0_t0), 
+              "\n\t Min CRP assay date: ", min(df_datesQC$crp_assaydate_t0)))
+} else {
+  cat(paste("WARNING. It is possible that some assessment 0 dates are less than some CRP assay dates. Since max assess 0 date > min CRP assay date.  
+              \n\t Max assess 0 date: ", max(df_datesQC$date_assess0_t0), 
+              "\n\t Min CRP assay date: ", min(df_datesQC$crp_assaydate_t0),
+            "\n It is recommended to compare each instance's assessment 0 date to its CRP assay date to ensure quality of the data."))
+} # !! replace variable names with generalizable var name
+
+min(df_datesQC[,colnames(select(df_datesQC, matches('assaydate+0')))])
+(df_datesQC)
+View(df_datesQC[df_datesQC$eid %in% Err_ageAss2,])
+```
+
+# Add columns
+
+## Add columns for any diagnosis or medication
+
+```{r addColumns, echo=FALSE}
+# Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
+## Diagnosis
+dx_col <- apply(df, TRUE, function(r) any (r %in% dxVars))
+df %>% 
+  mutate(anyDx = case_when(
+    for(i in dxVars){
+      df[i] == TRUE
+      print(i)
+    }
+  ))
+colnames(df)[diagnosisVars]
+
+## Medication
+# repeat code above for medication
+```
+
+## Add dummy code variables
+
+```{r createDummyCodes, echo=FALSE}
+# goal: 
+## -convert a single categorical variable with >2 categories to dummy codes;
+## -have a list with all dummy codes relevant to each variable
+
+# Vars to dummy code
+
+```
+
+## Add column controlling for head size
+
+Note: Controlling for head size is intended for brain volumes that are known to be affected by size. See "UK Biobank Brain Imaging Documentation", p. 19.
+
+```{r controlForHeadSize, echo=FALSE}
+controlHeadSize <- function(df, brainVarName){ # n.b. this is intended for brain volumes that are known to be affected by total brain size. See UK Biobank Brain Imaging Documentation, p. 19.
+  newColName <- glue(brainVarName, "_headScaleCorrected")
+  df <- df %>% # add column for brain volume * brain head scale, controls for brain size
+  mutate_(newColName = {{ brainVarName }} * "brain_headScale")
+} # takes 'df' - dataframe; 'brainVarName' - name of brain volume to control for brain size
+df <- controlHeadSize(df, "brain_vol-hippocamp-L")
+df <- controlHeadSize(df, "brain_voFalsel-hippocamp-R")
+```
+
+# Analyses
+
+Use '_headScaleCorrected' for brain volumes known to be affected by head size.
+
+## Descriptive Stats
+```{r describeDf_r, echo=FALSE}
+describe(df)
+```
+
+```{python describeDf_py, echo=FALSE}
+descriptiveStats(r.df, toSave = False)
+```
+
+# Assumption checks
+
+### Normality
+
+#### Normality corrections
+
+```{r normCorrections, echo = FALSE}
+df <- normCorrection(df, xName = "crp_aliquot_t0", correctionType = "tert")
+df <- normCorrection(df, xName = "age_assess0_t0", correctionType = "tert")
+
+head(as.data.frame(df$age_assess0_t0))
+is.numeric(df$age_assess0_t0)
+xName <- "age_assess0_t0"
+xColNum <- which(colnames(df) == xName)
+tertileValues <- quantile(df[xColNum], c(0:3/3), na.rm = T) # find tertile values
+df <- df %>% 
+      mutate(newColName = cut(age_assess0_t0,
+                       breaks = tertileValues,
+                       labels = FALSE,
+                       include.lowest = T), 
+             .after = xName)
+table(df$age_tert)
+df <- df %>% 
+      mutate(age_tert = cut(age_assess0_t0,
+                       breaks = tertileValues,
+                       labels = c("Low", "Medium", "High"),
+                       include.lowest = T), 
+             .after = xName)
+```
+!! Vars in code may need to be renamed !!
+
+## Data reduction
+
+-PCA assumptions: --linear relationship between components
+
+```{r conductPCA, echo=FALSE}
+# DATA REDUCTION --------------------
+## Correlations
+### Diet variables
+print("To conduct correlation, these variables must be numeric. Must determine what to do with the special values that are currently being recoded.")
+cor(df[dietVars])
+
+### Cognition variables
+# Recode cog_TMT-alphanumDuration_t2 == "trail not completed" to NA
+length(which(df$`cog_TMT-alphanumDuration_t2`== "trail not completed"))
+# Recode cog_TMT-numericDuration_t2 == "trail not completed" to NA
+length(which(df$`cog_TMT-numericDuration_t2`== "trail not completed"))
+# Recode cog_numMem-maxDigitRemem_t2 == "abandoned" to NA
+length(which(df$`cog_numMem-maxDigitRemem_t2`== "abandoned"))
+
+## Tertile - Cognition
+### Raw scores
+### PCA components
+```
+
+## Create subsets
+
+```{r subsetCreation, echo=FALSE}
+# Make different data subsets:
+## N.b. should only subset when the main df has all the columns necessary for analysis
+df_dx <- df %>% 
+  group_by(across(any_of(dxVars))) %>% 
+  summarize(median(crp_aliquot_t0))
+df_dx
+df_noDx <- df %>% filter(if_any(diagnosisVars[1] == "FALSE"))
+
+df_noDx <- df %>% filter(diagnosisVars[1] == "FALSE")
+View(df[1:100,c(1,diagnosisVars)])
+
+df_noDx <- df %>% filter(if_all(diagnosisVars == FALSE)) # remove participants with diagnoses from dataframe 
+df_onlyDx <- df %>% filter() # remove participants without diagnoses from dataframe 
+df_noMed <- df %>% filter() # remove participants taking meds from dataframe 
+df_onlyMed <- df %>% filter() # remove participants not taking meds from dataframe 
+df_old <- df %>% filter() # keeps only participants in the top tertile of age
+df_young <- df %>% filter() # keeps participants in the bottom tertile of age
+
+```
+
+## Mediation functions analyses
+
+!! Will need to determine how to include covariate variables in this !! -- perhaps just include when (M \~ X) and when (Y \~ X + M) --As of March 12, 2022: uses all the covariates in the a path and the c path. See 'mediation: R package for Causal Mediation Analysis' (Tingley et al., 2014) For help with interpretation, see: PSYC 536 lab 5 script; <https://towardsdatascience.com/doing-and-reporting-your-first-mediation-analysis-in-r-2fe423b92171> \#\# Conduct analyses and return outputs
+
+```{r sandBox, echo=FALSE}
 X <- "crp_aliquot_t0" # name of independent variable
 Y <- "blood_vitD_t0" # name of dependent variable
 M <- "crp_timeFasting_t0"
@@ -552,27 +810,42 @@ C <- c("demgraph_sex_t0", "ses_townsend_t0", "age_assess0_t0")
 
 mediation_out <- runMediation(df, X = X, Y = Y, M = M, C = C)
 summary(mediation_out)
+medsens(mediation_out, rho.by = .1, effect.type = "indirect")
+plot(sensitivityAnalysis, sens.par = "R2", r.type = "total", sign.prod = "positive", main = M) # plots for R2. N.b. 'sign.prod', does the hypothesized confounder affect the mediator and outcome variables in the same direction or in different directions? If same then sign.prod = positive, else, = negative. See mediationR2 for details.
 
 mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = C) # mediator model: predict M from X and C
 outcomeModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
 mediatorModel <- lm(eval(parse(text = mediatorModelExpression)), data = df) 
 outcomeModel <- lm(eval(parse(text = outcomeModelExpression)), data = df)
 mediation_out <- mediation::mediate(mediatorModel, outcomeModel, treat = X, mediator = M, boot = T)
-
+summary(mediation_out)
 ```
 
-```{r Analyses, echo=FALSE}
+### Define model variables
+
+```{r defineModel, echo=FALSE}
 X <- "CRP_aliquot_t0" # name of independent variable
 Y <- "cogGlobal" # name of dependent variable
-mainCovars <- c("age_assess0", "BMI", "ses_townsend") # list of all main covariates to control for
+C <- c("age_assess0", "BMI", "ses_townsend") # list of all covariate variables to control for
+```
 
+### Run correlational analyses
+
+!!! In outputs, specify what subset of participants it is for !!!
+
+```{r corAnalyses, echo=FALSE}
 # Correlations
 ## Models without covariates
 cor0_noC <- lm(Y ~ X, data = df)
-cor0 <- lm(Y ~ X + mainCovars, data = df)
-
 ## Models with covariates
+cor0 <- lm(Y ~ X + C, data = df)
+```
 
+### Run mediation analyses
+
+!!! In outputs, specify what subset of participants it is for !!! Interpretation of mediation::mediate function summary(): ACME (average causal mediation effect): indirect effect of IV on DV through the mediator. ADE (average direct effects): direct effect of IV on DV when controlling for the mediator and covariates. Total effect: effect of IV on DV through the mediator and through other (undefined) paths Prop mediate: proportion of the effect of IV on DV mediated by M.
+
+```{r medAnalyses, echo=FALSE}
 # Mediations
 ## Models without covariates
 model0_noC <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-brainSegNoVent", covars = "") # model between CRP, whole brain volume, general cog
@@ -580,14 +853,19 @@ model1a_noC <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-L", 
 model1b_noC <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-R", covars = "") # model between CRP, L hippocamp, memory
 
 ## Models with covariates
-model0 <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-brainSegNoVent", covars = mainCovars) # model between CRP, whole brain volume, general cog
-model1a <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-L", covars = mainCovars) # model between CRP, L hippocamp, memory
-model1b <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-R", covars = mainCovars) # model between CRP, L hippocamp, memory
+model0 <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-brainSegNoVent", covars = C) # model between CRP, whole brain volume, general cog
+model1a <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-L", covars = C) # model between CRP, L hippocamp, memory
+model1b <- runMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-R", covars = C) # model between CRP, L hippocamp, memory
 
 listMedModels <- c(model0_noC, model0, model1a_noC, model1a, model1b_noC, model1b)
-for(i in listMedModels){
-  mediationOutputs(i) # runs the mediationOutput function for each model in the list models list
-}
 
-# Repeat above for different subsets of data (i.e. with and with diagnoses, drugs...)
+# Get outputs for mediation analyses
+for(i in listMedModels){
+  summary(i)
+  medsens(i, rho.by = .1, effect.type = "indirect")
+  plot(sensitivityAnalysis, sens.par = "R2", r.type = "total", sign.prod = "positive", main = M) # plots for R2. N.b. 'sign.prod', does the hypothesized confounder affect the mediator and outcome variables in the same direction or in different directions? If same then sign.prod = positive, else, = negative. See mediationR2 for details.
+}
 ```
+!! Repeat above correlation and mediation analyses for each subgroup (i.e. with and with diagnoses, drugs...) !!
+
+Session Info: `r sessionInfo()`
