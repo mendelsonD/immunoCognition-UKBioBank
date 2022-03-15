@@ -32,9 +32,13 @@
 library(glue)
 library(readxl)
 library(stringr)
+library(dplyr)
 
-df <- read_xlsx("./UKBB_Variables-DanielVars.xlsx")
-setwd("./") # set working directory to desired output location
+df <- read_xlsx("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/VariableLists/UKBB_Variables-03_12_2022.xlsx", sheet = 1)
+head(df)
+dim(df)
+getwd()
+setwd("./Outputs/") # set working directory to desired output location
 outputName <- str_c("Daniel-VarList_Create-Dataset-", format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y"), ".txt")
 
 
@@ -47,10 +51,10 @@ for(i in 1:nrow(df)){
   DataField <- df[i, "DataField"]
   Instance <- df[i, "InstanceNum"]
   
-  if(df[i,"NumArray"] != "0"){
-    MaxArrayRange <- df[i, "NumArray"]
-  } else {
+  if(df[[i,"NumArray"]] == 0){
     MaxArrayRange <- 1
+  } else {
+    MaxArrayRange <- df[i, "NumArray"]
   }
   
   if(grepl(pattern = c("T|true|yes|y|1"), x = df[i,"Include"], ignore.case = T)  == T){ 
@@ -91,9 +95,5 @@ for(i in 1:nrow(df)){
   output <- append(output, c(outputI, "\n")) # add current variable details to complete output
 }
 
-# cat(output)
-
-{ 
-  capture.output(output, file = outputName, row.names = F) 
-  cat("The output file ", outputName, "has been saved to: ", getwd(), ".") 
-} # save output to file and print message specifying the new file's name and location.
+capture.output(writeLines(output), file = outputName) # save output to file
+cat("The output file `", outputName, "` has been saved to `", getwd(), "`.") # print message specifying the new file's name and location.

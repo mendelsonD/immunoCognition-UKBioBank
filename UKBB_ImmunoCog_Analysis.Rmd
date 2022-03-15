@@ -16,6 +16,7 @@ library(reticulate)
 library(psych)
 library(lubridate)
 library(glue)
+library(knitr)
 knitr::knit_engines$set(python = reticulate::eng_python)
 reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
 
@@ -23,8 +24,7 @@ outputPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Ana
 setwd(outputPath)
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
-
-# Initialize functions
+# 0 - Functions
 ## Descriptive Stats function
 ```{python DescriptiveStatsFx, echo=FALSE}
 import pandas as pd
@@ -292,29 +292,62 @@ runChiSq <- function(vars, df_a, df_b, toSave){
 ```
 
 ## PCA function
+```{r PCASandBox, echo=FALSE}
+vars <- c(cogVars, crpVars)
+df$`cog_numMem-maxDigitRemem_t2` <- as.numeric(df$`cog_numMem-maxDigitRemem_t2`)
+
+PCA(df, vars)
+  
+rejectVars <- c()
+  for(i in vars){
+    if(is.numeric(df[[i]]) == FALSE){ # checks that variables are numeric
+      rejectVars <- append(rejectVars, i)
+    }
+  }
+  
+  if(length(rejectVars) > 0){
+    cat("The following variables are not numeric and cannot be included in PCA. \n\t")
+    for(i in colnames(df[rejectVars])){
+      cat(i, "\t")
+    }
+   vars <- vars[vars %in% rejectVars == FALSE] # removes the reject variables from the 'vars' list
+  }
+df_z <- df[vars] %>% 
+    mutate(across(where(is.numeric), scale))
+
+```
 
 ```{r PCAFx, echo=FALSE}
-PCA <- function(){
+PCA <- function(df, vars){
+  # PCA (see 536 lecture notes week 10) ---------
+  ## assumption checks ---------
+  rejectVars <- c()
+  for(i in vars){
+    if(is.numeric(df[[i]]) == FALSE){ # checks that variables are numeric
+      rejectVars <- append(rejectVars, i)
+    }
+  }
   
+  if(length(rejectVars) > 0){
+    cat("The following variables are not numeric and cannot be included in PCA. \n\t")
+    for(i in colnames(df[rejectVars])){
+      cat(i, "\t")
+    }
+   vars <- vars[vars %in% rejectVars == FALSE] # removes the reject variables from the 'vars' list
+  }
+
+  # PCA example, cognition variables ----------
   
-  #### proportion of variance explained
-  zcog_PCAvarExplained <- zcog_eigenValues/length(df[cogVars])
-  zcog_PCAvarExplained
-  print("Looking for components that, together, can explain >80% of variance.")
-  
-  ## PCA (see 536 lecture notes week 10) ---------
-  ### assumption checks ---------
-  ## PCA example, cognition variables ----------
-  ### PCA 1 - standardize numeric data 
-  df_zcog <- df[cogVars] %>% 
+  ## PCA 1 - standardize data 
+  df_z <- df[vars] %>% 
     as_tibble() %>% 
     mutate(across(where(is.numeric), scale))
-  describe(df_zcog) # ensure that mean is 0, sd 1
-
+  describe(df_z) # Find a way to ensure that the mean really is 0 and std == 1 
+  
   ### PCA 2 - number of components to retain
   #### eigenvalue method (eigen value > 1, suggested to keep)
-  zcog_eigenValues <- eigen(cor(df_zcog))$values
-  for(i in zcog_eigenValues){
+  z_eigenValues <- eigen(cor(df_z))$values
+  for(i in z_eigenValues){
     if(i > 1){
       cat("Suggestion to keep component i. Eigenvalue: ", i)
     } else {
@@ -323,18 +356,24 @@ PCA <- function(){
   }
 
   #### scree plot (components before the elbow, suggested to keep)
-  plot(zcog_eigenValues,
+  plot(z_eigenValues,
        xlab = "Prinicipal component",
        ylab = "Eigenvalue",
        type = 'b',
        main = "Scree plot") + 
     abline(h = 1)
-}
+  
+  #### proportion of variance explained
+  z_PCAvarExplained <- z_eigenValues/length(df[vars])
+  zcog_PCAvarExplained
+  print("Looking for components that, together, can explain >80% of variance.")
+  
+} # 'df' - dataframe; 'vars'
 ```
 
 ## Function to make appropriate expression for stats::LM functions
 
-```{r mediationFunction, echo=FALSE}
+```{r LMexpressionFunction, echo=FALSE}
 createLMExpression <- function(varNames, X, Y, M, C){
   colNumsPredictors <- c()
   for(i in c(X, M, C)){
@@ -356,9 +395,10 @@ createLMExpression <- function(varNames, X, Y, M, C){
 ### Using package: mediation
 
 ```{r mediationFunction, echo=FALSE}
-library(mediation)
 # where M: continuous mediator; X: independent variable; Y: continuous dependent variable; C: covariates
 runMediation <- function(df, X, Y, M, C){
+  require(mediation)
+  
   mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = C) # mediator model: predict M from X and C
   outcomeModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
   
@@ -372,9 +412,10 @@ runMediation <- function(df, X, Y, M, C){
 ### Using package: RMediation
 
 ```{r RMediationFunction, echo=FALSE}
-library(RMediation)
 # see psyc 536 lecture 5 notes
 runRMediation <- function(df, X, Y, M, C){
+  require(RMediation)
+  
   totModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = "", C = C) # total model: predict Y from X and C
   aPathExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = C) # a path model: predict M from X and C
   bPathExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # b path & direct path model: predict Y from X, M, and C
@@ -479,24 +520,30 @@ med_diagram(med_data)
 
 # -------------------------------
 
-# Begin conducting analyses - Biobank data
+# 1 - Biobank data analysis
 
 ## Data Preperation
 
-```{r dataPrep, echo=FALSE}
-# import data -----------
-df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/Daniel_2022-02-23.csv") # import df
-eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/ComputeCanadaData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
-df_all <- df_all %>% 
-  filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
+```{r removeEIDs, echo=FALSE}
+# df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-15.csv") # import df
+# eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
 
-cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
+# df_all <- df_all %>% filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
+# write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-15_ProperEID.csv", row.names=FALSE)
+# rm(df_all, eidToRemove) # remove dataframes not in use
+
+````
+
+```{r dataPrep, echo=FALSE}       
+df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-15_ProperEID.csv") # import df
+         
+cat(paste("There are ", sum(is.na(df_all$date_assess_t2)), "cases that have not completed time point 2. These cases will be removed."))
 df_all <- df_all %>% 
-  filter(!(is.na(df_all$date_assess2_t2))) # remove rows without timepoint 2 assessment date
+  filter(!(is.na(df_all$date_assess_t2))) # remove rows without timepoint 2 assessment date
 
 df_small <- df_all[1:1000,]
 df <- df_small # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
-rm(df_all, eidToRemove, df_small) # remove dataframes not in use
+rm(df_small) # remove dataframes not in use
 # sort(colnames(df))
 # View(df)
 ```
@@ -505,6 +552,7 @@ rm(df_all, eidToRemove, df_small) # remove dataframes not in use
 # factors # list of factors
 # cat_vars # list of categorical variables
 # num_vars # list of numeric variables
+
 demoVars <- starts_with("demo_", vars = colnames(df))
 crpVars <- starts_with("crp_", vars = colnames(df))
 brainVars <- starts_with("brain_", vars = colnames(df))
@@ -517,26 +565,112 @@ dietVars <- starts_with("diet_", vars = colnames(df))
 smokingVars <- starts_with("smoke_", vars = colnames(df))
 exerciseVars <- starts_with("exercise_", vars = colnames(df))
 
-# colnames(df[dietVars])
+completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
+
+# colnames(df[completionTimeVars])
 # View(df[1:100, c(1,brainVars)])
+```
+
+# Add columns
+
+## Add columns for any diagnosis or medication
+
+```{r addColumns, echo=FALSE}
+# Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
+## Diagnosis
+df <- df %>% 
+  mutate("anyDxOfInterest" = case_when(
+    if_any(any_of(dxVars), function(x) (x == "TRUE")) ~ 1,
+    if_all(all_of(dxVars), function(x) (x == "FALSE")) ~ 0
+  ))
+# table(df$anyDx)
+
+## Medication
+df <- df %>% 
+  mutate("anyMedOfInterest" = case_when(
+    if_any(any_of(medVars), function(x) (x == "TRUE")) ~ 1,
+    if_all(all_of(medVars), function(x) (x == "FALSE")) ~ 0
+  ))
+# table(df$anyMed)
+
+```
+
+## Add column for time of day cognitive assessments, MRI completed
+!! difference between two columns is of list type for some reason, thus cannot be described. Must be fixed. !!
+
+```{r assessmentHour, echo=FALSE}
+# Goal: take variables with form: `YYYY-MM-DDTHH:MM:ss` and return the hour
+df <- df %>% 
+  mutate(crp_hourCollected = hour(df$crp_timeCollected_t0))
+
+df <- df %>% 
+  mutate(cog_hourCompleted = hour(df$cog_timeCompleted_t2))
+
+df <- df %>% 
+  mutate(brain_hourCompleted = hour(df$brain_timeCompleted_t2))
+
+df <- df %>% # number of hours difference between cognitive assessment and MRI
+  mutate(timeDif_brainHourMinusCogHourCompleted = df[124] - df[123])
+
+hourColNums <- c(contains("_hourCompleted", vars = colnames(df)),contains("_hourCollected", vars = colnames(df)))
+
+df_hours <- df[hourColNums]
+hourDescription <- py$descriptiveStats(df[hourColNums], toSave = F)
+brainHourMinusCogHourCompleted)
+describe(df$timeDif_brainHourMinusCogHourCompleted)
+hist(df$timeDif_brainHourMinusCogHourCompleted)
+
+table(df$crp_hourCollected)
+describe(df$crp_hourCollected)
+hist(df$crp_hourCollected)
+mean(df$crp_hourCollected, na.rm = T)
+sd(df$crp_hourCollected, na.rm = T)
+
+```
+
+## Add dummy code variables
+
+```{r createDummyCodes, echo=FALSE}
+# goal: 
+## -convert a single categorical variable with >2 categories to dummy codes;
+## -have a list with all dummy codes relevant to each variable
+
+# Vars to dummy code
+
 ```
 
 ### Remove cases with missing variables
 
 ```{r removeMissing, echo=FALSE}
-essentialVars <- c(demoVars, crpVars, brainVars, relevantCogVars) # list of variable names that must be complete in order for case to be retained
+essentialVars <- c(demoVars, completionTimeVars) # list of variable names that must be complete in order for case to be retained
 
 df_removed <- df %>% 
-  filter(if_any(all_of(essentialVars), function(x)(is.na(x)))) # add rows with missing values to new df
-df <- df %>% 
+  filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # add rows with missing values to new df
+# View(df_removed)
+df_remaining <- df %>% 
   filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
+
+df <- df_remaining
+```
+Critical variables: `r colnames(df[essentialVars])`
+`r nrow(df_removed)` unique cases have missing values for critical variables and will thus be removed.
+
+```{r removeMissing, echo=FALSE}
+numMissing <- matrix(ncol=1, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]),c("NACount")))
+
+for(i in 1:length(essentialVars)){
+  numMissing[i,] <- c(sum(is.na(df_removed[essentialVars[i]])))
+}
+
+numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
+kable(numMissing_df)
 ```
 
 #### Summarise removed cases
 
 ```{python describeDf_Removed, echo=FALSE}
-descriptiveStats(r.df, toSave = False)
-descriptiveStats(r.df_Removed, toSave = False)
+df_described = descriptiveStats(r.df, toSave = False)
+df_removed_described = descriptiveStats(r.df_removed, toSave = False)
 ```
 
 #### Compare removed cases to retained cases
@@ -553,7 +687,7 @@ i <- which(colnames(df) == "crp_timeFasting_t0")
 is.numeric(i)
 normCheck <- normalityCheck(df, i, FALSE)
 colnames(df[[i]])
-
+hist(df$crp_timeFasting_t0)
 for(i in varsToCompare){
   if(is.numeric(df[[i]]) == TRUE & is.character(df[[i]]) == FALSE){  # if 'i' is a numeric variable
     normCheck <- normalityCheck(df, i, FALSE)
@@ -578,138 +712,7 @@ runChiSq(varForChi, df, df_removed, FALSE)
 
 ```
 
-# Quality control of date variables.
-
-!! N.b. variables names may require changing !!
-
-```{r formatDates, echo=FALSE}
-# Goal, return all cases when:
-  ## time point 2 age < time point 0 age
-  ## time point 2 asssessment date < time point 0 assessment date
-  ## CRP assaydate < time point 0 date
-birthYearCol <- contains("birthYear", vars = colnames(df))
-df$birthYearModified <- df[birthYearCol]*10000 + 0702 # add july 02, 0702 as the middle day of the year
-print("Added \'0702\' to all birth years, corresponding to the middle day of the year, July 02.")
-head(df$birthYearModified)
-df$birthYearModified <- as.Date(ymd(as.matrix(df$birthYearModified))) # convert YYYYMMDD to YYYY-MM-DD in date format
-
-ageVars <- c(contains("age_assess", vars = colnames(df)))
-date_assess2Cols <- date_assessCols[contains("2", vars = colnames(df_all[,date_assessCols]))] # find variable denoting the date of assessment 2
-df_datesQC <- df[, c(1,contains("birthYear", vars = colnames(df)),dateVars, ageVars)] # create df subset with relevant vars only
-# dim(df_datesQC) # check dimensions of this df
-colnames(df_datesQC) # check the variable names in this subset
-head(df_datesQC)
-head(df$date_assess2_t2)
-
-df_datesQC <- df_datesQC %>% 
-  mutate("derivedAge_0" = round(interval(start = df_datesQC$birthYearModified, end = df_datesQC$date_assess0_t0)/years(1)), .after = "age_assess0_t0") %>% # compute age at assess 0
-  mutate("difInAges_0" = (df_datesQC$"derivedAge_0" - df_datesQC$"age_assess0_t0"), .after = "derivedAge_0") %>% 
-  mutate("derivedAge_2" = round(interval(start = df_datesQC$age_assess0_t0, end = df_datesQC$date_assess2_t2)/years(1)), .after = "age_assess2_t2") %>% # compute age at assess 2 from difference between assess 0 date and assess 2 date
-  mutate("difInAges_2" = (df_datesQC$"derivedAge_2" - df_datesQC$"age_assess2_t2"), .after = "derivedAge_2")
-
-cat(paste("Correlation between computed age at assessment 0 and age_assess0 is: ", cor(df_datesQC$derivedAge_0, df_datesQC$age_assess0_t0), ". \n\t Sum of the difference between both columns: ", sum(df_datesQC$difInAges_0), ". \n\t Max difference between both columns: ", max(df_datesQC$difInAges_0), ". \n Correlation between computed age at assessment 2 and age_assess2 is:", cor(df_datesQC$derivedAge_2, df_datesQC$date_assess2_t2), ". \n\t Sum of the difference between both columns: ", sum(df_datesQC$difInAges_2), ". \n\t Max difference between both columns: ", max(df_datesQC$difInAges_2)))
-```
-\
-## Check if any age at assessment 2 is less than age at assessment 0
-
-```{r dateQC, echo=FALSE}
-Err_ageAss2 <- c() # array that will hold EIDs with age2 < age0
-Err_dateAss2 <- c() # array that will hold EIDs with date2 < date0
-
-j = 0
-k = 0
-
-for(i in 1:nrow(df_datesQC)){
-    if(df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))] > df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))]){
-      Err_ageAss2 <- c(Err_ageAss2, df_datesQC[i, 1])
-      print(paste("EID: ", df_datesQC[i, 1], "has an AGE at ass. 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))],  ") < AGE at ass. 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))], ")."))
-      j = j + 1
-      if(j == 0){
-        print(paste("STOP CONDITION. EID: ", df_datesQC[i, 1], "AGE at ass. 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+2')))],  "), AGE at ass. 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('age_assess+0')))], ")."))
-        stop()
-      }
-    }
-    if(df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))] > df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))]){
-      Err_dateAss2 <- c(Err_dateAss2, df_datesQC[i, 1])
-      # print(paste("EID: ", df_datesQC[i, 1], "has an ASSESSMENT DATE 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))],  ") < ASSESSMENT DATE 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))], ")."))
-    } else{
-      k = k+1
-      if(k == 50000){
-        print(paste("STOP CONDITION. EID: ", df_datesQC[i, 1], "has an ASSESSMENT DATE 2 (", df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+2')))],  "), ASSESSMENT DATE 0 (",  df_datesQC[i,colnames(select(df_datesQC, matches('date_assess+0')))], ")."))
-        stop()
-      }
-    }
-}
-  cat(paste("There are ", length(Err_ageAss2), "rows whose age assess 0 > age asses 2."))
-  cat(paste("There are ", length(Err_dateAss2), "rows whose date assess 0 > date assess 2."))
-# i=which(df_datesQC == 1000116)
-# df_datesQC[i,]
-
-if(max(df_datesQC$date_assess0_t0) < min(df_datesQC$crp_assaydate_t0)){
-  cat(paste("CORRECT. All assessment 0 dates are less than all CRP assay dates. 
-              \n\t Max assess 0 date: ", max(df_datesQC$date_assess0_t0), 
-              "\n\t Min CRP assay date: ", min(df_datesQC$crp_assaydate_t0)))
-} else {
-  cat(paste("WARNING. It is possible that some assessment 0 dates are less than some CRP assay dates. Since max assess 0 date > min CRP assay date.  
-              \n\t Max assess 0 date: ", max(df_datesQC$date_assess0_t0), 
-              "\n\t Min CRP assay date: ", min(df_datesQC$crp_assaydate_t0),
-            "\n It is recommended to compare each instance's assessment 0 date to its CRP assay date to ensure quality of the data."))
-} # !! replace variable names with generalizable var name
-
-min(df_datesQC[,colnames(select(df_datesQC, matches('assaydate+0')))])
-(df_datesQC)
-View(df_datesQC[df_datesQC$eid %in% Err_ageAss2,])
-```
-
-# Add columns
-
-## Add columns for any diagnosis or medication
-
-```{r addColumns, echo=FALSE}
-# Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
-## Diagnosis
-dx_col <- apply(df, TRUE, function(r) any (r %in% dxVars))
-df %>% 
-  mutate(anyDx = case_when(
-    for(i in dxVars){
-      df[i] == TRUE
-      print(i)
-    }
-  ))
-colnames(df)[diagnosisVars]
-
-## Medication
-# repeat code above for medication
-```
-
-## Add dummy code variables
-
-```{r createDummyCodes, echo=FALSE}
-# goal: 
-## -convert a single categorical variable with >2 categories to dummy codes;
-## -have a list with all dummy codes relevant to each variable
-
-# Vars to dummy code
-
-```
-
-## Add column controlling for head size
-
-Note: Controlling for head size is intended for brain volumes that are known to be affected by size. See "UK Biobank Brain Imaging Documentation", p. 19.
-
-```{r controlForHeadSize, echo=FALSE}
-controlHeadSize <- function(df, brainVarName){ # n.b. this is intended for brain volumes that are known to be affected by total brain size. See UK Biobank Brain Imaging Documentation, p. 19.
-  newColName <- glue(brainVarName, "_headScaleCorrected")
-  df <- df %>% # add column for brain volume * brain head scale, controls for brain size
-  mutate_(newColName = {{ brainVarName }} * "brain_headScale")
-} # takes 'df' - dataframe; 'brainVarName' - name of brain volume to control for brain size
-df <- controlHeadSize(df, "brain_vol-hippocamp-L")
-df <- controlHeadSize(df, "brain_voFalsel-hippocamp-R")
-```
-
 # Analyses
-
-Use '_headScaleCorrected' for brain volumes known to be affected by head size.
 
 ## Descriptive Stats
 ```{r describeDf_r, echo=FALSE}
