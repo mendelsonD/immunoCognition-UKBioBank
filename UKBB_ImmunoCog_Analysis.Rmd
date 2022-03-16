@@ -2,7 +2,9 @@
 title: "UKBB_ImmunoCog_Analysis"
 author: "Daniel Mendelson"
 date: "22/02/2022"
-output: html_document
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
@@ -24,8 +26,11 @@ outputPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Ana
 setwd(outputPath)
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
+
 # 0 - Functions
+
 ## Descriptive Stats function
+
 ```{python DescriptiveStatsFx, echo=FALSE}
 import pandas as pd
 import os as os
@@ -40,6 +45,7 @@ def descriptiveStats(df, toSave):
 ```
 
 ## Assumption checks
+
 ```{r Assumption_Checks, echo=FALSE}
 # see 536 lab 3, lecture notes week 3
 assumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is the lm model of interest. 'y' is the outcome variable in a string.
@@ -143,6 +149,7 @@ assumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is th
 ```
 
 ### Normality
+
 ```{r normalityCheck, echo=FALSE}
 normalityCheck <- function(df, y, toPrint){  
   
@@ -292,92 +299,85 @@ runChiSq <- function(vars, df_a, df_b, toSave){
 ```
 
 ## PCA function
+
 !! Variables are not being identified as numeric !!
-```{r PCASandBox, echo=FALSE}
-df_backup <- df
 
-vars <- c(cogVars)
-colnames(df[vars])
-rejectVars <- c()
-for(i in vars){
-  if(is.numeric(as.matrix(df[[i]])) == FALSE){ # checks that variables are numeric
-      rejectVars <- append(rejectVars, i)
-    } else if(round(mean(as.matrix(df[i]), na.rm = T), 4) != 0 | round(sd(as.matrix(df[i]), na.rm = T),4) != 1){
-      df[i] <- scale(df[i])
-      print(c("Not standard.",colnames(df[i]), typeof(as.matrix(df[i])))) 
-      print(c(mean(as.matrix(df[i]), na.rm = T), sd(as.matrix(df[i]), na.rm = T)))
-    } else {
-      print(c("Yes.",colnames(df[i]), typeof(as.matrix(df[i]))))   
-      print(c(mean(as.matrix(df[i]), na.rm = T), sd(as.matrix(df[i]),na.rm = T)))
-    }
-}
-if(length(rejectVars) > 0){
-    cat("The following variables are not numeric and cannot be included in PCA. \n\t")
-    for(i in colnames(df[rejectVars])){
-      cat(i, "\t")
-    }
-   vars <- vars[vars %in% rejectVars == FALSE] # removes the reject variables from the 'vars' list
-}
-
-prcomp(as.matrix(df[,vars]), center = TRUE, scale = TRUE)
-typeof(as.matrix(df[vars]))
-df <- df %>% 
-  tibble()
-cor(tibble(df[,vars]))
-typeof(df[,vars])
-eigen(cor(as.matrix(df[vars])))$values
-View(df[vars])
-
-```
-see https://www.datacamp.com/community/tutorials/pca-analysis-r
 ```{r PCAFx, echo=FALSE}
-PCA <- function(df, vars){
+PCACompute <- function(df, vars){
   # PCA (see 536 lecture notes week 10) ---------
-  ## assumption checks ---------
   rejectVars <- c()
   for(i in vars){
-    if(is.numeric(df[[i]]) == FALSE){ # checks that variables are numeric
-      rejectVars <- append(rejectVars, i)
+    if(is.numeric(as.matrix(df[[i]])) == FALSE){ # checks that variables are numeric
+        rejectVars <- append(rejectVars, i)
     } else {
-      if(round(mean(df[i]), 4) != 0 | round(sd(df[i] != 1),4) != 1){
-        df[i] <- scale(df[i])
-      }
+        mean <- mean(as.matrix(df[i]), na.rm = T)
+        sd <- sd(as.matrix(df[i]), na.rm = T)
+        
+        if(round(mean,4) != 0 || round(sd,4) != 1){ # check if standardized
+          df[i] <- scale(df[i])
+          # print(c("Not standard.",colnames(df[i]), typeof(as.matrix(df[i])))) 
+          # print(c(mean(as.matrix(df[i]), na.rm = T), sd(as.matrix(df[i]), na.rm = T)))
+        } else {
+          # print(c("Yes.",colnames(df[i]), typeof(as.matrix(df[i]))))   
+          # print(c(mean(as.matrix(df[i]), na.rm = T), sd(as.matrix(df[i]),na.rm = T)))
+        }
     }
   }
   
   if(length(rejectVars) > 0){
-    cat("The following variables are not numeric and cannot be included in PCA. \n\t")
-    for(i in colnames(df[rejectVars])){
-      cat(i, "\t")
-    }
-   vars <- vars[vars %in% rejectVars == FALSE] # removes the reject variables from the 'vars' list
+      cat("The following variables are not numeric and cannot be included in PCA. \n\t")
+      for(i in colnames(df[rejectVars])){
+        cat(i, "\t")
+      }
+     vars <- vars[vars %in% rejectVars == FALSE] # removes the reject variables from the 'vars' list
   }
-
-  ### PCA 2 - number of components to retain
-  #### eigenvalue method (eigen value > 1, suggested to keep)
-  z_eigenValues <- eigen(cor(df[vars]))$values
-  for(i in z_eigenValues){
-    if(i > 1){
-      cat("Suggestion to keep component i. Eigenvalue: ", i)
-    } else {
-      cat("Suggestion to exclude component i. Eigenvalue: ", i)
-    }
-  }
-
-  #### scree plot (components before the elbow, suggested to keep)
-  plot(z_eigenValues,
-       xlab = "Prinicipal component",
-       ylab = "Eigenvalue",
-       type = 'b',
-       main = "Scree plot") + 
-    abline(h = 1)
   
-  #### proportion of variance explained
-  z_PCAvarExplained <- z_eigenValues/length(df[vars])
-  zcog_PCAvarExplained
-  print("Looking for components that, together, can explain >80% of variance.")
+  out <- prcomp(as.matrix(df[,vars]), center = TRUE, scale = TRUE) # prints output
+  return(out)
   
 } # 'df' - dataframe; 'vars' - name of vars to conduct PCA on. N.B. these variables must be standardized before being entered here.
+
+PCAPlot <- function(PCAOut, name){
+  require(factoextra)
+  
+  screePlot <- fviz_eig(PCAOut,
+                  choice = c("eigenvalue"),
+                  geom = c("line"),
+                  linecolor = "black",
+                  ncp = 10,
+                  addlabels = TRUE,
+                  hjust = 0,
+                  main = paste("Scree plot - ", name),
+                  xlab = "Principal component",
+                  ylab = NULL) +
+              geom_hline(yintercept = 1, linetype = 2)
+
+  return(screePlot)
+
+} # 'PCAOut' - an object of class PCA (i.e., from the PCA compute function); 'name' - name of this PCA analysis
+
+PCAApply <- function(df, PCAOut, componentsToRetain, prefix){
+  
+  varCols <- which(colnames(df) %in% names(PCAOut$rotation[,1]))
+  df_z <- df %>% 
+    as_tibble() %>% 
+    mutate_at(varCols, ~(scale(.) %>% as.vector))
+  
+  for(i in 1:componentsToRetain){
+    rowName <- paste(prefix, "PC", i, sep="_")
+    df_z <- df_z %>% 
+      mutate("{rowName}" := as.matrix(df_z[varCols]) %*% PCAOut$rotation[,i])
+  }
+  
+  return(df_z)
+  
+} # Gives each observation a score for each PCA component retained. 'df' - dataframe; 'PCAOut' - output from the PCACompute function; 'componentsToRetain' - an integer value specifying the number of principal components to retain (value must be between 1 and total number of components)); 'prefix' - a character string to be used as a prefix for the new column names.
+
+PCASave <- function(PCAOut, fileName){
+  capture.output(PCAOut$rotation, file = paste(fileName, date, ".csv", sep=""), row.names=FALSE)
+  print("The file ", fileName, "was saved to '", getwd(), "'.")
+}
+  
 ```
 
 ## Function to make appropriate expression for stats::LM functions
@@ -386,17 +386,42 @@ PCA <- function(df, vars){
 createLMExpression <- function(varNames, X, Y, M, C){
   colNumsPredictors <- c()
   for(i in c(X, M, C)){
-    colNum <- which(varNames == i)
-    colNumsPredictors <- append(colNumsPredictors, colNum)
+    if(i != "ignore"){
+      colNum <- which(varNames == i)
+      # print(i)
+      colNumsPredictors <- append(colNumsPredictors, colNum)
+    }
   } # get column numbers for the relevant predictor variables
-  # varNames <- names(df[colNumsPredictors])
-  LMpredictors <- toString(paste(names(df[colNumsPredictors]), "+ ", collapse = ''))
-  LMpredictors <- substr(LMpredictors, 1, nchar(LMpredictors)-3)
-  model <- paste(Y, " ~ ", LMpredictors)
+
+  LMpredictors <- paste(sapply(varNames[colNumsPredictors], paste), collapse = " + ")
+  model <- paste(Y, " ~ ", LMpredictors, sep = "")
   return(model)
 } # Input: 'varNames' - list of variable names in the dataframe to be analysed. Is given by the function colnames(df); 'Y' - name of the dependent variable; 'X' - name of the independent variable; 'M' - name of mediators mediators; 'C' - list of covariate variable names;
 ```
 
+```{r LMexpressionSandBox, echo=FALSE}
+varNames = colnames(df)
+X <- "crp_aliquot_fctr" # name of independent variable
+Y <- "cog_PC_1" # name of dependent variable
+M <- "brain_vol_brainSegNoVent_t2"
+C <- c("demo_sex_t0", "ses_townsend_t0", "crp_hourCollected")
+df$brain_vol_brainSegNoVent_t2
+colNumsPredictors <- c()
+for(i in c(X, M, C)){
+    if(i != "ignore"){
+      colNum <- which(varNames == i)
+      print(i)
+      colNumsPredictors <- append(colNumsPredictors, colNum)
+    }
+  } # get column numbers for the relevant predictor variables
+which(varNames == M)
+toString(paste(varNames[colNumsPredictors], "+ ", collapse = ""))
+?collapse
+paste(sapply(varNames[colNumsPredictors], paste), collapse = " + ")
+createLMExpression(varNames, X = X, Y = Y, M = M, C = C)
+runMediation(varNames, X = X, Y = Y, M = M, C = C)
+
+```
 ## Correlation analyses functions
 
 ## Mediation Analyses
@@ -405,17 +430,22 @@ createLMExpression <- function(varNames, X, Y, M, C){
 
 ```{r mediationFunction, echo=FALSE}
 # where M: continuous mediator; X: independent variable; Y: continuous dependent variable; C: covariates
-runMediation <- function(df, X, Y, M, C){
+runMediation <- function(df, X, Y, M, C, mediatorModelExpression, outcomeModelExpression, control){
   require(mediation)
+
+  # mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = NULL, C = C) # mediator model: predict M from X and C
+  # outcomeModelExpression <-  createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
+  # print(mediatorModelExpression)
+  # print(outcomeModelExpression)
   
-  mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = C) # mediator model: predict M from X and C
-  outcomeModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
-  
+   if(is.factor(X) != TRUE){
+    control <- NULL
+  }
   mediatorModel <- lm(eval(parse(text = mediatorModelExpression)), data = df) 
   outcomeModel <- lm(eval(parse(text = outcomeModelExpression)), data = df)
-  mediation_out <- mediation::mediate(mediatorModel, outcomeModel, treat = X, mediator = M, boot = T)
+  mediation_out <- mediation::mediate(mediatorModel, outcomeModel, treat = X, control = control, mediator = M, covariates = C, boot = T)
   return(mediation_out)
-} # This function runs the mediation analyses and returns the mediation model. Input: 'df' - dataframe; 'X' - name of independent variable; 'Y' - name of dependent variable; 'C' - a list of covariate variable names in string form.
+} # This function runs the mediation analyses and returns the mediation model. Input: 'df' - dataframe; 'X' - name of independent variable; 'Y' - name of dependent variable; 'C' - a list of covariate variable names in string form;  'mediatorModelExpression' - the model predicting M from X and C; 'outcomeModelExpression' - the model predicting Y from X, M and C; 'treat' - the level of X to be used as the reference group, leave NULL if X is continous
 ```
 
 ### Using package: RMediation
@@ -457,6 +487,7 @@ runRMediation <- function(df, X, Y, M, C){
 ### Functions for figures and tables
 
 #### Scatterplots
+
 ```{r createPlot, echo=FALSE}
 # createPlot <- function(df, x, y, xUnits, yUnits, title, loessLine, fileName){
 #   require(ggplot2)
@@ -479,7 +510,8 @@ runRMediation <- function(df, X, Y, M, C){
 #   return(plot)
 # } # 'df' - dataframe; 'x' - indeped var; 'y' - dep var; 'xUnits' - units of variable 'x'; 'yUnits' - units of variable 'y'; 'title' - title for the graph; 'loessLine' - logical, if the Loess line should be shown, 'fileName' - specifies name to save file to without file extension, if do not want to save, specify ""
 ```
-```{r sandBox, echo=FALSE}
+
+```{r scatterPlotSandBox, echo=FALSE}
 
 # createPlot(df, x=diet_rawVeg_t0, y=diet_cookedVeg_t0, xUnits = "pieces/day", yUnits = "tbsp/day", title = "CookedVeg vs rawVeg", loessLine = TRUE, fileName = "")
 # 
@@ -503,8 +535,10 @@ runRMediation <- function(df, X, Y, M, C){
 ```
 
 #### Mediation diagrams
+
 !! Needs to be revised !!
-```{r medAnalyses, echo=FALSE}
+
+```{r medAnalysisFx, echo=FALSE}
 # adapted from Omar Wasow's post on https://stackoverflow.com/questions/46465752/drawing-simple-mediation-diagram-in-r
 med_data <- data.frame(
     lab_x   = "Math\\nAbility",
@@ -585,9 +619,9 @@ med_diagram(med_data)
 # write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-15_ProperEID.csv", row.names=FALSE)
 # rm(df_all, eidToRemove) # remove dataframes not in use
 
-````
+```
 
-```{r dataPrep, echo=FALSE}       
+```{r dataPrep, echo=FALSE}
 df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-15_ProperEID.csv") # import df
          
 cat(paste("There are ", sum(is.na(df_all$date_assess_t2)), "cases that have not completed time point 2. These cases will be removed."))
@@ -605,25 +639,7 @@ rm(df_small) # remove dataframes not in use
 cogToRemove <- contains("ErrorsBeforeCor_t2_", vars = colnames(df))
 # colnames(df[cogToRemove])
 df <- df[,-cogToRemove]
-```
-```{r variableLists, echo=FALSE}
-demoVars <- starts_with("demo_", vars = colnames(df))
-crpVars <- starts_with("crp_", vars = colnames(df))
-brainVars <- starts_with("brain_", vars = colnames(df))
-cogVars <- starts_with("cog_", vars = colnames(df))
-relevantCogVars <- c(26)
-dxVars <- starts_with("dx_", vars = colnames(df))
-medVars <- starts_with("med_", vars = colnames(df))
-dietVars <- starts_with("diet_", vars = colnames(df))
 
-smokingVars <- starts_with("smoke_", vars = colnames(df))
-exerciseVars <- starts_with("exercise_", vars = colnames(df))
-
-completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
-cogPCAVars <- c("cog_numMem_maxDigitRemem_t2", "cog_prospMem_timeDelay_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_fluidIntel_score_t2", "cog_prospMem_result_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2")
-
-# colnames(df[completionTimeVars])
-# View(df[1:100, c(1,brainVars)])
 ```
 
 ```{r standardizeErrors, echo=FALSE}
@@ -693,6 +709,7 @@ df <- df %>%
 ```{r addColumns, echo=FALSE}
 # Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
 ## Diagnosis
+dxVars <- starts_with("dx_", vars = colnames(df))
 df <- df %>% 
   mutate("anyDxOfInterest" = case_when(
     if_any(any_of(dxVars), function(x) (x == "TRUE")) ~ 1,
@@ -701,6 +718,7 @@ df <- df %>%
 # table(df$anyDx)
 
 ## Medication
+medVars <- starts_with("med_", vars = colnames(df))
 df <- df %>% 
   mutate("anyMedOfInterest" = case_when(
     if_any(any_of(medVars), function(x) (x == "TRUE")) ~ 1,
@@ -710,6 +728,7 @@ df <- df %>%
 ```
 
 #### Add column for time of day cognitive assessments, MRI completed
+
 !! difference between two columns is of list type for some reason, thus cannot be described. Must be fixed. !!
 
 ```{r assessmentHour, echo=FALSE}
@@ -726,12 +745,25 @@ hourColNums <- c(contains("_hourCompleted", vars = colnames(df)),contains("_hour
 ```
 
 ### Prospective memory - dichotimize to correct in first attempt or not (as in Cullen et al., 2017)
+
 ```{r prospMemRecode, echo=FALSE}
 df <- df %>% 
   mutate(cog_prospMem_result_t2 = case_when( # field 20018 ('cog_prospMem_result_t2'), 0 = instruction not recalled, either skipped or incorrect; 1 = correct recall on first attempt; 2 = correct recall on second attempt
     cog_prospMem_result_t2 == "correct recall on first attempt" ~ "correct on first",
     TRUE ~ "incorrect on first" 
     ))
+
+```
+
+### CRP cutoffs (see Pearson et al., 2003)
+```{r CRPRecode, echo=FALSE}
+df <- df %>% 
+      mutate(crp_aliquot_fctr = cut(crp_aliquot_t0,
+                       breaks = c(0,1,3, Inf),
+                       labels = c("low", "avg", "high"),
+                       include.lowest = T,
+                       right = F), .after = crp_aliquot_t0)
+
 ```
 
 ### Make columns appropriate data types
@@ -740,7 +772,7 @@ df <- df %>%
 df <- readr::type_convert(df) # automatically detect
 
 factorVars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "cog_prospMem_result_t2", "hand_t0", "smoke_ever_t0", "menopause_t0", "anyMedOfInterest", "anyDxOfInterest")) # Factors
-df <- df %>% mutate_at(all_of(factorVars), factor)
+df[,factorVars] <- lapply(df[,factorVars], factor) # at this line the df size is read as 0 B for some reason. This does not appear to affect the data however.
 
 # ordinalVars <- which(colnames(df) %in% c("smoke_currently_t0", "diet_processedMeat_t0", "exercise_IPAQActivityGroup_t0")) # ordinal variables
 df <- df %>% 
@@ -762,26 +794,30 @@ df <- df %>%
                                                 "moderate",
                                                 "high")
                                      ))
-```
-
-### Standardize appropriate columns
-```{r standardizeData, echo=FALSE}
-varsToNotStandardize <- c("eid", "demo_birthYear", "ses_townend_t0", "cog_prospMem_timeDelay_t2", "smoke_packYears_t0", "demo_age_recruit_t0","brain_headScale_t2", "crp_aliquot_t0", "crp_hourCollected", "cog_hourCompleted", "brain_hourCompleted")
-as.data.frame(colnames(df[which(sapply(df[], is.numeric))]))
-
-df_z <- df %>% 
-  as_tibble() %>% 
-  mutate(across(where(is.numeric) %in% varsToNotStandardize), scale))
-
-df_z
-hist(df$ses_townsend_t0)
 
 ```
 
 ## Remove cases with missing variables
+```{r variableLists, echo=FALSE}
+demoVars <- starts_with("demo_", vars = colnames(df))
+crpAliqVars <- starts_with("crp_aliquot", vars = colnames(df))
+brainVolVars <- starts_with("brain_vol", vars = colnames(df))
+cogVars <- starts_with("cog_", vars = colnames(df))
+
+dietVars <- starts_with("diet_", vars = colnames(df))
+
+smokingVars <- starts_with("smoke_", vars = colnames(df))
+exerciseVars <- starts_with("exercise_", vars = colnames(df))
+
+completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
+cogPCAVars <- which(colnames(df) %in% c("cog_numMem_maxDigitRemem_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_fluidIntel_score_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2"))
+
+# colnames(df[completionTimeVars])
+# View(df[1:100, c(1,cogPCAVars)])
+```
 
 ```{r removeMissing, echo=FALSE}
-essentialVars <- c(demoVars, completionTimeVars, cogPCAVars) # list of variable names that must be complete in order for case to be retained
+essentialVars <- c(demoVars, completionTimeVars, crpAliqVars, cogPCAVars, brainVolVars) # list of variable names that must be complete in order for case to be retained
 
 df_removed <- df %>% 
   filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # add rows with missing values to new df
@@ -792,11 +828,12 @@ df_remaining <- df %>%
 df <- df_remaining
 
 # View(df[cogVars])
-```
-Critical variables: `r colnames(df[essentialVars])`
-`r nrow(df_removed)` unique cases have missing values for critical variables and will thus be removed.
 
-```{r removeMissing, echo=FALSE}
+```
+
+Critical variables: `r colnames(df[essentialVars])` `r nrow(df_removed)` unique cases have missing values for critical variables and will thus be removed.
+
+```{r missingValues, echo=FALSE}
 numMissing <- matrix(ncol=1, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]),c("NACount")))
 
 for(i in 1:length(essentialVars)){
@@ -805,19 +842,20 @@ for(i in 1:length(essentialVars)){
 
 numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 kable(numMissing_df)
+
 ```
 
 ### Summarise removed cases
 
 ```{python describeDf_Removed, echo=FALSE}
-df_described = descriptiveStats(r.df, toSave = False)
-df_removed_described = descriptiveStats(r.df_removed, toSave = False)
+# df_described = descriptiveStats(r.df, toSave = False)
+# df_removed_described = descriptiveStats(r.df_removed, toSave = False)
 ```
 
 ### Compare removed cases to retained cases
 
 ```{r compareMissing, echo=FALSE}
-varsToCompare <- c(demoVars, crpVars, brainVars, dxVars, medVars, dietVars, smokingVars, exerciseVars)
+varsToCompare <- c(demoVars, crpAliqVars, brainVolVars, dxVars, medVars, dietVars, smokingVars, exerciseVars)
 varsToCompare <- c(smokingVars, medVars, which(colnames(df) == "crp_timeFasting_t0"))
 # group variables according to their type, i.e., numeric vs categorical.
 varForT <- c() # compute t-tests if vars are normally distributed
@@ -849,30 +887,66 @@ for(i in varsToCompare){
 
 runTTest(varForT, df, df_removed, FALSE)
 runWilcox(varForWil, df, df_removed, FALSE)
-runChiSq(varForChi, df, df_removed, FALSE)
+# runChiSq(varForChi, df, df_removed, FALSE)
+
+```
+
+## Standardize appropriate columns
+
+```{r standardizeData, echo=FALSE}
+# varsToNotStandardize <- c("eid", "demo_birthYear", "ses_townend_t0", "cog_prospMem_timeDelay_t2", "smoke_packYears_t0", "demo_age_recruit_t0","brain_headScale_t2", "crp_aliquot_t0", "crp_hourCollected", "cog_hourCompleted", "brain_hourCompleted")
+# as.data.frame(colnames(df[which(sapply(df[], is.numeric))]))
+
+# df_z <- df %>% 
+#   as_tibble() %>% 
+#   mutate(across(where(is.numeric) %in% varsToNotStandardize), scale)
 
 ```
 
 ## Correlations between diet variables
-```{r correlDietVars, echo=FALSE}
-summary(lm(df$diet_fruit_t0~df$diet_cookedVeg_t0))
-plot(df$diet_cookedVeg_t0, df$diet_fruit_t0)
 
-xyTab <- xyTable(df$diet_cookedVeg_t0, df$diet_fruit_t0)
-plot <- plot(xyTab$x,xyTab$y, cex = xyTab$x*1.5, pch = 20, col = rgb(.1,0.1,0.1,0.7), xlab = "fruit intake (pieces/day)", ylab = "cooked veg intake (tbsp/day)" )
-text(aa$x, aa$y, aa$number)
-?text
+```{r correlDietVars, echo=FALSE}
+# cor(df[dietVars])
+
+# summary(lm(df$diet_fruit_t0~df$diet_cookedVeg_t0))
+# plot(df$diet_cookedVeg_t0, df$diet_fruit_t0)
+
+```
+
+## Data reduction
+
+-PCA assumptions: --linear relationship between components
+
+```{r cognitionPCA, echo=FALSE}
+df <- df_remaining
+cogPCAOut <- PCACompute(df = df, vars = cogPCAVars)
+typeof(cogPCAOut)
+capture.output(unlist(cogPCAOut$rotation), fileName = paste("cognitionPCA_prelim", date, ".csv", sep = ""))
+
+write.table(cogPCAOut$rotation, fileName = paste("cognitionPCA_prelim", date, ".csv", sep = ""))
+lapply(cogPCAOut$rotation, function(x) write.table(data.frame(x), paste("cognitionPCA_prelim", date, ".csv", sep = "")))
+PCASave(cogPCAOut, fileName = "cognitionPCA_prelim")
+PCAPlot(PCAOut = cogPCAOut, name = "cognitionPCA")
+```
+
+The principal component analysis for the cognitive variables returns: `` {r} cogPCAOut` `` ```{r} summary(cogPCAOut)`
+
+```{r applyCognitionPCA, echo=FALSE}
+
+df <- PCAApply(df = df,PCAOut = cogPCAOut,componentsToRetain = 4,prefix = "cog")
+
 ```
 
 # Analyses
 
 ## Descriptive Stats
+
 ```{r describeDf_r, echo=FALSE}
-describe(df)
+# describe(df)
 ```
 
 ```{python describeDf_py, echo=FALSE}
-descriptiveStats(r.df, toSave = False)
+# descriptiveStats(r.df, toSave = False)
 ```
 
 ## Assumption checks
@@ -882,53 +956,11 @@ descriptiveStats(r.df, toSave = False)
 #### Normality corrections
 
 ```{r normCorrections, echo = FALSE}
-df <- normCorrection(df, xName = "crp_aliquot_t0", correctionType = "tert")
-df <- normCorrection(df, xName = "age_assess0_t0", correctionType = "tert")
+# df <- normCorrection(df, xName = "age_assess0_t0", correctionType = "tert")
 
-head(as.data.frame(df$age_assess0_t0))
-is.numeric(df$age_assess0_t0)
-xName <- "age_assess0_t0"
-xColNum <- which(colnames(df) == xName)
-tertileValues <- quantile(df[xColNum], c(0:3/3), na.rm = T) # find tertile values
-df <- df %>% 
-      mutate(newColName = cut(age_assess0_t0,
-                       breaks = tertileValues,
-                       labels = FALSE,
-                       include.lowest = T), 
-             .after = xName)
-table(df$age_tert)
-df <- df %>% 
-      mutate(age_tert = cut(age_assess0_t0,
-                       breaks = tertileValues,
-                       labels = c("Low", "Medium", "High"),
-                       include.lowest = T), 
-             .after = xName)
 ```
+
 !! Vars in code may need to be renamed !!
-
-## Data reduction
-
--PCA assumptions: --linear relationship between components
-
-```{r conductPCA, echo=FALSE}
-# DATA REDUCTION --------------------
-## Correlations
-### Diet variables
-print("To conduct correlation, these variables must be numeric. Must determine what to do with the special values that are currently being recoded.")
-cor(df[dietVars])
-
-### Cognition variables
-# Recode cog_TMT-alphanumDuration_t2 == "trail not completed" to NA
-length(which(df$`cog_TMT-alphanumDuration_t2`== "trail not completed"))
-# Recode cog_TMT-numericDuration_t2 == "trail not completed" to NA
-length(which(df$`cog_TMT-numericDuration_t2`== "trail not completed"))
-# Recode cog_numMem-maxDigitRemem_t2 == "abandoned" to NA
-length(which(df$`cog_numMem-maxDigitRemem_t2`== "abandoned"))
-
-## Tertile - Cognition
-### Raw scores
-### PCA components
-```
 
 ## Create subsets
 
@@ -938,19 +970,43 @@ length(which(df$`cog_numMem-maxDigitRemem_t2`== "abandoned"))
 df_dx <- df %>% 
   group_by(across(any_of(dxVars))) %>% 
   summarize(median(crp_aliquot_t0))
-df_dx
-df_noDx <- df %>% filter(if_any(diagnosisVars[1] == "FALSE"))
 
-df_noDx <- df %>% filter(diagnosisVars[1] == "FALSE")
-View(df[1:100,c(1,diagnosisVars)])
+df_noDx <- df %>% filter(anyDxOfInterest == 0) # remove participants with diagnoses from dataframe 
+df_onlyDx <- df %>% filter(anyDxOfInterest == 1) # remove participants without diagnoses from dataframe 
+df_noMed <- df %>% filter(anyMedOfInterest == 0) # remove participants taking meds from dataframe 
+df_onlyMed <- df %>% filter(anyMedOfInterest == 1) # remove participants not taking meds from dataframe 
+# df_old <- df %>% filter() # keeps only participants in the top tertile of age
+# df_young <- df %>% filter() # keeps participants in the bottom tertile of age
 
-df_noDx <- df %>% filter(if_all(diagnosisVars == FALSE)) # remove participants with diagnoses from dataframe 
-df_onlyDx <- df %>% filter() # remove participants without diagnoses from dataframe 
-df_noMed <- df %>% filter() # remove participants taking meds from dataframe 
-df_onlyMed <- df %>% filter() # remove participants not taking meds from dataframe 
-df_old <- df %>% filter() # keeps only participants in the top tertile of age
-df_young <- df %>% filter() # keeps participants in the bottom tertile of age
+```
+## Run correlational analyses
 
+!!! In outputs, specify what subset of participants it is for !!!
+
+```{r corAnalyses, echo=FALSE}
+# Correlations
+## Models without covariates
+cor()
+
+plot(df$crp_aliquot_fctr, df$cog_PC_1)
+plot(df$crp_aliquot_fctr, df$cog_PC_2)
+plot(df$crp_aliquot_fctr, df$cog_PC_3)
+plot(df$crp_aliquot_fctr, df$cog_prospMem_result_t2)
+plot(df$crp_aliquot_fctr, df$cog_fluidIntel_score_t2)
+
+ggplot(data=df, aes(x=brain_vol_brainSegNoVent_t2, y=cog_PC_1, color = crp_aliquot_fctr)) + geom_point()
+ggplot(data=df, aes(x=brain_vol_brainSegNoVent_t2, y=cog_PC_2, color = crp_aliquot_fctr)) + geom_point()
+ggplot(data=df, aes(x=brain_vol_brainSegNoVent_t2, y=cog_PC_3, color = crp_aliquot_fctr)) + geom_point()
+ggplot(data=df, aes(x=brain_vol_brainSegNoVent_t2, y=cog_PC_4, color = crp_aliquot_fctr)) + geom_point()
+df$brain_vol_hippocamp_L_t2
+
+ggplot(data=df, aes(x=brain_vol_hippocamp_L_t2, y=, color = crp_aliquot_fctr)) + geom_point()
+
+plot(df$cog_timeCompleted_t2, group = df$crp_aliquot_fctr)
+
+cor0_noC <- lm(Y ~ X, data = df)
+## Models with covariates
+cor0 <- lm(Y ~ X + C, data = df)
 ```
 
 ## Mediation functions analyses
@@ -958,22 +1014,20 @@ df_young <- df %>% filter() # keeps participants in the bottom tertile of age
 !! Will need to determine how to include covariate variables in this !! -- perhaps just include when (M \~ X) and when (Y \~ X + M) --As of March 12, 2022: uses all the covariates in the a path and the c path. See 'mediation: R package for Causal Mediation Analysis' (Tingley et al., 2014) For help with interpretation, see: PSYC 536 lab 5 script; <https://towardsdatascience.com/doing-and-reporting-your-first-mediation-analysis-in-r-2fe423b92171> \#\# Conduct analyses and return outputs
 
 ```{r sandBox, echo=FALSE}
-X <- "crp_aliquot_t0" # name of independent variable
-Y <- "blood_vitD_t0" # name of dependent variable
-M <- "crp_timeFasting_t0"
-C <- c("demgraph_sex_t0", "ses_townsend_t0", "age_assess0_t0")
+X <- "crp_aliquot_fctr" # name of independent variable
+Y <- "cog_PC_2" # name of dependent variable
+M <- "brain_vol_brainSegNoVent_t2"
+C <- c("demo_sex_t0", "ses_townsend_t0", "crp_hourCollected")
 
-mediation_out <- runMediation(df, X = X, Y = Y, M = M, C = C)
+mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = NULL, C = C) # mediator model: predict M from X and C
+outcomeModelExpression <-  createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
+mediation_out <- runMediation(df, X = X, control = NULL, Y = Y, M = M, C = C, mediatorModelExpression = mediatorModelExpression, outcomeModelExpression = outcomeModelExpression)
 summary(mediation_out)
+
+mediation_out <- runRMediation(df=df, X=X, Y=Y, M=M, C=C)
+
 medsens(mediation_out, rho.by = .1, effect.type = "indirect")
 plot(sensitivityAnalysis, sens.par = "R2", r.type = "total", sign.prod = "positive", main = M) # plots for R2. N.b. 'sign.prod', does the hypothesized confounder affect the mediator and outcome variables in the same direction or in different directions? If same then sign.prod = positive, else, = negative. See mediationR2 for details.
-
-mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = C) # mediator model: predict M from X and C
-outcomeModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
-mediatorModel <- lm(eval(parse(text = mediatorModelExpression)), data = df) 
-outcomeModel <- lm(eval(parse(text = outcomeModelExpression)), data = df)
-mediation_out <- mediation::mediate(mediatorModel, outcomeModel, treat = X, mediator = M, boot = T)
-summary(mediation_out)
 ```
 
 ### Define model variables
@@ -982,18 +1036,6 @@ summary(mediation_out)
 X <- "CRP_aliquot_t0" # name of independent variable
 Y <- "cogGlobal" # name of dependent variable
 C <- c("age_assess0", "BMI", "ses_townsend") # list of all covariate variables to control for
-```
-
-### Run correlational analyses
-
-!!! In outputs, specify what subset of participants it is for !!!
-
-```{r corAnalyses, echo=FALSE}
-# Correlations
-## Models without covariates
-cor0_noC <- lm(Y ~ X, data = df)
-## Models with covariates
-cor0 <- lm(Y ~ X + C, data = df)
 ```
 
 ### Run mediation analyses
@@ -1021,6 +1063,7 @@ for(i in listMedModels){
   plot(sensitivityAnalysis, sens.par = "R2", r.type = "total", sign.prod = "positive", main = M) # plots for R2. N.b. 'sign.prod', does the hypothesized confounder affect the mediator and outcome variables in the same direction or in different directions? If same then sign.prod = positive, else, = negative. See mediationR2 for details.
 }
 ```
+
 !! Repeat above correlation and mediation analyses for each subgroup (i.e. with and with diagnoses, drugs...) !!
 
 Session Info: `r sessionInfo()`
