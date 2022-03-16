@@ -292,31 +292,44 @@ runChiSq <- function(vars, df_a, df_b, toSave){
 ```
 
 ## PCA function
+!! Variables are not being identified as numeric !!
 ```{r PCASandBox, echo=FALSE}
-vars <- c(cogVars, crpVars)
-df$`cog_numMem-maxDigitRemem_t2` <- as.numeric(df$`cog_numMem-maxDigitRemem_t2`)
+df_backup <- df
 
-PCA(df, vars)
-  
+vars <- c(cogVars)
+colnames(df[vars])
 rejectVars <- c()
-  for(i in vars){
-    if(is.numeric(df[[i]]) == FALSE){ # checks that variables are numeric
+for(i in vars){
+  if(is.numeric(as.matrix(df[[i]])) == FALSE){ # checks that variables are numeric
       rejectVars <- append(rejectVars, i)
+    } else if(round(mean(as.matrix(df[i]), na.rm = T), 4) != 0 | round(sd(as.matrix(df[i]), na.rm = T),4) != 1){
+      df[i] <- scale(df[i])
+      print(c("Not standard.",colnames(df[i]), typeof(as.matrix(df[i])))) 
+      print(c(mean(as.matrix(df[i]), na.rm = T), sd(as.matrix(df[i]), na.rm = T)))
+    } else {
+      print(c("Yes.",colnames(df[i]), typeof(as.matrix(df[i]))))   
+      print(c(mean(as.matrix(df[i]), na.rm = T), sd(as.matrix(df[i]),na.rm = T)))
     }
-  }
-  
-  if(length(rejectVars) > 0){
+}
+if(length(rejectVars) > 0){
     cat("The following variables are not numeric and cannot be included in PCA. \n\t")
     for(i in colnames(df[rejectVars])){
       cat(i, "\t")
     }
    vars <- vars[vars %in% rejectVars == FALSE] # removes the reject variables from the 'vars' list
-  }
-df_z <- df[vars] %>% 
-    mutate(across(where(is.numeric), scale))
+}
+
+prcomp(as.matrix(df[,vars]), center = TRUE, scale = TRUE)
+typeof(as.matrix(df[vars]))
+df <- df %>% 
+  tibble()
+cor(tibble(df[,vars]))
+typeof(df[,vars])
+eigen(cor(as.matrix(df[vars])))$values
+View(df[vars])
 
 ```
-
+see https://www.datacamp.com/community/tutorials/pca-analysis-r
 ```{r PCAFx, echo=FALSE}
 PCA <- function(df, vars){
   # PCA (see 536 lecture notes week 10) ---------
@@ -325,6 +338,10 @@ PCA <- function(df, vars){
   for(i in vars){
     if(is.numeric(df[[i]]) == FALSE){ # checks that variables are numeric
       rejectVars <- append(rejectVars, i)
+    } else {
+      if(round(mean(df[i]), 4) != 0 | round(sd(df[i] != 1),4) != 1){
+        df[i] <- scale(df[i])
+      }
     }
   }
   
@@ -336,17 +353,9 @@ PCA <- function(df, vars){
    vars <- vars[vars %in% rejectVars == FALSE] # removes the reject variables from the 'vars' list
   }
 
-  # PCA example, cognition variables ----------
-  
-  ## PCA 1 - standardize data 
-  df_z <- df[vars] %>% 
-    as_tibble() %>% 
-    mutate(across(where(is.numeric), scale))
-  describe(df_z) # Find a way to ensure that the mean really is 0 and std == 1 
-  
   ### PCA 2 - number of components to retain
   #### eigenvalue method (eigen value > 1, suggested to keep)
-  z_eigenValues <- eigen(cor(df_z))$values
+  z_eigenValues <- eigen(cor(df[vars]))$values
   for(i in z_eigenValues){
     if(i > 1){
       cat("Suggestion to keep component i. Eigenvalue: ", i)
@@ -368,7 +377,7 @@ PCA <- function(df, vars){
   zcog_PCAvarExplained
   print("Looking for components that, together, can explain >80% of variance.")
   
-} # 'df' - dataframe; 'vars'
+} # 'df' - dataframe; 'vars' - name of vars to conduct PCA on. N.B. these variables must be standardized before being entered here.
 ```
 
 ## Function to make appropriate expression for stats::LM functions
@@ -447,10 +456,54 @@ runRMediation <- function(df, X, Y, M, C){
 
 ### Functions for figures and tables
 
-### Mediation diagrams
+#### Scatterplots
+```{r createPlot, echo=FALSE}
+# createPlot <- function(df, x, y, xUnits, yUnits, title, loessLine, fileName){
+#   require(ggplot2)
+#   
+#   xColNum <- which(colnames(df)==x)
+#   yColNum <- which(colnames(df)==y)
+#   
+#   plot <- ggplot(data = df, aes(x=df[xColNum], y=df[yColNum], colour = rgb(.1,.1,.1,.7))) +
+#     geom_count() +
+#     labs(title = title, x = paste(x, " (", xUnits, ")"), y = paste(y, " (", yUnits, ")"))
+#   
+#   if(loessLine == T | loessLine == "y" | loessLine == "yes"){
+#     plot <- plot + geom_smooth(method='loess')
+#   }
+#     
+#   if(nchar(fileName) != 0){
+#     fileName <- paste(fileName, ".png")
+#     ggsave(fileName, width = 5, height = 5)
+#   }
+#   return(plot)
+# } # 'df' - dataframe; 'x' - indeped var; 'y' - dep var; 'xUnits' - units of variable 'x'; 'yUnits' - units of variable 'y'; 'title' - title for the graph; 'loessLine' - logical, if the Loess line should be shown, 'fileName' - specifies name to save file to without file extension, if do not want to save, specify ""
+```
+```{r sandBox, echo=FALSE}
 
+# createPlot(df, x=diet_rawVeg_t0, y=diet_cookedVeg_t0, xUnits = "pieces/day", yUnits = "tbsp/day", title = "CookedVeg vs rawVeg", loessLine = TRUE, fileName = "")
+# 
+# "diet_cookedVeg_t0"
+# df$diet_cookedVeg_t0
+# df$diet_rawVeg_t0
+# 
+# x <- 
+# xUnits <- 
+# y <- which(colnames(df)=="diet_cookedVeg_t0")
+# yUnits <- 
+# title <- "A plot"
+# library(ggplot2)
+# 
+# plot <- ggplot(data = df, aes(x=diet_rawVeg_t0, y=diet_cookedVeg_t0, colour = rgb(.1,.1,.1,.7))) +
+#     geom_count() +
+#     labs(title = title, x = paste("diet_rawVeg_t0", " (", xUnits, ")"), y = paste("diet_cookedVeg_t0", " (", yUnits, ")"))
+# plot <- plot + geom_smooth(method='loess')
+# xlab() + ylab() + name = title
+
+```
+
+#### Mediation diagrams
 !! Needs to be revised !!
-
 ```{r medAnalyses, echo=FALSE}
 # adapted from Omar Wasow's post on https://stackoverflow.com/questions/46465752/drawing-simple-mediation-diagram-in-r
 med_data <- data.frame(
@@ -548,11 +601,12 @@ rm(df_small) # remove dataframes not in use
 # View(df)
 ```
 
+```{r removeTMTErrorBefore, echo=FALSE}
+cogToRemove <- contains("ErrorsBeforeCor_t2_", vars = colnames(df))
+# colnames(df[cogToRemove])
+df <- df[,-cogToRemove]
+```
 ```{r variableLists, echo=FALSE}
-# factors # list of factors
-# cat_vars # list of categorical variables
-# num_vars # list of numeric variables
-
 demoVars <- starts_with("demo_", vars = colnames(df))
 crpVars <- starts_with("crp_", vars = colnames(df))
 brainVars <- starts_with("brain_", vars = colnames(df))
@@ -566,14 +620,75 @@ smokingVars <- starts_with("smoke_", vars = colnames(df))
 exerciseVars <- starts_with("exercise_", vars = colnames(df))
 
 completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
+cogPCAVars <- c("cog_numMem_maxDigitRemem_t2", "cog_prospMem_timeDelay_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_fluidIntel_score_t2", "cog_prospMem_result_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2")
 
 # colnames(df[completionTimeVars])
 # View(df[1:100, c(1,brainVars)])
 ```
 
-# Add columns
+```{r standardizeErrors, echo=FALSE}
+# standardize error codes
+df <- df %>%
+  mutate(diet_cookedVeg_t0 = case_when(  # for field: 1289 ('diet_cookedVeg'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
+      diet_cookedVeg_t0 == "Less than one" ~ "0.5",       
+      diet_cookedVeg_t0 == "Do not know" ~ "NA",       
+      diet_cookedVeg_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_cookedVeg_t0
+  )) %>% 
+  mutate(diet_fruit_t0 = case_when( # for field: 1309 ('diet_fruit'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
+      diet_fruit_t0 == "Less than one" ~ "0.5",       
+      diet_fruit_t0 == "Do not know" ~ "NA",       
+      diet_fruit_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_fruit_t0
+  )) %>% 
+  mutate(diet_rawVeg_t0 = case_when( # for field: 1299 ('diet_rawVeg'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;
+      diet_rawVeg_t0 == "Less than one" ~ "0.5",       
+      diet_rawVeg_t0 == "Do not know" ~ "NA",       
+      diet_rawVeg_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_rawVeg_t0
+  )) %>%
+  mutate(diet_processedMeat_t0 = case_when( # field 1349 ('diet_processedMeat'), -1 = Do not know; -3 = Prefer not to answer;
+      diet_processedMeat_t0 == "Do not know" ~ "NA",       
+      diet_processedMeat_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_processedMeat_t0
+  )) %>% 
+  mutate(diet_water_t0 = case_when( # field 1528 ('diet_water'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;
+      diet_water_t0 == "Less than one" ~ "0.5",       
+      diet_water_t0 == "Do not know" ~ "NA",       
+      diet_water_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_water_t0
+  )) %>%
+  mutate(menopause_t0 = case_when( # field 2724 ('menopause'), -3 = Prefer not to answer;
+      menopause_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ menopause_t0
+  )) %>%
+  mutate(sleep_duration_t0 = case_when( # field 1160 ('sleep_duration'), -1 = Do not know; -3 = Prefer not to answer;
+      sleep_duration_t0 == "Prefer not to answer" ~ "NA",
+      sleep_duration_t0 == "Do not know" ~ "NA",
+      TRUE ~ sleep_duration_t0
+  )) %>%
+   mutate(smoke_currently_t0 = case_when( # field 2724 ('smoke_currently'), -3 = Prefer not to answer;
+      smoke_currently_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ smoke_currently_t0
+  )) %>%
+  mutate(cog_TMT_numericDuration_t2 =  case_when( # fields: 6348 ('cog_TMT_numericDuration'), 6350 ('cog_TMT_alphanumDuration'), 0 = trail not completed
+    cog_TMT_numericDuration_t2 == "trail not completed" ~ "NA",
+    TRUE ~ cog_TMT_numericDuration_t2
+  )) %>% 
+  mutate(cog_TMT_alphanumDuration_t2 =  case_when(
+    cog_TMT_alphanumDuration_t2 == "trail not completed" ~ "NA",
+    TRUE ~ cog_TMT_alphanumDuration_t2
+  )) %>% 
+  mutate(cog_numMem_maxDigitRemem_t2 = case_when( # field 4282 ('cog_numMem_maxDigitRemem_t2'), -1 = abandoned
+    cog_numMem_maxDigitRemem_t2 == "abandoned" ~ "NA",
+    TRUE ~ cog_numMem_maxDigitRemem_t2
+  ))
 
-## Add columns for any diagnosis or medication
+```
+
+### Add columns
+
+#### Add columns for any diagnosis or medication
 
 ```{r addColumns, echo=FALSE}
 # Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
@@ -592,57 +707,81 @@ df <- df %>%
     if_all(all_of(medVars), function(x) (x == "FALSE")) ~ 0
   ))
 # table(df$anyMed)
-
 ```
 
-## Add column for time of day cognitive assessments, MRI completed
+#### Add column for time of day cognitive assessments, MRI completed
 !! difference between two columns is of list type for some reason, thus cannot be described. Must be fixed. !!
 
 ```{r assessmentHour, echo=FALSE}
-# Goal: take variables with form: `YYYY-MM-DDTHH:MM:ss` and return the hour
+# Goal: take variables with form: 'YYYY-MM-DDTHH:MM:SS' and return the hour
 df <- df %>% 
-  mutate(crp_hourCollected = hour(df$crp_timeCollected_t0))
-
-df <- df %>% 
-  mutate(cog_hourCompleted = hour(df$cog_timeCompleted_t2))
-
-df <- df %>% 
+  mutate(crp_hourCollected = hour(df$crp_timeCollected_t0)) %>% 
+  mutate(cog_hourCompleted = hour(df$cog_timeCompleted_t2)) %>% 
   mutate(brain_hourCompleted = hour(df$brain_timeCompleted_t2))
 
-df <- df %>% # number of hours difference between cognitive assessment and MRI
-  mutate(timeDif_brainHourMinusCogHourCompleted = df[124] - df[123])
+# df <- df %>% mutate(timeDif_brainHourMinusCogHourCompleted = df[124] - df[123]) # number of hours difference between cognitive assessment and MRI
 
 hourColNums <- c(contains("_hourCompleted", vars = colnames(df)),contains("_hourCollected", vars = colnames(df)))
 
-df_hours <- df[hourColNums]
-hourDescription <- py$descriptiveStats(df[hourColNums], toSave = F)
-brainHourMinusCogHourCompleted)
-describe(df$timeDif_brainHourMinusCogHourCompleted)
-hist(df$timeDif_brainHourMinusCogHourCompleted)
+```
 
-table(df$crp_hourCollected)
-describe(df$crp_hourCollected)
-hist(df$crp_hourCollected)
-mean(df$crp_hourCollected, na.rm = T)
-sd(df$crp_hourCollected, na.rm = T)
+### Prospective memory - dichotimize to correct in first attempt or not (as in Cullen et al., 2017)
+```{r prospMemRecode, echo=FALSE}
+df <- df %>% 
+  mutate(cog_prospMem_result_t2 = case_when( # field 20018 ('cog_prospMem_result_t2'), 0 = instruction not recalled, either skipped or incorrect; 1 = correct recall on first attempt; 2 = correct recall on second attempt
+    cog_prospMem_result_t2 == "correct recall on first attempt" ~ "correct on first",
+    TRUE ~ "incorrect on first" 
+    ))
+```
+
+### Make columns appropriate data types
+
+```{r colType, echo=FALSE}
+df <- readr::type_convert(df) # automatically detect
+
+factorVars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "cog_prospMem_result_t2", "hand_t0", "smoke_ever_t0", "menopause_t0", "anyMedOfInterest", "anyDxOfInterest")) # Factors
+df <- df %>% mutate_at(all_of(factorVars), factor)
+
+# ordinalVars <- which(colnames(df) %in% c("smoke_currently_t0", "diet_processedMeat_t0", "exercise_IPAQActivityGroup_t0")) # ordinal variables
+df <- df %>% 
+  mutate(smoke_currently_t0 = factor(smoke_currently_t0, order = T,
+                                     levels = c("No", 
+                                                "Only occasionally", 
+                                                "Yes, on most or all days")
+                                     )) %>% 
+  mutate(diet_processedMeat_t0 = factor(diet_processedMeat_t0, order = T,
+                                     levels = c("Never", 
+                                                "Less than once a week",
+                                                "Once a week",
+                                                "2-4 times a week",
+                                                "5-6 times a week",
+                                                "Once or more daily")
+                                     )) %>% 
+  mutate(exercise_IPAQActivityGroup_t0 = factor(exercise_IPAQActivityGroup_t0, order = T,
+                                     levels = c("low", 
+                                                "moderate",
+                                                "high")
+                                     ))
+```
+
+### Standardize appropriate columns
+```{r standardizeData, echo=FALSE}
+varsToNotStandardize <- c("eid", "demo_birthYear", "ses_townend_t0", "cog_prospMem_timeDelay_t2", "smoke_packYears_t0", "demo_age_recruit_t0","brain_headScale_t2", "crp_aliquot_t0", "crp_hourCollected", "cog_hourCompleted", "brain_hourCompleted")
+as.data.frame(colnames(df[which(sapply(df[], is.numeric))]))
+
+df_z <- df %>% 
+  as_tibble() %>% 
+  mutate(across(where(is.numeric) %in% varsToNotStandardize), scale))
+
+df_z
+hist(df$ses_townsend_t0)
 
 ```
 
-## Add dummy code variables
-
-```{r createDummyCodes, echo=FALSE}
-# goal: 
-## -convert a single categorical variable with >2 categories to dummy codes;
-## -have a list with all dummy codes relevant to each variable
-
-# Vars to dummy code
-
-```
-
-### Remove cases with missing variables
+## Remove cases with missing variables
 
 ```{r removeMissing, echo=FALSE}
-essentialVars <- c(demoVars, completionTimeVars) # list of variable names that must be complete in order for case to be retained
+essentialVars <- c(demoVars, completionTimeVars, cogPCAVars) # list of variable names that must be complete in order for case to be retained
 
 df_removed <- df %>% 
   filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # add rows with missing values to new df
@@ -651,6 +790,8 @@ df_remaining <- df %>%
   filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
 
 df <- df_remaining
+
+# View(df[cogVars])
 ```
 Critical variables: `r colnames(df[essentialVars])`
 `r nrow(df_removed)` unique cases have missing values for critical variables and will thus be removed.
@@ -666,14 +807,14 @@ numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 kable(numMissing_df)
 ```
 
-#### Summarise removed cases
+### Summarise removed cases
 
 ```{python describeDf_Removed, echo=FALSE}
 df_described = descriptiveStats(r.df, toSave = False)
 df_removed_described = descriptiveStats(r.df_removed, toSave = False)
 ```
 
-#### Compare removed cases to retained cases
+### Compare removed cases to retained cases
 
 ```{r compareMissing, echo=FALSE}
 varsToCompare <- c(demoVars, crpVars, brainVars, dxVars, medVars, dietVars, smokingVars, exerciseVars)
@@ -712,6 +853,17 @@ runChiSq(varForChi, df, df_removed, FALSE)
 
 ```
 
+## Correlations between diet variables
+```{r correlDietVars, echo=FALSE}
+summary(lm(df$diet_fruit_t0~df$diet_cookedVeg_t0))
+plot(df$diet_cookedVeg_t0, df$diet_fruit_t0)
+
+xyTab <- xyTable(df$diet_cookedVeg_t0, df$diet_fruit_t0)
+plot <- plot(xyTab$x,xyTab$y, cex = xyTab$x*1.5, pch = 20, col = rgb(.1,0.1,0.1,0.7), xlab = "fruit intake (pieces/day)", ylab = "cooked veg intake (tbsp/day)" )
+text(aa$x, aa$y, aa$number)
+?text
+```
+
 # Analyses
 
 ## Descriptive Stats
@@ -723,7 +875,7 @@ describe(df)
 descriptiveStats(r.df, toSave = False)
 ```
 
-# Assumption checks
+## Assumption checks
 
 ### Normality
 
