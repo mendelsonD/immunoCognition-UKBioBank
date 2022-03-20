@@ -612,22 +612,26 @@ med_diagram(med_data)
 ## Data Preperation
 
 ```{r removeEIDs, echo=FALSE}
-# df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-15.csv") # import df
+# df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17.csv") # import df
 # eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
-
+# 
 # df_all <- df_all %>% filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
-# write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-15_ProperEID.csv", row.names=FALSE)
+# write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17_ProperEID.csv", row.names=FALSE)
 # rm(df_all, eidToRemove) # remove dataframes not in use
 
 ```
 
 ```{r dataPrep, echo=FALSE}
-df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-15_ProperEID.csv") # import df
+df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17_ProperEID.csv", guess_max = 10000) # import df
          
-cat(paste("There are ", sum(is.na(df_all$date_assess_t2)), "cases that have not completed time point 2. These cases will be removed."))
+cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
 df_all <- df_all %>% 
-  filter(!(is.na(df_all$date_assess_t2))) # remove rows without timepoint 2 assessment date
+  filter(!(is.na(df_all$date_assess2_t2))) # remove rows without timepoint 2 assessment date
 
+df <- df %>% 
+  transform(sleep_duration2_t2 = as.character(sleep_duration2_t2))
+
+typeof(df$sleep_duration2_t2)
 df_small <- df_all[1:1000,]
 df <- df_small # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
 rm(df_small) # remove dataframes not in use
@@ -636,9 +640,9 @@ rm(df_small) # remove dataframes not in use
 ```
 
 ```{r removeTMTErrorBefore, echo=FALSE}
-cogToRemove <- contains("ErrorsBeforeCor_t2_", vars = colnames(df))
-# colnames(df[cogToRemove])
-df <- df[,-cogToRemove]
+# cogToRemove <- contains("ErrorsBeforeCor_t2_", vars = colnames(df))
+# # colnames(df[cogToRemove])
+# df <- df[,-cogToRemove]
 
 ```
 
@@ -674,14 +678,23 @@ df <- df %>%
       diet_water_t0 == "Prefer not to answer" ~ "NA",
       TRUE ~ diet_water_t0
   )) %>%
+  mutate(diet_alc_freq = case_when( # field 1558 ('cog_numMem_maxDigitRemem_t2'), -3 = Prefer not to answer;
+    cog_numMem_maxDigitRemem_t2 == "Prefer not to answer" ~ "NA",
+    TRUE ~ cog_numMem_maxDigitRemem_t2 
+    )) %>% 
   mutate(menopause_t0 = case_when( # field 2724 ('menopause'), -3 = Prefer not to answer;
       menopause_t0 == "Prefer not to answer" ~ "NA",
       TRUE ~ menopause_t0
   )) %>%
-  mutate(sleep_duration_t0 = case_when( # field 1160 ('sleep_duration'), -1 = Do not know; -3 = Prefer not to answer;
-      sleep_duration_t0 == "Prefer not to answer" ~ "NA",
-      sleep_duration_t0 == "Do not know" ~ "NA",
-      TRUE ~ sleep_duration_t0
+  mutate(sleep_duration0_t0 = case_when( # field 1160 ('sleep_duration'), -1 = Do not know; -3 = Prefer not to answer;
+      sleep_duration0_t0 == "Prefer not to answer" ~ "NA",
+      sleep_duration0_t0 == "Do not know" ~ "NA",
+      TRUE ~ sleep_duration0_t0
+  )) %>%
+  mutate(sleep_duration2_t2 = case_when( # field 1160 ('sleep_duration'), -1 = Do not know; -3 = Prefer not to answer;
+      sleep_duration2_t2 == "Prefer not to answer" ~ "NA",
+      sleep_duration2_t2 == "Do not know" ~ "NA",
+      TRUE ~ sleep_duration2_t2
   )) %>%
    mutate(smoke_currently_t0 = case_when( # field 2724 ('smoke_currently'), -3 = Prefer not to answer;
       smoke_currently_t0 == "Prefer not to answer" ~ "NA",
@@ -698,15 +711,24 @@ df <- df %>%
   mutate(cog_numMem_maxDigitRemem_t2 = case_when( # field 4282 ('cog_numMem_maxDigitRemem_t2'), -1 = abandoned
     cog_numMem_maxDigitRemem_t2 == "abandoned" ~ "NA",
     TRUE ~ cog_numMem_maxDigitRemem_t2
-  ))
+  )) 
 
 ```
 
 ### Add columns
 
+#### Waist:Hip ratio
+
+```{r waistToHip, echo=FALSE}
+
+df <- df %>% 
+  mutate("waistToHip" = weight_waistCirc_t0/weight_hipCirc_t0)
+
+```
+
 #### Add columns for any diagnosis or medication
 
-```{r addColumns, echo=FALSE}
+```{r anyDxMedColumns, echo=FALSE}
 # Create column identifying if have any diagnoses of interest or medication of interest  -------------------------
 ## Diagnosis
 dxVars <- starts_with("dx_", vars = colnames(df))
@@ -719,10 +741,20 @@ df <- df %>%
 
 ## Medication
 medVars <- starts_with("med_", vars = colnames(df))
+medVars0 <- ends_with("0", vars = colnames(df[medVars]))
+medVars0 <- which(colnames(df) %in% colnames(df[medVars[medVars0]]))
+
+medVars2 <- ends_with("2", vars = colnames(df[medVars]))
+medVars2 <- which(colnames(df) %in% colnames(df[medVars[medVars2]]))
+
 df <- df %>% 
-  mutate("anyMedOfInterest" = case_when(
-    if_any(any_of(medVars), function(x) (x == "TRUE")) ~ 1,
-    if_all(all_of(medVars), function(x) (x == "FALSE")) ~ 0
+  mutate("anyMedOfInterest0" = case_when(
+    if_any(any_of(medVars0), function(x) (x == "TRUE")) ~ 1,
+    if_all(all_of(medVars0), function(x) (x == "FALSE")) ~ 0
+  )) %>% 
+  mutate("anyMedOfInterest2" = case_when(
+    if_any(any_of(medVars2), function(x) (x == "TRUE")) ~ 1,
+    if_all(all_of(medVars2), function(x) (x == "FALSE")) ~ 0
   ))
 # table(df$anyMed)
 ```
@@ -759,10 +791,11 @@ df <- df %>%
 ```{r CRPRecode, echo=FALSE}
 df <- df %>% 
       mutate(crp_aliquot_fctr = cut(crp_aliquot_t0,
-                       breaks = c(0,1,3, Inf),
+                       breaks = c(0,1,3, 10),
                        labels = c("low", "avg", "high"),
                        include.lowest = T,
                        right = F), .after = crp_aliquot_t0)
+sum(table(df$crp_aliquot_fctr))
 
 ```
 
@@ -788,6 +821,14 @@ df <- df %>%
                                                 "2-4 times a week",
                                                 "5-6 times a week",
                                                 "Once or more daily")
+                                     )) %>% 
+  mutate(diet_alc_freq = factor(diet_alc_freq, order = T,
+                                     levels = c("Never",
+                                               "Special occasions only",
+                                               "One to three times a month",
+                                               "Once or twice a week",
+                                               "Three or four times a week",
+                                               "Daily or almost daily")
                                      )) %>% 
   mutate(exercise_IPAQActivityGroup_t0 = factor(exercise_IPAQActivityGroup_t0, order = T,
                                      levels = c("low", 
@@ -913,6 +954,11 @@ runWilcox(varForWil, df, df_removed, FALSE)
 
 ```
 
+```{r correlCRPVars, echo=FALSE}
+cor(df$crp_hourCollected, df$crp_aliquot_t0)
+plot(df$crp_aliquot_fctr, df$crp_hourCollected)
+```
+
 ## Data reduction
 
 -PCA assumptions: --linear relationship between components
@@ -1017,7 +1063,7 @@ cor0 <- lm(Y ~ X + C, data = df)
 X <- "crp_aliquot_fctr" # name of independent variable
 Y <- "cog_PC_2" # name of dependent variable
 M <- "brain_vol_brainSegNoVent_t2"
-C <- c("demo_sex_t0", "ses_townsend_t0", "crp_hourCollected")
+C <- c("demo_sex_t0", "ses_townsend_t0", "crp_hourCollected", "med_SSRI", "waistToHip", "exercise_IPAQActivityGroup_t0", "sleep_duration0_t0", "diet_alc_freq_t0", "demo_ethnicity_t0", "diet_processedMeat_t0") # add "demo_age_assess_t0", a diet variable
 
 mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = NULL, C = C) # mediator model: predict M from X and C
 outcomeModelExpression <-  createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
