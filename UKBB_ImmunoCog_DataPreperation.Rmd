@@ -48,108 +48,6 @@ def descriptiveStats(df, toSave):
 
 ## Assumption checks
 
-```{r Assumption_Checks, echo=FALSE}
-# see 536 lab 3, lecture notes week 3
-assumptionTest <- function(df, dfModel, y){ # 'df' is dataframe. 'dfModel' is the lm model of interest. 'y' is the outcome variable in a string.
-## Assumption tests for STEMModel ----------------
-  colNumofY <- which(colnames(df) == y)
-  cat(paste("Assumption tests for the given data and model with dependent variable '", y, "'"))
-  ### Normality  ---
-  ## check skew and kurtosis
-  cat("\n 1. Normality.") 
-  cat("\n 1.a \t Skew and kurtosis.")
-  skew <- skew(df[[colNumofY]]) # determines the skew of the dependent variable's distribution. N.b., the double square brackets '[[]]' is ESSENTIAL for getting the correct results--single brackets '[]' will return inaccurate results.
-  SE_skew <- sqrt(5/dim(df)[1])# Standard error for the skewness
-  t_skew <- skew/SE_skew # t value for the skewness in the dependent variable's distribution
-  
-  kurtosis <- kurtosi(df[[colNumofY]]) # determines the skew of the dependent variable's distribution
-  SE_kurtosis <- sqrt(24/dim(df)[1]) # Standard Error for the kurtosis
-  t_kurtosis <- kurtosis/SE_kurtosis # t value for the kurtosis in the dependent variable's distribution
-  
-  if(abs(t_skew) > 3.2){ # checks if the t-value for skewness is greater than the critical t-value 
-    cat(paste("\n \t\t !! Skewness (", skew, ") is significantly different from 0 (|t| = ", abs(t_skew), "> 3.2). Outcome variable is not normal."))
-  } else {
-    cat(paste("\n \t\t Skewness (", skew, ") is not significantly different from 0 (|t| = ", abs(t_skew), "< 3.2). Outcome variable may be normal."))
-  }
-  
-  if(abs(t_kurtosis) > 3.2){ # checks if the t-value for kurtosis is greater than the critical t-value 
-    cat(paste("\n \t\t !! Kurtosis (", kurtosis, ") is significantly different from 0 (|t| = ", abs(t_kurtosis), "> 3.2). Outcome variable is not normal."))
-  } else {
-    cat(paste("\n \t\t Kurtosis (", kurtosis, ") is not significantly different from 0 (|t| = ", abs(t_kurtosis), "< 3.2). Outcome variable may be normal."))
-  }
-  
-  ## Quantile-quantile plot; points should follow the reference line
-  cat("\n 1.b \t Quantile-quantile plot:")
-  QQPlot <- plot(dfModel,2, main = "1.b Quantile-Quantile plot")
-  cat("\n \t\t If the data is normal, points on the Q-Q plot will follow the reference line.")
-  # ggplot(df, aes(sample = y))+ stat_qq() + stat_qq_line()+ ggtitle("Q-Q Plot for interest in STEM") # alternative QQ plot
-  ###
-  
-  ### Linearity and homoscedasticity ---
-  ## residual plot
-  cat("\n 2. Linearity and homoscedasticity.")
-  cat("\n 2.a \t Residual plot:")
-  residualPlot <- plot(STEMModel, 1, main = "2.a Residual plot") # x is fitted values, y is residuals
-  # plot(dfModel, 3) # alternative to the plot above. Difference is that y-axis is the sqrt(abs(residuals))
-  cat("\n \t\t If the data is linear, best fit of residuals (red line) should be linear.")
-  cat("\n \t\t If the data is homoscedastic, range of residuals should be equivalent/comparable at all values of the 'fitted values' (i.e. y-hat).")
-  ## 
-  ###
-  
-  ### Multicollinearity ---
-  ## Tolerance
-  cat("\n 3. Testing multicollinearity: tolerance.")
-  cat("\n if R^2 is high but there are few significant ")
-  cat("\n 3.a \t Variance Inflation Factors:")
-  vifPlot <- vif(dfModel, main = "3.a Variance Infation Factors")
-  cat("\n \t\t If any VIF value is above 10, this indicates that the multicollinearity is not true.")
-  
-  ## correl matrix
-  cat("\n 3.b \t Correlation matrix:")
-  print(cor(df)) # cats correlation matrix of all the predictors
-  cat("\n \t\t Ensure that all regression coefficients are insignificant predictors though overall model is significant.")
-  cat("\n \t\t N.b. this is less formal than Tolerance and VIF analysis above.")
-  ## check that all regression coefficients are insignificant predictors though overall model is significant -- though this is less formal
-  ###
-  
-  ### Model correctly specified ----
-  cat("\n 4 Correct specification of model.") 
-  cat("\n 4.a \t Added-variable plots (aka partial-regression):")
-  addedVarPlot <- avPlots(dfModel, main = "4.a Added-variable plots") # if slope is 0 then the predictor is not predicting unique variance in the model. SLope of lines should be equivalent to the regression coefs in the model.
-  cat("\n \t\t The closer to 0 is the slope, the less unique variance this predictor is explaining in the model (slope of 0 = explaining no unique variance). N.b., Slope of lines is equivalent to the regression coefs in the model.")
-  # summary(dfModel) # slope of line
-  cat("\n \t\t Remove variable that is not predicting unique variance. Do so one at a time--excluding the one with a slope closest to 0 if applicable--and do so only at the end!")
-  # !! only remove predictors at the end !!
-  ###
-  
-  ### Outliers (i.e. influencers) ---
-  cat("\n 5. Outlier analysis.")
-  ## Evaluate influence
-  cat("\n 5.a \t Evaluating influence.") 
-  cat("\n 5.a.i \t\t Plot of Cook's distances:")
-  cooksDistance <- plot(dfModel, 4, main = "5.a.i Cook's distance plot") # plot of Cook's distance
-  cat("\n \t\t\t ") # Note what should be looked for.
-  
-  # Influence plot
-  cat("\n 5.a.ii \t\t Influence Plot:")
-  influencePlot <-influencePlot(dfModel, main="5.a.ii Influence Plot")
-  cat("\n \t\t\t Consider removing the point(s) with large influence.") # Note what should be looked for.
-  cat("\n \t\t\t Note. The larger the circle, the more influence the observation has. Studentized residuals indicate distance; hat-values indicate leverage") # Note what should be looked for.
-
-  cat("\n 5.a.iii \t Influence Index Plot:")
-  infIndex <- infIndexPlot(dfModel, main = "5.a.iii Influence Index Plot")
-  
-  allPlots <- 
-    QQPlot + facet_wrap(~ carb, nrow = 1) + theme(legend.position = "none") +
-    ggtitle("Test")
-  
-  # residualPlot, vifPlot, addedVarPlot, cooksDistance, influencePlot, infIndex
-
-  # list(QQPlot, residualPlot, vifPlot, addedVarPlot, cooksDistance, influencePlot, infIndex)
-  # list(plot(dfModel,2, main = "1.b Quantile-Quantile plot"), plot(STEMModel, 1, main = "2.a Residual plot"),vif(dfModel, main = "3.a Variance Infation Factors"),avPlots(dfModel, main = "4.a Added-variable plots"), plot(dfModel, 4, main = "5.a.i Cook's distance plot"),influencePlot(dfModel, main="5.a.ii Influence Plot"), infIndexPlot(dfModel, main = "5.a.iii Influence Index Plot"))
-}
-```
-
 ### Normality
 
 ```{r normalityCheck, echo=FALSE}
@@ -184,105 +82,6 @@ normalCheck <- function(x, colName, colNum){
   return(plotList)
 } # This function is made to be used by mapply(). 'x' - a column from a df; 'colName' - a string specifying the name of this column; 'colNum' - a number specifying the column number of this variable in df
 
-```
-
-```{r normalityCorrections, echo=FALSE}
-normCorrection <- function(df, xName, correctionType){
-  xColNum <- which(colnames(df) == xName)
-  if(correctionType == "tert"){
-    tertileValues <- quantile(df[xColNum], c(0:3/3), na.rm = T) # find tertile values
-    newColName <- glue(xName, "_tert")
-    df <- df %>% 
-      mutate_(newColName = cut({{ xName }},
-                       breaks = .tertileValues,
-                       labels = FALSE,
-                       include.lowest = T), 
-             .after = {{ xName }})
-    cat(paste("The tertiles for ", xName, "are: \n\t", tertileValues))
-  } else if (correctionType == "log") {
-    newColName <- glue(xName, "_log")
-    df <- df %>% 
-      mutate(newColName = log(df[xColNum]), .after = xName)
-  } else {
-    cat(paste("Error. '", correctionType, "' is not a valid correction type. Accepted values are: \n\t'tert' for tertiles; \n\t'log' for logarithmic. \nNo changes were made to the dataframe for the variable ", xName, "."))
-  }
-  return(df)
-} # takes df: dataframe; xName: name of the variable to correct; correctionType: how the variable should be corrected (possible values: 'tert' tertile, 'log' logarithmic. Returns df with the corrected variable after the original variable.
-```
-
-### Linearity
-
-```{r linearityChecks, echo=FALSE}
-
-```
-
-### Homoscedasticity
-
-```{r homoscCheck, echo=FALSE}
-
-```
-
-## Assumption corrections
-
-## Comparative analyses
-
-!! Have yet to write out TTest function !!
-
-```{r runStatTests, echo=FALSE}
-runTTest <- function(vars, df_a, df_b, toSave){
-  
-} # 'vars' - list of numeric variables to compare; 'df_a' - dataframe with subset of cases; 'df_b' - dataframe with subset to compare to; 'toSave' - logical if the output should be saved to a file. Returns TTest output.
-
-runWilcox <- function(vars, df_a, df_b, toSave){
-    wilcoxOutput <- data.frame("value type" = c("statistic","p", "n1", "n2"), row.names = 1) # initialize dataframe for the output
-    i <- integer(0)
-    for(i in vars){ # iterate through the variables of interest. Run wilcoxon-paired rank test. Put results into a dataframe 
-      # print(i)
-      x <- as.numeric(unlist(df_a[i])) # put variable {i} of df_a into a temporary vector, make numeric.
-      y <- as.numeric(unlist(df_b[i])) # put variable {i} of df_b into a temporary vector, make numeric.
-      
-      n1 <- sum(!(is.na(x))) # counts number of non-NA values in x
-      n2 <- sum(!(is.na(y))) # counts number of non-NA values in y
-      
-      if(n1 <= 1 | n2 <= 1){
-        print(paste("Not enough observations to compare ", i, ". This variable was skipped."))
-      } else {
-        wilcoxRaw <- wilcox.test(x, y, alternative = c("two.sided"), paired = F) # run wilcoxon paired-rank
-        wilcoxStat <- format(wilcoxRaw$statistic, scientific = F, digits = 3) # Extract W statistic of test. N.b., the 'W' statistic reported here is equivalent to the U statistic: https://stats.stackexchange.com/questions/79843/is-the-w-statistic-output-by-wilcox-test-in-r-the-same-as-the-u-statistic
-        wilcoxP <- format(wilcoxRaw$p.value, scientific = F, digits = 3) # Extract P statistic of test
-        wilcoxInterest <- c(wilcoxStat, wilcoxP, n1, n2) # combine W statistic, p, n1 and n2 into a vector
-        wilcoxOutput[[i]] <- with(wilcoxOutput, wilcoxInterest) # Add the results for variable {i} to the output dataframe
-        # print(wilcoxInterest)
-      }
-    }
-    if(toSave == T | toSave == TRUE){
-      setwd(outputPath)
-      outputNameWilcox <- str_c("UKBBImmuCog_wilcoxon_", date, ".csv")
-      write.csv(wilcoxOutput, file = outputNameWilcox) # exports wilcoxOutput to a CSV file
-      print(paste("The file '", outputNameWilcox, "' has been saved to '", getwd(), "'."))
-    }
-    return(wilcoxOutput)
-} # 'vars' - list of numeric variables to compare; 'df_a' - dataframe with subset of cases; 'df_b' - dataframe with subset to compare to; 'toSave' - logical if the output should be saved to a file. Returns wilcoxon output.
-
-runChiSq <- function(vars, df_a, df_b, toSave){ 
-  chisqOutput <- data.frame("interv_compl" = c("statistic","p")) # initialize dataframe for the output
-  
-  for(i in vars){
-    chisqRaw <- chisq.test(df_a[[i]], df_b[[i]]) # run chisquared
-    chisqStat <- format(chisqRaw$statistic, scientific = F, digits = 3) # Extract X statistic of test.
-    chisqP <- format(chisqRaw$p.value, scientific = F, digits = 3) # Extract P statistic of test
-    varOfInterest <- c(chisqStat, chisqP) # combine X statistic, and p into a vector
-    chisqOutput[[i]] <- with(chisqOutput, varOfInterest) # Add the results for "dem_gender" to the output dataframe
-  }
-
-  if(toSave == T | toSave == TRUE){
-    setwd(outputPath)
-    outputNameChisq <- str_c("UKBBImmuCog_chisq_", date, ".csv")
-    write.csv(wilcoxOutput, file = chisqOutput) # exports chisqOutput to a CSV file
-    print(paste("The file '", chisqOutput, "' has been saved to '", getwd(), "'."))
-  }
-  return(chisqOutput)
-} # 'vars' - list of categorical variables to compare; 'df_a' - dataframe with subset of cases; 'df_b' - dataframe with subset to compare to; 'toSave' - logical if the output should be saved to a file. Returns chisq output.
 ```
 
 ## PCA function
@@ -365,25 +164,6 @@ PCASave <- function(PCAOut, fileName){
   
 ```
 
-## Function to make appropriate expression for stats::LM functions
-
-```{r LMexpressionFunction, echo=FALSE}
-createLMExpression <- function(varNames, X, Y, M, C){
-  colNumsPredictors <- c()
-  for(i in c(X, M, C)){
-    if(i != "ignore"){
-      colNum <- which(varNames == i)
-      # print(i)
-      colNumsPredictors <- append(colNumsPredictors, colNum)
-    }
-  } # get column numbers for the relevant predictor variables
-
-  LMpredictors <- paste(sapply(varNames[colNumsPredictors], paste), collapse = " + ")
-  model <- paste(Y, " ~ ", LMpredictors, sep = "")
-  return(model)
-} # Input: 'varNames' - list of variable names in the dataframe to be analysed. Is given by the function colnames(df); 'Y' - name of the dependent variable; 'X' - name of the independent variable; 'M' - name of mediators mediators; 'C' - list of covariate variable names;
-```
-
 # -------------------------------
 
 # 1 - Biobank data analysis
@@ -407,24 +187,17 @@ df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndS
 # df_all <- df_all %>% 
 #   filter(!(is.na(df_all$date_assess2_t2))) # remove rows without timepoint 2 assessment date
 
-df_all <- df_all %>% 
-  transform(sleep_duration2_t2 = as.character(sleep_duration2_t2))
-
 # df_small <- df_all[1:10000,]
 df <- df_all # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
 # rm(df_small) # remove dataframes not in use
 # sort(colnames(df))
 ```
 
-```{r removeTMTErrorBefore, echo=FALSE}
-# cogToRemove <- contains("ErrorsBeforeCor_t2_", vars = colnames(df))
-# # colnames(df[cogToRemove])
-# df <- df[,-cogToRemove]
+```{r standardizeCatVars, echo=FALSE}
+# standardize categorical variable responses
+df_all <- df_all %>% 
+  transform(sleep_duration2_t2 = as.character(sleep_duration2_t2))
 
-```
-
-```{r standardizeErrors, echo=FALSE}
-# standardize error codes
 df <- df %>%
   mutate(diet_cookedVeg_t0 = case_when(  # for field: 1289 ('diet_cookedVeg'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
       diet_cookedVeg_t0 == "Less than one" ~ "0.5",       
@@ -493,8 +266,23 @@ df <- df %>%
   mutate(cog_numMem_maxDigitRemem_t2 = case_when( # field 4282 ('cog_numMem_maxDigitRemem_t2'), -1 = abandoned
     cog_numMem_maxDigitRemem_t2 == "abandoned" ~ "NA",
     TRUE ~ cog_numMem_maxDigitRemem_t2
-  )) 
-
+  )) %>% 
+  mutate(demo_ethnicity_t0 = case_when( # field 4282 ('cog_numMem_maxDigitRemem_t2'), -1 = abandoned
+    demo_ethnicity_t0 == "Prefer not to answer" ~ "NA",
+    demo_ethnicity_t0 == "Do not know" ~ "NA",
+    demo_ethnicity_t0 == "British" ~ "White",
+    demo_ethnicity_t0 == "Irish" ~ "White",
+    demo_ethnicity_t0 == "Any other white background" ~ "White",
+    demo_ethnicity_t0 == "Bangladeshi" ~ "South Asian",
+    demo_ethnicity_t0 == "Indian" ~ "South Asian",
+    demo_ethnicity_t0 == "Pakistani" ~ "South Asian",
+    demo_ethnicity_t0 == "Bangladeshi" ~ "South Asian",
+    demo_ethnicity_t0 == "Asian or Asian British" ~ "Any other Asian background",
+    demo_ethnicity_t0 == "Any other Black background" ~ "Other ethnic group",
+    demo_ethnicity_t0 == "White and Black African" ~ "Mixed",
+    demo_ethnicity_t0 == "White and Black Caribbean" ~ "Mixed",
+    TRUE ~ demo_ethnicity_t0
+    ))
 ```
 
 ### Add columns
@@ -551,7 +339,6 @@ for(i in medVars0){
   }
 }
 
-
 medVars2NoCases <- c()
 for(i in medVars2){
   if(levels(as.factor(df[i])) == FALSE){
@@ -559,7 +346,6 @@ for(i in medVars2){
     medVars2NoCases <- append(medVars2NoCases, i)
   }
 }
-
 # table(df$anyMed)
 
 # Num days between assessment 2 and assessment 0 ---------
@@ -599,33 +385,33 @@ df <- df %>%
     )) %>% mutate(cog_prospMem_result_t2  = as.numeric(cog_prospMem_result_t2))
 
 df <- df %>%
-  mutate(smoke_currently_t0 = factor(smoke_currently_t0, order = F, levels = 
-                                       c("No",
-                                        "Yes"
-  ))) %>% 
-  mutate(diet_processedMeat_t0 = factor(diet_processedMeat_t0, order = T, levels = 
-                                          c("Never",
-                                          "Less than once a week",
-                                          "Once a week", 
-                                          "2-4 times a week",
-                                          "5-6 times a week",
-                                          "Once or more daily"))) %>% 
-  mutate(diet_alc_freq_t0 = factor(diet_alc_freq_t0, order = T,
-                                     levels = c("Never",
-                                               "Special occasions only",
-                                               "One to three times a month",
-                                               "Once or twice a week",
-                                               "Three or four times a week",
-                                               "Daily or almost daily"))) %>% 
-  mutate(exercise_IPAQActivityGroup_t0 = factor(exercise_IPAQActivityGroup_t0, order = T,
-                                     levels = c("low", 
-                                                "moderate",
-                                                "high"))) %>% 
-  mutate(ses_houseIncome2_t2 = factor(ses_houseIncome2_t2, order = T, levels = c("Less than 18,000",
-                                                                                 "18,000 to 30,999",
-                                                                                 "31,000 to 51,999",
-                                                                                 "52,000 to 100,000",
-                                                                                 "Greater than 100,000"))) %>% 
+  mutate(smoke_currently_t0 = factor(smoke_currently_t0, order = F, levels = c(
+                                       "No",
+                                       "Yes"))) %>% 
+  mutate(diet_processedMeat_t0 = factor(diet_processedMeat_t0, order = T, levels = c(
+                                       "Never",
+                                       "Less than once a week",
+                                       "Once a week", 
+                                       "2-4 times a week",
+                                       "5-6 times a week",
+                                       "Once or more daily"))) %>% 
+  mutate(diet_alc_freq_t0 = factor(diet_alc_freq_t0, order = T, levels = c(
+                                       "Never",
+                                       "Special occasions only",
+                                       "One to three times a month",
+                                       "Once or twice a week",
+                                       "Three or four times a week",
+                                       "Daily or almost daily"))) %>% 
+  mutate(exercise_IPAQActivityGroup_t0 = factor(exercise_IPAQActivityGroup_t0, order = T, levels = c(
+                                       "low", 
+                                       "moderate",
+                                       "high"))) %>% 
+  mutate(ses_houseIncome2_t2 = factor(ses_houseIncome2_t2, order = T, levels = c(
+                                       "Less than 18,000",
+                                       "18,000 to 30,999",
+                                       "31,000 to 51,999",
+                                       "52,000 to 100,000",
+                                       "Greater than 100,000"))) %>% 
   mutate(med_SSRI0 = factor(case_when(
          med_SSRI0 == "FALSE" ~ 0,
          med_SSRI0 == "TRUE" ~ 1))) %>% 
@@ -633,7 +419,6 @@ df <- df %>%
          med_SSRI2 == "FALSE" ~ 0,
          med_SSRI2 == "TRUE" ~ 1))) %>% 
   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2))
-
 
 df <- readr::type_convert(df) # automatically detect
 ```
@@ -655,12 +440,14 @@ exerciseVars <- starts_with("exercise_", vars = colnames(df))
 completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
 cogPCAVars <- which(colnames(df) %in% c("cog_numMem_maxDigitRemem_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2"))
 
+finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess","waistToHip_z"))
+
 # colnames(df[sesVars])
 # View(df[1:100, c(1,cogPCAVars)])
 ```
 
 ```{r removeMissing, echo=FALSE}
-essentialVars <- c(demoVars, completionTimeVars, crpAliqVars, cogPCAVars, brainVolVars, dietVarsToCor) # list of variable names that must be complete in order for case to be retained
+essentialVars <- c(demoVars, completionTimeVars, crpAliqVars, cogPCAVars, brainVolVars, finalCovars) # list of variable names that must be complete in order for case to be retained
 df <- df %>% 
   mutate(missingEssentialVar = case_when(
     if_any(any_of(essentialVars), function(x)(is.na(x))) ~ "Remove",
@@ -672,15 +459,15 @@ table(df$missingEssentialVar)
 
 df_removed <- df %>%
   filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # add rows with missing values to new df
+
 # df <- df %>% 
 #   filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
-
 ```
 
 Critical variables: `r colnames(df[essentialVars])` `r nrow(df_removed)` unique cases have missing values for critical variables and will thus be removed.
 
 ```{r missingValues, echo=FALSE}
-numMissing <- matrix(ncol=2, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]),c("NotNA", "NACount")))
+numMissing <- matrix(ncol=2, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]), c("NotNA", "NACount")))
 
 for(i in 1:length(essentialVars)){
   numMissing[i,] <- c(sum(!is.na(df_removed[essentialVars[i]])), sum(is.na(df_removed[essentialVars[i]])))
@@ -758,63 +545,66 @@ df <- df_retained
 ## Correlations between diet variables
 
 ```{r correlDietVars, echo=FALSE}
-diet_numeric <- c()
-for(i in dietVarsToCor){
-  if(is.numeric(df[[i]]) == T){
-    diet_numeric <- append(diet_numeric,i)
-  } 
-}
-
-out <- matrix(ncol = 6, dimnames = list(c(),c("x,y","rho","p","stat", "nx", "ny"))) # initilaize output matrix
-VarsDone <- c()
-for(i in diet_numeric){
-  VarsDone <- append(VarsDone, i)
-  for(j in diet_numeric){
-    if(i != j){
-        test <- cor.test(df[[i]], df[[j]], method = 'spearman')
-        corName <- paste(colnames(df[i]), ", ", colnames(df[j]), sep = "")
-        nx <- length(df[[i]]) - sum(is.na(df[[i]]))
-        ny <- length(df[[j]]) - sum(is.na(df[[j]]))
-        newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2),scientific = T), nx, ny)
-        out <- rbind(out, {newRow})
-      }
-  }
-  test <- cor.test(rank(df$diet_processedMeat_t0), rank(df[[i]]), method = 'pearson')
-  corName <- paste("diet_processedMeat_t0,", colnames(df[i]), sep = "")
-  nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
-  ny <- length(df[[i]]) - sum(is.na(df[[i]]))
-  newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
-  out <- rbind(out, {newRow})
-}
-  test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_cookedVeg_t0), method = 'pearson')
-  corName <- paste("diet_processedMeat_t0, diet_cookedVeg_t0")
-  nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
-  ny <- length(df$diet_cookedVeg_t0) - sum(is.na(df$diet_cookedVeg_t0))
-  newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
-  out <- rbind(out, {newRow})
-  
-  test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_rawVeg_t0), method = 'pearson')
-  corName <- paste("diet_processedMeat_t0, diet_rawVeg_t0")
-  nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
-  ny <- length(df$diet_rawVeg_t0) - sum(is.na(df$diet_rawVeg_t0))
-  newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
-  out <- rbind(out, {newRow})
-  
-  test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_water_t0), method = 'pearson')
-  corName <- paste("diet_processedMeat_t0, diet_water_t0")
-  nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
-  ny <- length(df$diet_water_t0) - sum(is.na(df$diet_water_t0))
-  newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
-  out <- rbind(out, {newRow})
-
-out <- out[-1,] # removes first column which is "NA"
-out <- out[order(out[,2], decreasing = T),]
-out <- out[-(seq(2,to=nrow(out),by=2)),]
-kable(out, caption = "Spearman correlation between diet variables")
+# diet_numeric <- c()
+# for(i in dietVarsToCor){
+#   if(is.numeric(df[[i]]) == T){
+#     diet_numeric <- append(diet_numeric,i)
+#   } 
+# }
+# 
+# out <- matrix(ncol = 6, dimnames = list(c(),c("x,y","rho","p","stat", "nx", "ny"))) # initilaize output matrix
+# VarsDone <- c()
+# for(i in diet_numeric){
+#   VarsDone <- append(VarsDone, i)
+#   for(j in diet_numeric){
+#     if(i != j){
+#         test <- cor.test(df[[i]], df[[j]], method = 'spearman')
+#         corName <- paste(colnames(df[i]), ", ", colnames(df[j]), sep = "")
+#         nx <- length(df[[i]]) - sum(is.na(df[[i]]))
+#         ny <- length(df[[j]]) - sum(is.na(df[[j]]))
+#         newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2),scientific = T), nx, ny)
+#         out <- rbind(out, {newRow})
+#       }
+#   }
+#   test <- cor.test(rank(df$diet_processedMeat_t0), rank(df[[i]]), method = 'pearson')
+#   corName <- paste("diet_processedMeat_t0,", colnames(df[i]), sep = "")
+#   nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
+#   ny <- length(df[[i]]) - sum(is.na(df[[i]]))
+#   newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
+#   out <- rbind(out, {newRow})
+# }
+#   test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_cookedVeg_t0), method = 'pearson')
+#   corName <- paste("diet_processedMeat_t0, diet_cookedVeg_t0")
+#   nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
+#   ny <- length(df$diet_cookedVeg_t0) - sum(is.na(df$diet_cookedVeg_t0))
+#   newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
+#   out <- rbind(out, {newRow})
+#   
+#   test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_rawVeg_t0), method = 'pearson')
+#   corName <- paste("diet_processedMeat_t0, diet_rawVeg_t0")
+#   nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
+#   ny <- length(df$diet_rawVeg_t0) - sum(is.na(df$diet_rawVeg_t0))
+#   newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
+#   out <- rbind(out, {newRow})
+#   
+#   test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_water_t0), method = 'pearson')
+#   corName <- paste("diet_processedMeat_t0, diet_water_t0")
+#   nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
+#   ny <- length(df$diet_water_t0) - sum(is.na(df$diet_water_t0))
+#   newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
+#   out <- rbind(out, {newRow})
+# 
+# out <- out[-1,] # removes first column which is "NA"
+# out <- out[order(out[,2], decreasing = T),]
+# out <- out[-(seq(2,to=nrow(out),by=2)),]
+# kable(out, caption = "Spearman correlation between diet variables")
 
 ```
 
 ```{r correlCRPVars, echo=FALSE}
+cor(df$crp_timeFasting_t0, log(df$crp_aliquot_t0))
+plot(, log(df$crp_hourCollected))
+ggplot(data = df, aes(x = df$crp_timeFasting_t0, y = log(df$crp_hourCollected)))+ geom_count()
 cor(df$crp_hourCollected, df$crp_aliquot_t0)
 plot(df$crp_aliquot_fctr, df$crp_hourCollected)
 ```
@@ -833,7 +623,8 @@ cogPCAOut <- PCACompute(df = df, vars = cogPCAVars)
 # PCASave(cogPCAOut, fileName = "")
 cogPCAOut
 summary(cogPCAOut)
-PCAPlot(PCAOut = cogPCAOut, name = "cognitionPCA")
+PCAPlot(PCAOut = cogPCAOut, name = "Cognition Principal Component Analysis")
+
 ```
 
 The principal component analysis for the cognitive variables returns: `` {r} cogPCAOut` `` ```{r} summary(cogPCAOut)`
@@ -852,7 +643,7 @@ df <- df %>%
 
 
 # df <- rename(df, cog_PCA_1 = `"cog_PC_1"`)
-# PCASave(PCAOut = cogPCAOut, fileName = "UKBB_CogPCA")
+PCASave(PCAOut = cogPCAOut, fileName = "UKBB_CogPCA")
 ```
 
 ## Assumption checks
@@ -900,24 +691,29 @@ normCorrected <- which(colnames(df) %in% c("demo_age_assess0_t0_tert", "ses_town
 revisedvarsOfInterest <- c(varsOfInterest[varsOfInterest %nin% nonNormalVarsOfInt],normCorrected)
 
 # standardize numeric variables of interest
-numRevisedVarsOfInt <- lapply(df[revisedvarsOfInterest], numNotFactor)
+numRevisedVarsOfInt <- lapply(df[revisedvarsOfInterest], numNotFactor) # I want this to return a list of names that are not null
+for(i in numRevisedVarsOfInt){
+  if(is.null(i) == FALSE){
+    print(colnames(numRevisedVarsOfInt[i]))
+  }
+}
+df_z <- df %>% mutate("{colnames(df[revisedvarsOfInterest])}_z" = across(.cols = colnames(df[revisedvarsOfInterest]), .fns = scale))
+
 df_numRevisedVarsOfInt <- as.data.frame(do.call(cbind, numRevisedVarsOfInt))
 df_numVarsInt_z <- c()
 df_numVarsInt_z <- df_numRevisedVarsOfInt %>% 
   mutate(across(colnames(df_numRevisedVarsOfInt), scale, .names = "{colnames(df_numRevisedVarsOfInt)}_z"))
 
 scaledVarNames <- ends_with("_z", vars = colnames(df_numVarsInt_z))
-colnames(df)
-colnames(df_numVarsInt_z[scaledVarNames])
 
 df <- as.data.frame(cbind(df, df_numVarsInt_z[scaledVarNames]))
-str(df)
 ```
 # Save DF
-```{r checkNormalityMain, echo=FALSE}
-save(df, file = paste("UKBB_dfForAnal_", date, ".Rdata", sep = ""))
+```{r saveDfFinal, echo=FALSE}
 write.csv(df, file = paste("UKBB_dfForAnal_", date, ".csv", sep = "")) # exports cleaned dataframe with all variables ready for analysis
 getwd()
 ```
 
-Session Info: `r sessionInfo()`
+```{r printRSessionInfo, echo=FALSE}
+sessionInfo()
+```
