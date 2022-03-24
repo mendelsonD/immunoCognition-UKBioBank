@@ -193,9 +193,10 @@ df <- df_all # specifies what df to use. In final analyses will want to use df_a
 # sort(colnames(df))
 ```
 
+### Standardize categorical vars
 ```{r standardizeCatVars, echo=FALSE}
 # standardize categorical variable responses
-df_all <- df_all %>% 
+df <- df %>% 
   transform(sleep_duration2_t2 = as.character(sleep_duration2_t2))
 
 df <- df %>%
@@ -277,10 +278,17 @@ df <- df %>%
     demo_ethnicity_t0 == "Indian" ~ "South Asian",
     demo_ethnicity_t0 == "Pakistani" ~ "South Asian",
     demo_ethnicity_t0 == "Bangladeshi" ~ "South Asian",
-    demo_ethnicity_t0 == "Asian or Asian British" ~ "Any other Asian background",
+    demo_ethnicity_t0 == "African" ~ "African/Caribbean",
+    demo_ethnicity_t0 == "Caribbean" ~ "African/Caribbean",
+    demo_ethnicity_t0 == "Chinese" ~ "East Asian",
+    demo_ethnicity_t0 == "Asian or Asian British" ~ "Other ethnic group",
+    demo_ethnicity_t0 == "Black or Black British" ~ "Other ethnic group",
+    demo_ethnicity_t0 == "Any other Asian background" ~ "Other ethnic group",
     demo_ethnicity_t0 == "Any other Black background" ~ "Other ethnic group",
     demo_ethnicity_t0 == "White and Black African" ~ "Mixed",
     demo_ethnicity_t0 == "White and Black Caribbean" ~ "Mixed",
+    demo_ethnicity_t0 == "White and Asian" ~ "Mixed",
+    demo_ethnicity_t0 == "Any other mixed background" ~ "Mixed",
     TRUE ~ demo_ethnicity_t0
     ))
 ```
@@ -290,23 +298,31 @@ df <- df %>%
 ```{r addColumns, echo=FALSE}
 # Waist:hip ratio -----
 df <- df %>% 
-  mutate("waistToHip" = weight_waistCirc_t0/weight_hipCirc_t0)
+  mutate(weight_waistToHip = weight_waistCirc_t0/weight_hipCirc_t0)
+
+# CRP log transform ------
+df <- df %>% 
+  mutate(crp_log = log(crp_aliquot_t0))
 
 # Diagnosis - any of interest -----
 dxVars <- starts_with("dx_", vars = colnames(df))
-df[dxVars] <- sapply(df[dxVars], as.factor)
 
 df <- df %>% 
-  mutate("dx_AnyOfInterest" = case_when(
+  mutate("dx_AnyOfInterest" = factor(case_when(
     if_any(any_of(dxVars), function(x) (x == "TRUE")) ~ 1,
-    if_all(all_of(dxVars), function(x) (x == "FALSE")) ~ 0
-  ))
+    if_all(all_of(dxVars), function(x) (x == "FALSE")) ~ 0)))
+dxVars <- c(dxVars, which(colnames(df) == "dx_AnyOfInterest"))
 
 dxVarsNoCases <- c()
 for(i in dxVars){
   if(levels(as.factor(df[i])) == FALSE){
     print(paste("No participant has dx ", colnames(df[i]), "(column ", i, " ); levels: ", levels(as.factor(df[i]))))
     dxVarsNoCases <- append(dxVarsNoCases, i)
+  }
+}
+if(is.null(dxVarsNoCases) == FALSE){
+  for(i in dxVarsNoCases){
+    dxVars <- dxVars[-which(dxVars == i)]
   }
 }
 
@@ -322,14 +338,13 @@ medVars2 <- ends_with("2", vars = colnames(df[medVars]))
 medVars2 <- which(colnames(df) %in% colnames(df[medVars[medVars2]]))
 
 df <- df %>% 
-  mutate("med_AnyOfInterest0" = case_when(
+  mutate("med_AnyOfInterest0" = factor(case_when(
     if_any(any_of(medVars0), function(x) (x == "TRUE")) ~ 1,
-    if_all(all_of(medVars0), function(x) (x == "FALSE")) ~ 0
-  )) %>% 
-  mutate("med_AnyOfInterest2" = case_when(
+    if_all(all_of(medVars0), function(x) (x == "FALSE")) ~ 0))) %>% 
+  mutate("med_AnyOfInterest2" = factor(case_when(
     if_any(any_of(medVars2), function(x) (x == "TRUE")) ~ 1,
-    if_all(all_of(medVars2), function(x) (x == "FALSE")) ~ 0
-  ))
+    if_all(all_of(medVars2), function(x) (x == "FALSE")) ~ 0)))
+medVars0 <- c(medVars0, which(colnames(df) == "med_AnyOfInterest0"))
 
 medVars0NoCases <- c()
 for(i in medVars0){
@@ -339,11 +354,23 @@ for(i in medVars0){
   }
 }
 
+medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2"))
 medVars2NoCases <- c()
 for(i in medVars2){
   if(levels(as.factor(df[i])) == FALSE){
     print(paste("No participant takes med ", colnames(df[i]), "; levels: ", levels(as.factor(df[i]))))
     medVars2NoCases <- append(medVars2NoCases, i)
+  }
+}
+
+if(is.null(medVars0NoCases) == FALSE){
+  for(i in medVars0NoCases){
+    medVars0 <- medVars0[-which(medVars0 == i)]
+  }
+}
+if(is.null(medVars2NoCases) == FALSE){
+  for(i in medVars2NoCases){
+    medVars2 <- medVars2[-which(medVars2 == i)]
   }
 }
 # table(df$anyMed)
@@ -418,8 +445,11 @@ df <- df %>%
   mutate(med_SSRI2 = factor(case_when(
          med_SSRI2 == "FALSE" ~ 0,
          med_SSRI2 == "TRUE" ~ 1))) %>% 
+   mutate(dx_AnyOfInterest = factor(case_when(
+         dx_AnyOfInterest == "FALSE" ~ 0,
+         dx_AnyOfInterest == "TRUE" ~ 1))) %>% 
   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2))
-
+  
 df <- readr::type_convert(df) # automatically detect
 ```
 
@@ -435,6 +465,7 @@ dietVars <- starts_with("diet_", vars = colnames(df))
 dietVarsToCor <- which(colnames(df) %in% c("diet_cookedVeg_t0","diet_rawVeg_t0","diet_fruit_t0","diet_processedMeat_t0","diet_water_t0"))
 
 smokingVars <- starts_with("smoke_", vars = colnames(df))
+weightVars <- c(starts_with("weight_", vars = colnames(df)), which(colnames(df) == "waistToHip"))
 exerciseVars <- starts_with("exercise_", vars = colnames(df))
 
 completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
@@ -450,9 +481,9 @@ finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "de
 essentialVars <- c(demoVars, completionTimeVars, crpAliqVars, cogPCAVars, brainVolVars, finalCovars) # list of variable names that must be complete in order for case to be retained
 df <- df %>% 
   mutate(missingEssentialVar = case_when(
-    if_any(any_of(essentialVars), function(x)(is.na(x))) ~ "Remove",
-    TRUE ~ "Keep"
-    )) %>% 
+    if_any(any_of(essentialVars), function(x)(
+      is.na(x))) ~ "Remove",
+      TRUE ~ "Keep" )) %>% 
   mutate(missingEssentialVar = factor(missingEssentialVar))
 
 table(df$missingEssentialVar)
@@ -467,10 +498,10 @@ df_removed <- df %>%
 Critical variables: `r colnames(df[essentialVars])` `r nrow(df_removed)` unique cases have missing values for critical variables and will thus be removed.
 
 ```{r missingValues, echo=FALSE}
-numMissing <- matrix(ncol=2, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]), c("NotNA", "NACount")))
+numMissing <- matrix(ncol=2, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]), c("NACount", "NotNA")))
 
 for(i in 1:length(essentialVars)){
-  numMissing[i,] <- c(sum(!is.na(df_removed[essentialVars[i]])), sum(is.na(df_removed[essentialVars[i]])))
+  numMissing[i,] <- c(sum(is.na(df_removed[essentialVars[i]])), sum(!is.na(df_removed[essentialVars[i]])))
 }
 
 numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
@@ -478,39 +509,39 @@ numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 kable(numMissing_df, caption = paste("Number of missing cases per variable. Number of rows with at least one missing value: ", nrow(df_removed), " out of ", sum(df$missingEssentialVar == "Keep")+nrow(df_removed), " total cases (", round(nrow(df_removed)/(sum(df$missingEssentialVar == "Keep")+nrow(df_removed))*100, 2), "%).", sep = ""))
 ```
 
-### Summarise removed cases
-
-```{python describeDf_Removed, echo=FALSE}
-# df_described = descriptiveStats(r.df, toSave = False)
-# df_removed_described = descriptiveStats(r.df_removed, toSave = False)
-```
-
 ### Normality
 ```{r normalityInRetained, echo=FALSE}
 df_retained <- df %>%
   filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
-if(is.null(dxVarsNoCases) == FALSE){
-  for(i in dxVarsNoCases){
-    dxVars <- dxVars[dxVars != i]
+
+varsToCompare <- c("demo_sex_t0", "demo_birthYear_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_age_assess2_t2", "ses_townsend_t0", "crp_aliquot_t0", "crp_log", "med_AnyOfInterest0", "med_SSRI0", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0", "weight_BMI0_t0", "weight_waistToHip", "diet_processedMeat_t0", "sleep_duration0_t0", "menopause_t0", "hand_t0")
+
+varsToCompare_ColNum <- which(colnames(df) %in% varsToCompare)
+
+for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
+  if(is.null(i) == FALSE){
+    if(i %in% varsToCompare_ColNum){
+      colNum <- which(colnames(df) == colnames(df[i]))
+      varsToCompare_ColNum <- varsToCompare_ColNum[-which(varsToCompare_ColNum == colNum)]
+    }
   }
 }
-if(is.null(medVars2NoCases) == FALSE){
-  medVars2 <- medVars2[-which(medVars2 == medVars2NoCases)]
+
+if("dx_CVD.1" %in% colnames(df[varsToCompare_ColNum])){
+  colNum <- which(colnames(df[varsToCompare_ColNum]) == "dx_CVD.1")
+  varsToCompare_ColNum <- varsToCompare_ColNum[-which(varsToCompare_ColNum == colNum)]
 }
-if(is.null(medVars0NoCases) == FALSE){
-  medVars0 <- medVars0[-which(medVars0 == medVars0NoCases)]
-}
-varsToCompare <- colnames(df[c(demoVars, crpAliqVars, brainVolVars, dxVars, medVars0, dietVarsToCor, smokingVars, exerciseVars)]) 
+
 # create list of non-factor numeric variables for normality check ----
-numVarsToCompare <- lapply(df[varsToCompare], numNotFactor)
+numVarsToCompare <- lapply(df[varsToCompare_ColNum], numNotFactor)
 df_numVarsToCompare <- as.data.frame(do.call(cbind, numVarsToCompare))
 numVarColsToCompare <- (which(colnames(df) %in% colnames(df_numVarsToCompare)))
 
 # For each variable in this list, determine if normal --------
 normalityPlots <- mapply(normalCheck, df[numVarColsToCompare], colName = colnames(df[numVarColsToCompare]), colNum = numVarColsToCompare)
 # N.b. QQ plot should follow a straight line
-nonParametricVars <- c(3,15,16,17,19,36,40,41,43,49,56,57,58,61,66,67,69,74) # vector specifying which values of dependent to run non-parametric tests on
-
+# nonParametricVars <- c(3,4,5,9,15,16, 17,19,36,38,41,43,49,56,57,58,66,67,69,101) # vector specifying which values of dependent to run non-parametric tests on 
+nonParametricVars <- c(3,9,12,38,40,41,69)
 ```
 
 ### Compare removed cases to retained cases
@@ -529,9 +560,10 @@ for(i in varsToCompare){
   # print(newRow)
   summaryMissing <- c(summaryMissing, newRow)
 }
-# capture.output(summaryMissing, file = paste("UKBB_compareMissingCases", date, ".csv"))
+capture.output(summaryMissing, file = paste("UKBB_compareMissingCases_", date, ".csv", sep = ""))
 # save(summaryMissing, file = paste("UKBB_compareMissingCases", date, ".csv"))
-View(summaryMissing)
+summary(summaryMissing)
+str(summaryMissing)
 ```
 
 ```{r saveDf, echo=FALSE}
@@ -603,7 +635,7 @@ df <- df_retained
 
 ```{r correlCRPVars, echo=FALSE}
 cor(df$crp_timeFasting_t0, log(df$crp_aliquot_t0))
-plot(, log(df$crp_hourCollected))
+# plot(, log(df$crp_hourCollected))
 ggplot(data = df, aes(x = df$crp_timeFasting_t0, y = log(df$crp_hourCollected)))+ geom_count()
 cor(df$crp_hourCollected, df$crp_aliquot_t0)
 plot(df$crp_aliquot_fctr, df$crp_hourCollected)
