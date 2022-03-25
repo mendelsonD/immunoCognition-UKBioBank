@@ -21,6 +21,7 @@ library(glue)
 library(knitr)
 library(finalfit)
 library(Hmisc)
+library(DescTools)
 knitr::knit_engines$set(python = reticulate::eng_python)
 reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
 
@@ -30,21 +31,6 @@ date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", form
 ```
 
 # 0 - Functions
-
-## Descriptive Stats function
-
-```{python DescriptiveStatsFx, echo=FALSE}
-import pandas as pd
-import os as os
-  
-def descriptiveStats(df, toSave):
-  if(toSave == True):
-    os.chdir(r.outputPath)
-    fileName = "".join(("UKBBdescriptiveStats_", r.date, ".csv"))
-    df.describe(include='all').to_csv(fileName)
-    print("The file ", fileName, "was saved to \'", os.getcwd(), "\'.")
-  return df.describe(include='all')
-```
 
 ## Assumption checks
 
@@ -325,7 +311,6 @@ if(is.null(dxVarsNoCases) == FALSE){
     dxVars <- dxVars[-which(dxVars == i)]
   }
 }
-
 # table(df$anyDx)
 
 # Medication - any of interest -----------
@@ -445,9 +430,6 @@ df <- df %>%
   mutate(med_SSRI2 = factor(case_when(
          med_SSRI2 == "FALSE" ~ 0,
          med_SSRI2 == "TRUE" ~ 1))) %>% 
-   mutate(dx_AnyOfInterest = factor(case_when(
-         dx_AnyOfInterest == "FALSE" ~ 0,
-         dx_AnyOfInterest == "TRUE" ~ 1))) %>% 
   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2))
   
 df <- readr::type_convert(df) # automatically detect
@@ -507,6 +489,7 @@ for(i in 1:length(essentialVars)){
 numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 
 kable(numMissing_df, caption = paste("Number of missing cases per variable. Number of rows with at least one missing value: ", nrow(df_removed), " out of ", sum(df$missingEssentialVar == "Keep")+nrow(df_removed), " total cases (", round(nrow(df_removed)/(sum(df$missingEssentialVar == "Keep")+nrow(df_removed))*100, 2), "%).", sep = ""))
+
 ```
 
 ### Normality
@@ -562,14 +545,118 @@ for(i in varsToCompare){
 }
 capture.output(summaryMissing, file = paste("UKBB_compareMissingCases_", date, ".csv", sep = ""))
 # save(summaryMissing, file = paste("UKBB_compareMissingCases", date, ".csv"))
-summary(summaryMissing)
-str(summaryMissing)
+
+comparisonDroppedCases <- TOne(df[varsToCompare], grp = df$missingEssentialVar, add.length = T, total = T, 
+          FUN = function(x) gettextf("%s (%s); %s (%s)",
+            Format(mean(x, na.rm = T), digits = 3),
+            Format(sd(x, na.rm = T), digits = 3),
+            Format(median(x, na.rm = T), digits = 3),
+            Format(IQR(x, na.rm = T), digits = 3)),
+          TEST = list(
+            num  = list(fun = function(x, g){summary(aov(x ~ g))[[1]][1, "Pr(>F)"]},
+                        lbl = "ANOVA"),
+            cat  = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+                        lbl = "Chi-Square test"),
+            dich = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+                        lbl = "Chi-Square test")), 
+          fmt = list(abs  = Fmt("abs"), 
+             num  = Fmt("num"), 
+             per  = Fmt("per"),
+             pval = as.fmt(fmt = "p*")))
+write.csv(comparisonDroppedCases, file = paste("UKBB_compareMissingCases_TOne", date, ".csv", sep = ""))
+kable(comparisonDroppedCases)
 ```
 
+### Summarise
 ```{r saveDf, echo=FALSE}
 df <- df_retained
 # write.csv(df_retained, file = paste("UKBB_dfRetained_", date, ".csv", sep = "")) # exports wilcoxOutput to a CSV file
+varsToSummarise <- c(1:ncol(df))
+  
+numVars<- lapply(df, numNotFactor)
+df_numVars <- as.data.frame(do.call(cbind, numVars))
+numVarCols <- (which(colnames(df) %in% colnames(df_numVars)))
+numVars <- c((which(colnames(df) %in% colnames(df_numVars))), which(colnames(df) == "date_assess0_t0"), which(colnames(df) == "date_assess2_t2"), which(colnames(df) == "cog_timeCompleted_t2"), which(colnames(df) == "brain_timeCompleted_t2"), which(colnames(df) == "crp_timeCollected_t0"), which(colnames(df) == "crp_assaydate_t0"))
 
+for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
+  if(is.null(i) == FALSE){
+    if(i %in% varsToSummarise){
+      colNum <- which(colnames(df) == colnames(df[i]))
+      varsToSummarise <- varsToSummarise[-which(varsToSummarise == colNum)]
+    }
+  }
+}
+
+write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[1], file = paste("UKBB_dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[1]), "_", date, ".csv", sep = "")) # save counts of categorical variables
+write.csv(summary(df[-numVars]), file = paste("UKBB_dfRetained_Summary_fctrVars", date, ".csv", sep = "")) # save counts of categorical variables
+
+write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[1], file = paste("UKBB_dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[1]), "_", date, ".csv", sep = "")) # save counts of categorical variables
+write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[2], file = paste("UKBB_dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[2]), "_", date, ".csv", sep = "")) # save counts of categorical variables
+write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[3], file = paste("UKBB_dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[3]), "_", date, ".csv", sep = "")) # save counts of categorical variables
+
+capture.output(Hmisc::describe(df[-numVars]), file = paste("UKBB_dfRetained_Summary_fctrVars", date, ".tex", sep = "")) # save counts of categorical variables to latex file
+
+TOne(df[varsToSummarise], grp = df$crp_aliquot_fctr, add.length = T, colnames = colnames(df[varsToSummarise]), total = T, # need to find which categorical variable is causing an error here. colnames(df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])])
+     FUN = function(x) gettextf("%s (%s); %s (%s)",
+            Format(mean(x, na.rm = T), digits = 3),
+            Format(sd(x, na.rm = T), digits = 3),
+            Format(median(x, na.rm = T), digits = 3),
+            Format(IQR(x, na.rm = T), digits = 3)),
+     TEST = list(
+            num  = list(fun = function(x, g){summary(aov(x ~ g))[[1]][1, "Pr(>F)"]},
+                        lbl = "ANOVA"),
+            cat  = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+                        lbl = "Chi-Square test"),
+            dich = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+                        lbl = "Chi-Square test")), 
+           fmt = list(abs  = Fmt("abs"), 
+                   num  = Fmt("num"), 
+                   per  = Fmt("per"),
+                   pval = as.fmt(fmt = "p*")))
+
+# possibleErrorVars <- df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])]
+# possibleErrorVarsNum <- lapply(possibleErrorVars, numNotFactor)
+# df_possibleErrorVars <- as.data.frame(do.call(cbind, possibleErrorVars))
+# possibleErrorVarsCols <- (which(colnames(df) %in% colnames(df_possibleErrorVars)))
+# df_possibleErrorVarsfctr <- df[varsToSummarise][-possibleErrorVarsCols]
+# df_possibleErrorVarsfctr <- cbind(possibleErrorVarsfctr_df, df$crp_aliquot_fctr)
+# TOne(df_possibleErrorVarsfctr, grp = df$crp_aliquot_fctr, add.length = T, total = T, # need to find which categorical variable is causing an error here. colnames(df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])])
+#      FUN = function(x) gettextf("%s (%s); %s (%s)",
+#             Format(mean(x, na.rm = T), digits = 3),
+#             Format(sd(x, na.rm = T), digits = 3),
+#             Format(median(x, na.rm = T), digits = 3),
+#             Format(IQR(x, na.rm = T), digits = 3)),
+#      TEST = list(
+#             num  = list(fun = function(x, g){summary(aov(x ~ g))[[1]][1, "Pr(>F)"]},
+#                         lbl = "ANOVA"),
+#             cat  = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+#                         lbl = "Chi-Square test"),
+#             dich = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+#                         lbl = "Chi-Square test")), 
+#            fmt = list(abs  = Fmt("abs"), 
+#                    num  = Fmt("num"), 
+#                    per  = Fmt("per"),
+#                    pval = as.fmt(fmt = "p*")))
+# 
+# TOne(df[df_possibleErrorVars], grp = df$crp_aliquot_fctr, add.length = T, total = T, # need to find which categorical variable is causing an error here. colnames(df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])])
+#      FUN = function(x) gettextf("%s (%s); %s (%s)",
+#             Format(mean(x, na.rm = T), digits = 3),
+#             Format(sd(x, na.rm = T), digits = 3),
+#             Format(median(x, na.rm = T), digits = 3),
+#             Format(IQR(x, na.rm = T), digits = 3)),
+#      TEST = list(
+#             num  = list(fun = function(x, g){summary(aov(x ~ g))[[1]][1, "Pr(>F)"]},
+#                         lbl = "ANOVA"),
+#             cat  = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+#                         lbl = "Chi-Square test"),
+#             dich = list(fun = function(x, g){fisher.test(table(x, g))$p.val},
+#                         lbl = "fisher exact test")), 
+#            fmt = list(abs  = Fmt("abs"), 
+#                    num  = Fmt("num"), 
+#                    per  = Fmt("per"),
+#                    pval = as.fmt(fmt = "p*")))
+
+numVars <- c((which(colnames(df) %in% colnames(df_numVars))), which(colnames(df) == "date_assess0_t0"), which(colnames(df) == "date_assess2_t2"), which(colnames(df) == "cog_timeCompleted_t2"), which(colnames(df) == "brain_timeCompleted_t2"), which(colnames(df) == "crp_timeCollected_t0"), which(colnames(df) == "crp_assaydate_t0"))
 # df_retained <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfRetained_03_21_2022.csv", guess_max = 10000) # import df
 # df <- df_retained
 ```
@@ -634,11 +721,11 @@ df <- df_retained
 ```
 
 ```{r correlCRPVars, echo=FALSE}
-cor(df$crp_timeFasting_t0, log(df$crp_aliquot_t0))
-# plot(, log(df$crp_hourCollected))
-ggplot(data = df, aes(x = df$crp_timeFasting_t0, y = log(df$crp_hourCollected)))+ geom_count()
-cor(df$crp_hourCollected, df$crp_aliquot_t0)
-plot(df$crp_aliquot_fctr, df$crp_hourCollected)
+# cor(df$crp_timeFasting_t0, log(df$crp_aliquot_t0))
+# # plot(, log(df$crp_hourCollected))
+# ggplot(data = df, aes(x = df$crp_timeFasting_t0, y = log(df$crp_hourCollected)))+ geom_count()
+# cor(df$crp_hourCollected, df$crp_aliquot_t0)
+# plot(df$crp_aliquot_fctr, df$crp_hourCollected)
 ```
 
 ## Data reduction
@@ -699,8 +786,8 @@ numVarsOfInterest <- (which(colnames(df) %in% colnames(df_numVarsOfInt)))
 
 normalityPlotsCorrel <- mapply(normalCheck, df[numVarsOfInterest], colName = colnames(df[numVarsOfInterest]), colNum = numVarsOfInterest)
 
-nonNormalVarsOfInt <- c(9,12,13,40, 106, 107, 108)
-normalityPlotsCorrel_nonNorm <- mapply(normalCheck, df[nonNormalVarsOfInt], colName = colnames(df[nonNormalVarsOfInt]), colNum = nonNormalVarsOfInt)
+nonNormalVarsOfInt <- c(9,12,13,40, 106, 107, 108, 109)
+# normalityPlotsCorrel_nonNorm <- mapply(normalCheck, df[nonNormalVarsOfInt], colName = colnames(df[nonNormalVarsOfInt]), colNum = nonNormalVarsOfInt)
 
 ## apply normality correction
 ### Split non-normal variables into tertiles
@@ -720,16 +807,19 @@ df <- df %>%
   mutate(cog_PC_3_tert = factor(cut2(df$cog_PC_3_z, g = 3), order = T)) # cognition principle component 3, split into tertiles
 
 normCorrected <- which(colnames(df) %in% c("demo_age_assess0_t0_tert", "ses_townsend_t0_tert", "sleep_duration0_t0_tert", "sleep_duration2_t2_tert", "cog_PC_1_tert", "cog_PC_2_tert", "cog_PC_3_tert"))
-revisedvarsOfInterest <- c(varsOfInterest[varsOfInterest %nin% nonNormalVarsOfInt],normCorrected)
+
+revisedvarsOfInterest <- c(varsOfInterest[! varsOfInterest %in% nonNormalVarsOfInt],normCorrected)
 
 # standardize numeric variables of interest
 numRevisedVarsOfInt <- lapply(df[revisedvarsOfInterest], numNotFactor) # I want this to return a list of names that are not null
-for(i in numRevisedVarsOfInt){
-  if(is.null(i) == FALSE){
-    print(colnames(numRevisedVarsOfInt[i]))
-  }
+df_numRevisedVarsOfInt <- as.data.frame(do.call(cbind, numRevisedVarsOfInt))
+revisedvarsOfInterest <- c()
+for(i in colnames(df_numRevisedVarsOfInt)){
+ revisedvarsOfInterest <- c(revisedvarsOfInterest, i)
 }
-df_z <- df %>% mutate("{colnames(df[revisedvarsOfInterest])}_z" = across(.cols = colnames(df[revisedvarsOfInterest]), .fns = scale))
+revisedVarsColnums <- which(colnames(df) %in% revisedvarsOfInterest)
+  
+df_z <- df %>% mutate("{colnames(df[revisedVarsColnums])}_z" = across(.cols = revisedVarsColnums, .fns = scale))
 
 df_numRevisedVarsOfInt <- as.data.frame(do.call(cbind, numRevisedVarsOfInt))
 df_numVarsInt_z <- c()
