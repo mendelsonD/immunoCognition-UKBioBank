@@ -480,7 +480,7 @@ df_removed <- df %>%
 Critical variables: `r colnames(df[essentialVars])` `r nrow(df_removed)` unique cases have missing values for critical variables and will thus be removed.
 
 ```{r missingValues, echo=FALSE}
-numMissing <- matrix(ncol=2, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]), c("NACount", "NotNA")))
+numMissing <- matrix(ncol=2, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]), c("NACount", "NotMissingOnThisVar")))
 
 for(i in 1:length(essentialVars)){
   numMissing[i,] <- c(sum(is.na(df_removed[essentialVars[i]])), sum(!is.na(df_removed[essentialVars[i]])))
@@ -489,7 +489,7 @@ for(i in 1:length(essentialVars)){
 numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 
 kable(numMissing_df, caption = paste("Number of missing cases per variable. Number of rows with at least one missing value: ", nrow(df_removed), " out of ", sum(df$missingEssentialVar == "Keep")+nrow(df_removed), " total cases (", round(nrow(df_removed)/(sum(df$missingEssentialVar == "Keep")+nrow(df_removed))*100, 2), "%).", sep = ""))
-
+write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", date, ".csv", sep = ""))
 ```
 
 ### Normality
@@ -833,9 +833,11 @@ df <- as.data.frame(cbind(df, df_numVarsInt_z[scaledVarNames]))
 # Save DF
 ```{r saveDfFinal, echo=FALSE}
 write.csv(df, file = paste("UKBB_dfForAnal_", date, ".csv", sep = "")) # exports cleaned dataframe with all variables ready for analysis
+save(df, file = paste("UKBB_dfForAnal_", date, ".Rdata", sep = ""))
 getwd()
 ```
 
 ```{r printRSessionInfo, echo=FALSE}
 sessionInfo()
+capture.output(sessionInfo(), file = paste("UKBB_rSessionInfo_DataPrep_", date, ".csv", sep = ""))
 ```
