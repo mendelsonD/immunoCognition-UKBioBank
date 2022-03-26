@@ -10,7 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(ggplot2)
 library(car)
-library("gridExtra")
+library(gridExtra)
+date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
 
 # 0 - Functions
@@ -99,16 +100,16 @@ runRMediation <- function(df, X, Y, M, covars, contrasts){
 
 ```{r medAnalysisFx, echo=FALSE}
 # adapted from Omar Wasow's post on https://stackoverflow.com/questions/46465752/drawing-simple-mediation-diagram-in-r
-med_data <- data.frame(
-    main = "Mediation title",  
-    lab_x   = "Label X",
-    lab_m   = "L:abel M",
-    lab_y   = "Label Y",
-    coef_xm = ".47*",
-    coef_my = ".36*",
-    coef_xy = "0.33* (.16)",
-    coef_indEffect = ".12"
-  )
+# med_data <- data.frame(
+#     main = "Mediation title",  
+#     lab_x   = "Label X",
+#     lab_m   = "L:abel M",
+#     lab_y   = "Label Y",
+#     coef_xm = ".47*",
+#     coef_my = ".36*",
+#     coef_xy = "0.33* (.16)",
+#     coef_indEffect = ".12"
+#   )  example dataframe
 
 med_diagram <- function(mediation_data){
   
@@ -163,88 +164,101 @@ med_diagram <- function(mediation_data){
 
   DiagrammeR::grViz(diagram_out)  
 }
-
-med_diagram(med_data)
 ```
 
 # A - Analysis
 ## Import data
 ```{r importData, echo=FALSE}
-df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
-load("UKBB_dfForAnal_03_21_2022.Rdata")
-df <- df[-1]
+# df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
+load("UKBB_dfForAnal_03_26_2022.Rdata")
+# df
 
 ```
 
 ````{r makeOrdinal, echo=FALSE}
-df <- df %>%
-  mutate(crp_aliquot_log = log(crp_aliquot_t0)) %>% 
-  mutate(crp_log_z = scale(crp_aliquot_log)) %>% 
-  mutate(cog_PC_1_z = scale(cog_PC_1)) %>% 
-  mutate(cog_PC_2_z = scale(cog_PC_2)) %>%   
-  mutate(cog_PC_3_z = scale(cog_PC_3)) %>%  
-  mutate(crp_aliquot_fctr = factor(crp_aliquot_fctr, order = T, levels = c("Low",
-                                                                           "Medium",
-                                                                           "High"))) %>%
-  mutate(demo_age_assess0_t0_tert = factor(demo_age_assess0_t0_tert, order = T, levels = c("[40,51)",
-                                                                                           "[51,59)",
-                                                                                           "[59,70]"))) %>%       
-  mutate(sleep_duration0_t0_tert = factor(sleep_duration0_t0_tert, order = T, levels = c("[2, 8)",
-                                                                                         "8",
-                                                                                         "[9,14]"))) %>%       
-  mutate(sleep_duration2_t2_tert = factor(sleep_duration2_t2_tert, order = T, levels = c("[2, 8)",
-                                                                                         "8",
-                                                                                         "[9,14]"))) %>%       
-  mutate(cog_PC_1_tert = factor(cog_PC_1_tert, order = T, levels = c("[-0.268, 0.481)",
-                                                                     "[-8.841,-0.268)",
-                                                                     "[ 0.481, 2.682]"))) %>%       
-  mutate(cog_PC_2_tert = factor(cog_PC_2_tert, order = T, levels = c("[-8.8376,-0.3044)",
-                                                                     "[-0.3044, 0.0337)",
-                                                                     "[ 0.0337,11.9452]"))) %>%       
-  mutate(cog_PC_3_tert = factor(cog_PC_3_tert, order = T, levels = c("[-16.914,-0.255)",
-                                                                     "[ -0.255, 0.384)",
-                                                                     "[  0.384, 4.766]"))) %>%       
-  mutate(smoke_currently_t0 = factor(smoke_currently_t0, order = F, levels = 
-                                       c("No",
-                                        "Yes"))) %>% 
-  mutate(diet_processedMeat_t0 = factor(diet_processedMeat_t0, order = T, levels = 
-                                          c("Never",
-                                          "Less than once a week",
-                                          "Once a week", 
-                                          "2-4 times a week",
-                                          "5-6 times a week",
-                                          "Once or more daily"))) %>% 
-  mutate(diet_alc_freq_t0 = factor(diet_alc_freq_t0, order = T,
-                                     levels = c("Never",
-                                               "Special occasions only",
-                                               "One to three times a month",
-                                               "Once or twice a week",
-                                               "Three or four times a week",
-                                               "Daily or almost daily"))) %>% 
-  mutate(exercise_IPAQActivityGroup_t0 = factor(exercise_IPAQActivityGroup_t0, order = T,
-                                     levels = c("low", 
-                                                "moderate",
-                                                "high"))) %>% 
-  mutate(ses_houseIncome2_t2 = factor(ses_houseIncome2_t2, order = T, levels = c("Less than 18,000",
-                                                                                 "18,000 to 30,999",
-                                                                                 "31,000 to 51,999",
-                                                                                 "52,000 to 100,000",
-                                                                                 "Greater than 100,000"))) %>% 
-  mutate(ses_houseIncome0_t0 = factor(ses_houseIncome0_t0, order = T, levels = c("Less than 18,000",
-                                                                                 "18,000 to 30,999",
-                                                                                 "31,000 to 51,999",
-                                                                                 "52,000 to 100,000",
-                                                                                 "Greater than 100,000"))) %>% 
-  mutate(demo_sex_t0 = factor(demo_sex_t0)) %>% 
-  mutate(hand_t0 = factor(hand_t0)) %>% 
-  mutate(menopause_t0 = factor(menopause_t0)) %>% 
-  mutate(smoke_ever_t0 = factor(smoke_ever_t0)) %>% 
-  mutate(demo_ethnicity_t0 = factor(demo_ethnicity_t0)) %>%            
-  mutate(missingEssentialVar = factor(missingEssentialVar)) %>% 
-  mutate(med_SSRI0 = factor(med_SSRI0)) %>% 
-  mutate(med_SSRI2 = factor(med_SSRI2)) %>% 
-  mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2)) %>% 
-  mutate(med_AnyOfInterest0 = factor(med_AnyOfInterest0)) %>% 
+# Change var type -------------
+# df <- df %>%
+#   mutate(crp_aliquot_log = log(crp_aliquot_t0)) %>% 
+#   mutate(crp_log_z = scale(crp_aliquot_log)) %>% 
+#   mutate(cog_PC_1_z = scale(cog_PC_1)) %>% 
+#   mutate(cog_PC_2_z = scale(cog_PC_2)) %>%   
+#   mutate(cog_PC_3_z = scale(cog_PC_3)) %>%  
+#   mutate(crp_aliquot_fctr = factor(crp_aliquot_fctr, order = T, levels = c("Low",
+#                                                                            "Medium",
+#                                                                            "High"))) %>%
+#   mutate(demo_age_assess0_t0_tert = factor(demo_age_assess0_t0_tert, order = T, levels = c("[40,51)",
+#                                                                                            "[51,59)",
+#                                                                                            "[59,70]"))) %>%       
+#   mutate(sleep_duration0_t0_tert = factor(sleep_duration0_t0_tert, order = T, levels = c("[2, 8)",
+#                                                                                          "8",
+#                                                                                          "[9,14]"))) %>%       
+#   mutate(sleep_duration2_t2_tert = factor(sleep_duration2_t2_tert, order = T, levels = c("[2, 8)",
+#                                                                                          "8",
+#                                                                                          "[9,14]"))) %>%       
+#   mutate(cog_PC_1_tert = factor(cog_PC_1_tert, order = T, levels = c("[-0.268, 0.481)",
+#                                                                      "[-8.841,-0.268)",
+#                                                                      "[ 0.481, 2.682]"))) %>%       
+#   mutate(cog_PC_2_tert = factor(cog_PC_2_tert, order = T, levels = c("[-8.8376,-0.3044)",
+#                                                                      "[-0.3044, 0.0337)",
+#                                                                      "[ 0.0337,11.9452]"))) %>%       
+#   mutate(cog_PC_3_tert = factor(cog_PC_3_tert, order = T, levels = c("[-16.914,-0.255)",
+#                                                                      "[ -0.255, 0.384)",
+#                                                                      "[  0.384, 4.766]"))) %>%       
+#   mutate(smoke_currently_t0 = factor(smoke_currently_t0, order = F, levels = 
+#                                        c("No",
+#                                         "Yes"))) %>% 
+#   mutate(diet_processedMeat_t0 = factor(diet_processedMeat_t0, order = T, levels = 
+#                                           c("Never",
+#                                           "Less than once a week",
+#                                           "Once a week", 
+#                                           "2-4 times a week",
+#                                           "5-6 times a week",
+#                                           "Once or more daily"))) %>% 
+#   mutate(diet_alc_freq_t0 = factor(diet_alc_freq_t0, order = T,
+#                                      levels = c("Never",
+#                                                "Special occasions only",
+#                                                "One to three times a month",
+#                                                "Once or twice a week",
+#                                                "Three or four times a week",
+#                                                "Daily or almost daily"))) %>% 
+#   mutate(exercise_IPAQActivityGroup_t0 = factor(exercise_IPAQActivityGroup_t0, order = T,
+#                                      levels = c("low", 
+#                                                 "moderate",
+#                                                 "high"))) %>% 
+#   mutate(ses_houseIncome2_t2 = factor(ses_houseIncome2_t2, order = T, levels = c("Less than 18,000",
+#                                                                                  "18,000 to 30,999",
+#                                                                                  "31,000 to 51,999",
+#                                                                                  "52,000 to 100,000",
+#                                                                                  "Greater than 100,000"))) %>% 
+#   mutate(ses_houseIncome0_t0 = factor(ses_houseIncome0_t0, order = T, levels = c("Less than 18,000",
+#                                                                                  "18,000 to 30,999",
+#                                                                                  "31,000 to 51,999",
+#                                                                                  "52,000 to 100,000",
+#                                                                                  "Greater than 100,000"))) %>% 
+#   mutate(demo_sex_t0 = factor(demo_sex_t0)) %>% 
+#   mutate(hand_t0 = factor(hand_t0)) %>% 
+#   mutate(menopause_t0 = factor(menopause_t0)) %>% 
+#   mutate(smoke_ever_t0 = factor(smoke_ever_t0)) %>% 
+#   mutate(demo_ethnicity_t0 = factor(demo_ethnicity_t0)) %>%            
+#   mutate(missingEssentialVar = factor(missingEssentialVar)) %>% 
+#   mutate(med_SSRI0 = factor(med_SSRI0)) %>% 
+#   mutate(med_SSRI2 = factor(med_SSRI2)) %>% 
+#   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2)) %>% 
+#   mutate(med_AnyOfInterest0 = factor(med_AnyOfInterest0))
+
+# Scale cog vars --------
+# cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
+cogVars <- starts_with("cog", vars = colnames(df))
+cogVars_t2 <- cogVars[ends_with("_t2", vars = colnames(df[cogVars]))]
+cogVarsToZ <- cogVars_t2[which(!colnames(df[c(cogVars_t2)]) %in% c("cog_prospMem_result_t2", "cog_timeCompleted_t2", "cog_hourCompleted"))]
+crp <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log"))
+varsToZ <-c(crp, cogVarsToZ)
+
+df$crp_log
+df_cog_z <- df[varsToZ] %>% 
+  mutate(across(.fns = scale, .names = "{colnames(df[varsToZ])}_z"))
+df <- cbind(df, df_cog_z)
+df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
 
 ````
 
@@ -256,20 +270,23 @@ crp_log <-  which(colnames(df) == "crp_aliquot_log")
 crp_log_z <- which(colnames(df) == "crp_log_z")
 
 brainVars <- starts_with("brain_vol_", vars = colnames(df))
-brainVars_z <- ends_with("_z", vars = colnames(df[brainVars]))
-brainVars_z <- brainVars[brainVars_z]
+brainVars_z <-brainVars[ends_with("_z", vars = colnames(df[brainVars]))]
 brainVars_specific_z <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2_z", "brain_vol_hippocamp_L_t2_z", "brain_vol_hippocamp_R_t2_z"))
 
+cogVars <- starts_with("cog", vars = colnames(df))
+cogVars_t2_z <- cogVars[ends_with("_t2_z", vars = colnames(df[cogVars]))]
+cogVars_t2_fctr <- which(colnames(df) %in% c("cog_prospMem_result_t2"))
 cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
-cogPCOutputs_tert <- ends_with("_tert", vars=colnames(df[cogPCOutputs]))
-cogPCOutputs_tert <- cogPCOutputs[cogPCOutputs_tert]
-colnames(df[cogPCOutputs])
+cogPCOutputs_tert <- cogPCOutputs[ends_with("_tert", vars=colnames(df[cogPCOutputs]))]
+cogPCOutputs_z <- cogPCOutputs[ends_with("_z", vars=colnames(df[cogPCOutputs]))]
+# colnames(df[cogPCOutputs_z])
 
 numMemCol <- which(colnames(df) == "cog_numMem_maxDigitRemem_t2")
 covars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "ses_townsend_t0", "med_SSRI0", "waistToHip_z", "diet_processedMeat_t0", "sleep_duration0_t0", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0"))
+revisedCovars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "ses_townsend_t0", "waistToHip_z"))
 covars_cog <- which(colnames(df) %in% c("hand_t0", "cog_hourCompleted"))
 
-varsOfInterest <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, numMemCol, covars, covars_cog) # list of variables used in correlation/mediation analyses
+varsOfInterest <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_cog) # list of variables used in correlation/mediation analyses
 df_small <- df[c(1,varsOfInterest, which(colnames(df) == "missingEssentialVar"))]
 
 ```
@@ -277,9 +294,9 @@ df_small <- df[c(1,varsOfInterest, which(colnames(df) == "missingEssentialVar"))
 ````{r missingVars, echo=FALSE}
 df_complete  <- df_small
 df_complete <- df_small[complete.cases(df_small), ]
-save(df_complete, file = "UKBB_data_prelimAnalyses_03_23_2022")
-nrow(df_complete)
-nrow(df)
+cat(nrow(df) - nrow(df_complete), "cases are missing one value in one of the variables and were thus removed.")
+
+save(df_complete, file = paste("UKBB_data_corAnalyses_", date, ".csv", sep = ""))
 
 ````
 ## correlational analyses
@@ -288,28 +305,203 @@ x = CRP; Y1 = cog_1_z; Y2 = cog_2_z; Y3 = cog_3_z;
 !!! In outputs, specify what subset of participants it is for !!!
 ```{r corAnalyses_noC, echo=FALSE}
 # Run models ---------------
-mainCor_noC_log_cog1 <- lm(cog_PC_1_z ~ crp_log_z, data = df_complete)
-mainCor_noC_fctr_cog1 <- lm(cog_PC_1_z ~ crp_aliquot_fctr, data = df_complete, 
-                            contrasts=list(crp_aliquot_fctr = "contr.treatment"))
 
-mainCor_noC_log_cog2 <- lm(cog_PC_2_z ~ crp_log_z, data = df_complete)
-mainCor_noC_fctr_cog2 <- lm(cog_PC_2_z ~ crp_aliquot_fctr, data = df_complete, 
-                            contrasts=list(crp_aliquot_fctr = "contr.treatment"))
+cogOutcomes <- colnames(df[c(cogPCOutputs_z, cogVars_t2_z)])
 
-mainCor_noC_log_cog3 <- lm(cog_PC_3_z ~ crp_log_z, data = df_complete)
-mainCor_noC_fctr_cog3 <- lm(cog_PC_3_z ~ crp_aliquot_fctr, data = df_complete, 
-                            contrasts=list(crp_aliquot_fctr = "contr.treatment"))
+individualAnalysis <- list()
+listAnalyses_cor_noC <- list()
+mainCor_noC <- list()
+for(i in cogOutcomes){
+  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = "", M = "")
+  model <- lm(eval(parse(text = expression)), data = df_complete)
+  listAnalyses_cor_noC <- c(listAnalyses, expression)
+  individualAnalysis <- c(expression, model)
+  mainCor_noC <- c(mainCor_noC, individualAnalysis)
+  print(paste("---- ", expression, " ----", sep = ""))
+  print(summary(model))
+}
 
-mainCor_noC_log_numMem <- lm(cog_numMem_maxDigitRemem_t2 ~ crp_log_z, data = df_complete)
-mainCor_noC_fctr_numMem <- lm(cog_numMem_maxDigitRemem_t2 ~ crp_aliquot_fctr, data = df_complete, 
-                              contrasts=list(crp_aliquot_fctr = "contr.treatment"))
+cogOutcomes_fctr <- colnames(df[cogVars_t2_fctr])
+for(i in cogOutcomes_fctr){
+  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = "", M = "")
+  model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
+  listAnalyses_cor_noC <- c(listAnalyses_cor_noC, expression)
+  individualAnalysis <- c(expression, model)
+  mainCor_noC <- c(mainCor_noC, individualAnalysis)
+  print(paste("---- ", expression, " ----", sep = ""))
+  print(summary(model))
+}
+```
 
-# Summarise -------
-list_models_noC_log <- c(summary(mainCor_noC_log_cog1), summary(mainCor_noC_log_cog2), summary(mainCor_noC_log_cog3)) # list of no covariate crp_log models
-list_models_noC_fctr <- c(summary(mainCor_noC_fctr_cog1), summary(mainCor_noC_fctr_cog2), summary(mainCor_noC_fctr_cog3)) # list of no covariate crp_fctr models
+### With covariates
+x = CRP; Y1 = cog_1_z; Y2 = cog_2_z; Y3 = cog_3_z; Covariates = `r colnames(df[revisedCovars])`
+```{r corAnalyses_C, echo=FALSE}
+# ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
+#                                exercise_IPAQActivityGroup_t0 = "contr.treatment",
+#                                sleep_duration0_t0_tert = "contr.treatment",
+#                                ses_townsend_t0_tert = "contr.treatment",
+#                                demo_age_assess0_t0_tert = "contr.treatment")
 
-# Plot ----
-## Residual plots ----------
+individualAnalysis <- list()
+listAnalyses_cor_C <- list()
+mainCor_C <- list()
+for(i in cogOutcomes){
+  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = colnames(df[revisedCovars]), M = "")
+  model <- lm(eval(parse(text = expression)), data = df_complete)
+  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
+  individualAnalysis <- c(expression, model)
+  mainCor_C <- c(mainCor_C, individualAnalysis)
+  print(paste("---- ", expression, " ----", sep = ""))
+  print(summary(model))
+}
+
+for(i in cogOutcomes_fctr){
+  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = "", M = "")
+  model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
+  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
+  individualAnalysis <- c(expression, model)
+  mainCor_C <- c(mainCor_C, individualAnalysis)
+  print(paste("---- ", expression, " ----", sep = ""))
+  print(summary(model))
+}
+```
+
+``` {r saveCorAnalyses, echo=FALSE}
+# save analysis outputs
+capture.output(mainCor_noC, file = paste("UKBB_corAnalyses_noC_", date, ".csv", sep=""))
+capture.output(mainCor_C, file = paste("UKBB_corAnalyses_C_", date, ".csv", sep=""))
+
+```
+
+```{r assumptionChecks, echo=FALSE}
+# Correctly specified
+avPlots(mainCor_C_log_cog1, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
+avPlots(mainCor_C_log_cog2, pt.wts = T)
+avPlots(mainCor_C_log_cog3, pt.wts = T)
+  cat("\n \t\t Remove variable that is not predicting unique variance. Do so one at a time--excluding the one with a slope closest to 0 if applicable--and do so only at the end!")
+  # !! only remove predictors at the end !!
+  ###
+  plot(df_complete$demo_ethnicity_t0, df_complete$cog_PC_1_z, xlab = "", las = 3, res = 30000)
+  ggplot(df_complete, aes(reorder(demo_ethnicity_t0, -cog_PC_1_z, sum), cog_PC_1_z)) + 
+    geom_boxplot() + 
+    geom_jitter(position=position_jitter(.01)) +
+    theme(axis.text.x = element_text(angle = 90), axis.line.x.top = element_line(1)) +
+    geom_point(alpha = .15, size = 1, color = "black")
+  
+  ggplot(data = df_complete, aes(x=demo_daysBtwAssess, y=cog_PC_1_z)) + 
+                  geom_point(alpha = .15, size = 1, color = "black") +
+                  theme(legend.position = "none")
+
+```
+
+### With revised covariates
+``` {r saveCorAnalyses, echo=FALSE}
+covarsRevised1 <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "waistToHip_z"))
+
+# ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
+#                                exercise_IPAQActivityGroup_t0 = "contr.treatment",
+#                                sleep_duration0_t0_tert = "contr.treatment",
+#                                ses_townsend_t0_tert = "contr.treatment",
+#                                demo_age_assess0_t0_tert = "contr.treatment")
+
+individualAnalysis <- list()
+listAnalyses_cor_C <- list()
+mainCor_C <- list()
+for(i in cogOutcomes){
+  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = colnames(df[covarsRevised1]), M = "")
+  model <- lm(eval(parse(text = expression)), data = df_complete)
+  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
+  individualAnalysis <- c(expression, model)
+  mainCor_C <- c(mainCor_C, individualAnalysis)
+  print(paste("---- ", expression, " ----", sep = ""))
+  print(summary(model))
+}
+
+for(i in cogOutcomes_fctr){
+  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = colnames(df[covarsRevised1]), M = "")
+  model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
+  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
+  individualAnalysis <- c(expression, model)
+  mainCor_C <- c(mainCor_C, individualAnalysis)
+  print(paste("---- ", expression, " ----", sep = ""))
+  print(summary(model))
+}
+```
+
+```{r avPlots, echo=FALSE}
+avPlots(mainCor_C_log_cog1, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
+avPlots(mainCor_C_log_cog2, pt.wts = T)
+avPlots(mainCor_C_log_cog3, pt.wts = T)
+
+```
+
+## Mediation analyses
+### No covariates
+Indep var: 'crp_log_z'; 
+Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
+Mediators: `r colnames(df[mediators])`; 
+```{r medAnalyses, echo=FALSE}
+mediators <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2_z", "brain_vol_hippocamp_L_t2_z", "brain_vol_hippocamp_R_t2_z"))
+
+individualAnalysis <- list()
+listAnalyses_med_noC <- list()
+mainMed_noC <- list()
+for(med in colnames(df[mediators])){
+  for(i in cogOutcomes){
+    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""))
+    # mainMed_noC <- c(mainMed_noC, model)
+    print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
+  }
+  # for(i in cogOutcomes_fctr){
+  #   expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, M = med, C = "")
+  #   model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
+  #   listAnalyses_med_noC <- c(listAnalyses_med_noC, expression)
+  #   individualAnalysis <- c(expression, model)
+  #   mainMed_noC <- c(mainMed_noC, individualAnalysis)
+  #   print(paste("---- ", expression, " ----", sep = ""))
+  #   print(summary(model))
+  # }
+}
+
+```
+
+### With covariates
+Indep var: 'crp_log_z'; 
+Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
+Mediators: `r colnames(df[mediators])`; 
+Covariates: `r colnames(df[covarsMed])`
+```{r medAnalyses, echo=FALSE}
+covarsMed <- c(covarsRevised1, covars_cog )
+# Add  cognition only covars
+
+individualAnalysis <- list()
+listAnalyses_med_C <- list()
+mainMed_C <- list()
+for(med in colnames(df[mediators])){
+  for(i in cogOutcomes){
+    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = c(""))
+    # mainMed_C <- c(mainMed_C, model)
+    print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
+  }
+  # for(i in cogOutcomes_fctr){
+  #   expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, M = med, C = "")
+  #   model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
+  #   listAnalyses_med_C <- c(listAnalyses_med_C, expression)
+  #   individualAnalysis <- c(expression, model)
+  #   mainMed_C <- c(mainMed_C, individualAnalysis)
+  #   print(paste("---- ", expression, " ----", sep = ""))
+  #   print(summary(model))
+  # }
+}
+
+```
+
+# Plots & figures
+## Correlation analyses
+``` {r corPlots, echo=FALSE}
+# Plots --------
+## no covars --------
+### Residual plots ----------
 residualDf_cog1_noC <- dplyr::select(df_complete,crp_log_z,cog_PC_1_z) %>%
   dplyr::mutate(fits=fitted(mainCor_noC_log_cog1),
                 resids=resid(mainCor_noC_log_cog1),
@@ -343,7 +535,7 @@ residualPlot_cog3_noC <- ggplot(data=residualDf_cog1_noC,mapping=aes(x=fits,y=re
   geom_point(alpha = .15, size = 1, color = "black") +
   geom_hline(yintercept = 0,linetype="dashed")
 
-## Scatterplots --------------
+### Scatterplots --------------
 plot_noC_log_cog1 <- ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_1_z, colour = rgb(.1,.1,.1,.7))) + 
                   geom_point(alpha = .15, size = 1, color = "black") +
                   labs(title = "Cognitive component 1 vs log(CRP)", 
@@ -368,53 +560,8 @@ plot_noC_log_cog3 <- ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_3_z)) 
                   theme(legend.position = "none")
 plots_noC_log <- c(plot_noC_log_cog1, plot_noC_log_cog2, plot_noC_log_cog3)
 
-plot_noC_fctr_cog1 <- plot(df$crp_aliquot_fctr, df$cog_PC_1_z, main = "Cognitive component 1 by CRP grouping", xlab = "CRP grouping", ylab = "Cognitive component 1 (z score)")
-plot_noC_fctr_cog2 <- plot(df$crp_aliquot_fctr, df$cog_PC_2_z, main = "Cognitive component 2 by CRP grouping", xlab = "CRP grouping", ylab = "Cognitive component 2 (z score)")
-plot_noC_fctr_cog3 <- plot(df$crp_aliquot_fctr, df$cog_PC_3_z, main = "Cognitive component 3 by CRP grouping", xlab = "CRP grouping", ylab = "Cognitive component 3 (z score)")
-plots_noC_fctr <- c(plot_noC_fctr_cog1, plot_noC_fctr_cog2, plot_noC_fctr_cog3)
-```
-
-### With covariates
-x = CRP; Y1 = cog_1_z; Y2 = cog_2_z; Y3 = cog_3_z; C = sex, current smoking, processedMeat, ethnicity, exercise, SSRI, waistToHip, daysBTWAssess, age_assess, sleep_duration
-```{r corAnalyses_C, echo=FALSE}
-# Create LM expressions --------
-withC_log_cog1 <- createLMExpression(varNames = colnames(df_complete), X = "crp_log_z", C = colnames(df[covars]), M = "", Y = "cog_PC_1_z")
-withC_fctr_cog1 <- createLMExpression(varNames = colnames(df_complete), X = "crp_aliquot_fctr", C = colnames(df[covars]), M = "", Y = "cog_PC_1_z")
-
-withC_log_cog2 <- createLMExpression(varNames = colnames(df_complete), X = "crp_log_z", C = colnames(df[covars]), M = "", Y = "cog_PC_2_z")
-withC_fctr_cog2 <- createLMExpression(varNames = colnames(df_complete), X = "crp_aliquot_fctr", C = colnames(df[covars]), M = "", Y = "cog_PC_2_z")
-
-withC_log_cog3 <- createLMExpression(varNames = colnames(df_complete), X = "crp_log_z", C = colnames(df[covars]), M = "", Y = "cog_PC_3_z")
-withC_fctr_cog3 <- createLMExpression(varNames = colnames(df_complete), X = "crp_aliquot_fctr", C = colnames(df[covars]), M = "", Y = "cog_PC_3_z")
-
-withC_log_numMem <- createLMExpression(varNames = colnames(df_complete), X = "crp_log_z", C = colnames(df[covars]), M = "", Y = "cog_numMem_maxDigitRemem_t2")
-withC_fctr_numMem <- createLMExpression(varNames = colnames(df_complete), X = "crp_aliquot_fctr", C = colnames(df[covars]), M = "", Y = "cog_numMem_maxDigitRemem_t2")
-
-# run lms ------
-ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
-                               exercise_IPAQActivityGroup_t0 = "contr.treatment",
-                               sleep_duration0_t0_tert = "contr.treatment",
-                               ses_townsend_t0_tert = "contr.treatment",
-                               demo_age_assess0_t0_tert = "contr.treatment")
-
-mainCor_C_log_cog1 <- lm(eval(parse(text = withC_log_cog1)), data = df_complete, contrasts=ordinalFactorContrasts)
-mainCor_C_fctr_cog1 <- lm(eval(parse(text = withC_fctr_cog1)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
-
-mainCor_C_log_cog2 <- lm(eval(parse(text = withC_log_cog2)), data = df_complete, contrasts=ordinalFactorContrasts)
-mainCor_C_fctr_cog2 <- lm(eval(parse(text = withC_fctr_cog2)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
-
-mainCor_C_log_cog3 <- lm(eval(parse(text = withC_log_cog3)), data = df_complete, contrasts=ordinalFactorContrasts)
-mainCor_C_fctr_cog3 <- lm(eval(parse(text = withC_fctr_cog3)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
-
-mainCor_C_log_numMem <- lm(eval(parse(text = withC_log_numMem)), data = df_complete, contrasts=ordinalFactorContrasts)
-mainCor_C_fctr_numMem <- lm(eval(parse(text = withC_fctr_numMem)), data = df_complete,contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts)) 
-
-# Summarise --------
-list_models_C_log <- c(withC_log_cog1, summary(mainCor_C_log_cog1), withC_log_cog2, summary(mainCor_C_log_cog2), withC_log_cog3, summary(mainCor_C_log_cog3), withC_log_numMem, summary(mainCor_C_log_numMem)) # list of c(ovariate crp_log models. Name of the LM is included before the summary as it is passed in as a variable during the LM execution.
-list_models_C_fctr <- c(withC_fctr_cog1, summary(mainCor_C_fctr_cog1), withC_fctr_cog2, summary(mainCor_C_fctr_cog2), withC_fctr_cog3, summary(mainCor_withC_fctr_cog3), withC_fctr_numMem, summary(mainCor_C_fctr_numMem)) # list of no covariate crp_fctr models. Name of the LM is included before the summary as it is passed in as a variable during the LM execution
-
-# Plots -------
-## Residual plots --------
+## With covars -----------
+### Residual plots --------
 residualDf_cog1_C <- dplyr::select(df_complete, "crp_log_z", colnames(df[covars]), "cog_PC_1_z") %>% 
   dplyr::mutate(fits=fitted(mainCor_C_log_cog1 ),
                 resids=resid(mainCor_C_log_cog1 ),
@@ -450,7 +597,7 @@ residualPlot_cog3_C <- ggplot(data=residualDf_cog3_C,mapping=aes(x=fits,y=resids
 
 residPlots_C <- c(residualPlot_cog1_C, residualPlot_cog2_C, residualPlot_cog3_C)
 
-## Scatterplots ---------
+### Scatterplots ---------
 plot_C_log_cog1 <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_PC_1_z)) + 
                   geom_point(alpha = .15, size = 1, color = "black") +
                   labs(title = "Cognitive component 1 vs log(CRP) when controling for covariates", 
@@ -480,101 +627,10 @@ plot_C_log_numMem <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_num
                   geom_abline(intercept = coef(mainCor_C_log_cog3)[1], slope = coef(mainCor_C_log_cog2)[3], linetype = "dashed") +
                   theme(legend.position = "none")
 plots_C_log <- c(plot_C_log_cog1, plot_C_log_cog2, plot_C_log_cog3)
-```
-
-``` {r saveCorAnalyses, echo=FALSE}
-# save analysis outputs
-capture.output(list_models_noC_log)
-capture.output(list_models_C_log)
-
-capture.output(list_models_noC_fctr )
-capture.output(list_models_C_fctr)
 
 ```
 
-```{r assumptionChecks, echo=FALSE}
-# Correctly specified
-avPlots(mainCor_C_log_cog1, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
-avPlots(mainCor_C_log_cog2, pt.wts = T)
-avPlots(mainCor_C_log_cog3, pt.wts = T)
-  cat("\n \t\t Remove variable that is not predicting unique variance. Do so one at a time--excluding the one with a slope closest to 0 if applicable--and do so only at the end!")
-  # !! only remove predictors at the end !!
-  ###
-  plot(df_complete$demo_ethnicity_t0, df_complete$cog_PC_1_z, xlab = "", las = 3, res = 30000)
-  ggplot(df_complete, aes(reorder(demo_ethnicity_t0, -cog_PC_1_z, sum), cog_PC_1_z)) + 
-    geom_boxplot() + 
-    geom_jitter(position=position_jitter(.01)) +
-    theme(axis.text.x = element_text(angle = 90), axis.line.x.top = element_line(1)) +
-    geom_point(alpha = .15, size = 1, color = "black")
-  
-  ggplot(data = df_complete, aes(x=demo_daysBtwAssess, y=cog_PC_1_z)) + 
-                  geom_point(alpha = .15, size = 1, color = "black") +
-                  theme(legend.position = "none")
-
-```
-### With revised covariates
-``` {r saveCorAnalyses, echo=FALSE}
-covarsRevised1 <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "waistToHip_z"))
-
-# Create LM expressions --------
-withC_log_cogTest <- createLMExpression(varNames = colnames(df_complete), X = "", C = colnames(df[covarsRevised1]), M = "", Y = "cog_PC_1_z")
-
-withC_log_cog1 <- createLMExpression(varNames = colnames(df_complete), X = "crp_log_z", C = colnames(df[covarsRevised1]), M = "", Y = "cog_PC_1_z")
-
-withC_log_cog2 <- createLMExpression(varNames = colnames(df_complete), X = "crp_log_z", C = colnames(df[covarsRevised1]), M = "", Y = "cog_PC_2_z")
-
-withC_log_cog3 <- createLMExpression(varNames = colnames(df_complete), X = "crp_log_z", C = colnames(df[covarsRevised1]), M = "", Y = "cog_PC_3_z")
-
-withC_log_numMem <- createLMExpression(varNames = colnames(df_complete), X = "crp_log_z", C = colnames(df[covarsRevised1]), M = "", Y = "cog_numMem_maxDigitRemem_t2")
-
-# run lms ------
-ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
-                               exercise_IPAQActivityGroup_t0 = "contr.treatment",
-                               sleep_duration0_t0_tert = "contr.treatment",
-                               ses_townsend_t0_tert = "contr.treatment",
-                               demo_age_assess0_t0_tert = "contr.treatment")
-
-mainCor_C_log_cogTest <- lm(eval(parse(text = withC_log_cogTest)), data = df_complete, contrasts=ordinalFactorContrasts)
-summary(mainCor_C_log_cogTest)
-mainCor_C_log_cog1 <- lm(eval(parse(text = withC_log_cog1)), data = df_complete, contrasts=ordinalFactorContrasts)
-mainCor_C_fctr_cog1 <- lm(eval(parse(text = withC_fctr_cog1)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
-
-mainCor_C_log_cog2 <- lm(eval(parse(text = withC_log_cog2)), data = df_complete, contrasts=ordinalFactorContrasts)
-mainCor_C_fctr_cog2 <- lm(eval(parse(text = withC_fctr_cog2)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
-
-mainCor_C_log_cog3 <- lm(eval(parse(text = withC_log_cog3)), data = df_complete, contrasts=ordinalFactorContrasts)
-mainCor_C_fctr_cog3 <- lm(eval(parse(text = withC_fctr_cog3)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
-
-mainCor_C_log_numMem <- lm(eval(parse(text = withC_log_numMem)), data = df_complete, contrasts=ordinalFactorContrasts)
-mainCor_C_fctr_numMem <- lm(eval(parse(text = withC_fctr_numMem)), data = df_complete,contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts)) 
-
-avPlots(mainCor_C_log_cogTest, pt.wts = T)
-avPlots(mainCor_C_log_cog1, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
-avPlots(mainCor_C_log_cog2, pt.wts = T)
-avPlots(mainCor_C_log_cog3, pt.wts = T)
-
-# Summarise --------
-list_models_C_log <- c(withC_log_cog1, summary(mainCor_C_log_cog1), withC_log_cog2, summary(mainCor_C_log_cog2), withC_log_cog3, summary(mainCor_C_log_cog3), withC_log_numMem, summary(mainCor_C_log_numMem)) # list of c(ovariate crp_log models. Name of the LM is included before the summary as it is passed in as a variable during the LM execution.
-list_models_C_fctr <- c(withC_fctr_cog1, summary(mainCor_C_fctr_cog1), withC_fctr_cog2, summary(mainCor_C_fctr_cog2), withC_fctr_cog3, summary(mainCor_withC_fctr_cog3), withC_fctr_numMem, summary(mainCor_C_fctr_numMem)) # list of no covariate crp_fctr models. Name of the LM is included before the summary as it is passed in as a variable during the LM execution
-```
-
-## Mediation analyses
-### No covariates
-x = CRP; Y0i = cog_1_z; Y0ii = cog_2_z; Y0iii = cog_3_z; M0: brain_vol_brainSegNoVent_t2_z; M1a: brain_vol_hippocamp_L_t2_z; M2a: brain_vol_hippocamp_R_t2_z;
-```{r medAnalyses, echo=FALSE}
-# Run mediation models
-medModel0_noC <- runRMediation(df = df_complete, X = "crp_log_z", Y = "cog_PC_1_z", M = "brain_vol_brainSegNoVent_t2_z", covars = "", contrasts = c(""))
-
-medModel0_C <- runRMediation(df = df_complete, X = "crp_log_z", Y = "cog_PC_1_z", M = "brain_vol_brainSegNoVent_t2_z", covars = colnames(df[covars]), contrasts = ordinalFactorContrasts)
-paste("indirect effect = ", round(medModel0_C$Estimate, 3), " 95%CI[", round(medModel0_C$`97.5% CI`[1], 3), ", ", round(medModel0_C$`97.5% CI`[2], 3), "]", sep = "")
-
-medModel1a_noC <- runRMediation(df = df_complete, X = "crp_log_z", Y = "cog_numMem_maxDigitRemem_t2", M = "brain_vol_hippocamp_L_t2_z", covars = "", contrasts = c(""))
-medModel1a_C <- runRMediation(df = df_complete, X = "crp_log_z", Y = "cog_numMem_maxDigitRemem_t2", M = "brain_vol_hippocamp_L_t2_z", covars = colnames(df[covars]), contrasts = ordinalFactorContrasts)
-
-medModel1b_noC <- runRMediation(df = df_complete, X = "crp_log_z", Y = "cog_numMem_maxDigitRemem_t2", M = "brain_vol_hippocamp_R_t2_z", covars = "", contrasts = c(""))
-
-medModel1b_C <- runRMediation(df = df_complete, X = "crp_log_z", Y = "cog_numMem_maxDigitRemem_t2", M = "brain_vol_hippocamp_R_t2_z", covars = colnames(df[covars]), contrasts = ordinalFactorContrasts)
-
+```{r medDiagrams, echo=FALSE}
 # mediation diagram
 med_diagram(mediation_data =  data.frame(
     main = "CRP on cog via WBV",  
@@ -598,13 +654,52 @@ med_diagram(mediation_data =  data.frame(
 
 ```
 
-### With covariates
-x = CRP; Y0i = cog_1_z; Y0ii = cog_2_z; Y0iii = cog_3_z; M0: brain_vol_brainSegNoVent_t2_z; M1a: brain_vol_hippocamp_L_t2_z; M2a: brain_vol_hippocamp_R_t2_z; covars = demo_sex_t0, demo_ethnicity_t0, demo_age_assess0_t0, demo_daysBtwAssess_z, waistToHip_z
-```{r medAnalyses, echo=FALSE}
-model0 <- runRMediation(df = df_complete, X = "crp_log_z", Y = "cog_PC_1_z", M = "brain_vol_brainSegNoVent_t2_z", covars = colnames(df[covarsRevised1]), contrasts = c("")) # model between CRP, whole brain volume, general cog
-model1a <- runRMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-L", covars = covarsRevised1, contrasts = c("")) # model between CRP, L hippocamp, memory
-model1b <- runRMediation(df = df, X = X, Y = Y, M = "brain_vol-hippocamp-R", covars = covarsRevised1, contrasts = c("")) # model between CRP, L hippocamp, memory
+# Analyses for crp_factor
+```{r corAnalyses_CRPfctr, echo=FALSE}
+# No covars ----------
+## Analyses --------
+# mainCor_noC_fctr_cog1 <- lm(cog_PC_1_z ~ crp_aliquot_fctr, data = df_complete, 
+#                             contrasts=list(crp_aliquot_fctr = "contr.treatment"))
+# mainCor_noC_fctr_cog2 <- lm(cog_PC_2_z ~ crp_aliquot_fctr, data = df_complete, 
+#                             contrasts=list(crp_aliquot_fctr = "contr.treatment"))
+# mainCor_noC_fctr_cog3 <- lm(cog_PC_3_z ~ crp_aliquot_fctr, data = df_complete, 
+#                             contrasts=list(crp_aliquot_fctr = "contr.treatment"))
 
-listMedModels <- c(model0_noC, model0, model1a_noC, model1a, model1b_noC, model1b)
+## Summarise -----
+# list_models_noC_fctr <- c(summary(mainCor_noC_fctr_cog1), summary(mainCor_noC_fctr_cog2), summary(mainCor_noC_fctr_cog3)) # list of no covariate crp_fctr models
 
+## Plots -----
+# plot_noC_fctr_cog1 <- plot(df$crp_aliquot_fctr, df$cog_PC_1_z, main = "Cognitive component 1 by CRP grouping", xlab = "CRP grouping", ylab = "Cognitive component 1 (z score)")
+# plot_noC_fctr_cog2 <- plot(df$crp_aliquot_fctr, df$cog_PC_2_z, main = "Cognitive component 2 by CRP grouping", xlab = "CRP grouping", ylab = "Cognitive component 2 (z score)")
+# plot_noC_fctr_cog3 <- plot(df$crp_aliquot_fctr, df$cog_PC_3_z, main = "Cognitive component 3 by CRP grouping", xlab = "CRP grouping", ylab = "Cognitive component 3 (z score)")
+# plots_noC_fctr <- c(plot_noC_fctr_cog1, plot_noC_fctr_cog2, plot_noC_fctr_cog3)
+
+# With covars ------------
+## Create LM expressions --------
+# withC_fctr_cog1 <- createLMExpression(varNames = colnames(df_complete), X = "crp_aliquot_fctr", C = colnames(df[covars]), M = "", Y = "cog_PC_1_z")
+# withC_fctr_cog2 <- createLMExpression(varNames = colnames(df_complete), X = "crp_aliquot_fctr", C = colnames(df[covars]), M = "", Y = "cog_PC_2_z")
+# withC_fctr_cog3 <- createLMExpression(varNames = colnames(df_complete), X = "crp_aliquot_fctr", C = colnames(df[covars]), M = "", Y = "cog_PC_3_z")
+# withC_fctr_numMem <- createLMExpression(varNames = colnames(df_complete), X = "crp_aliquot_fctr", C = colnames(df[covars]), M = "", Y = "cog_numMem_maxDigitRemem_t2")
+
+## run lms ------
+# mainCor_C_fctr_cog1 <- lm(eval(parse(text = withC_fctr_cog1)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
+# mainCor_C_fctr_cog2 <- lm(eval(parse(text = withC_fctr_cog2)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
+# mainCor_C_fctr_cog3 <- lm(eval(parse(text = withC_fctr_cog3)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
+# mainCor_C_fctr_numMem <- lm(eval(parse(text = withC_fctr_numMem)), data = df_complete,contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts)) 
+
+## Summarise --------
+# list_models_C_fctr <- c(withC_fctr_cog1, summary(mainCor_C_fctr_cog1), withC_fctr_cog2, summary(mainCor_C_fctr_cog2), withC_fctr_cog3, summary(mainCor_withC_fctr_cog3), withC_fctr_numMem, summary(mainCor_C_fctr_numMem)) # list of no covariate crp_fctr models. Name of the LM is included before the summary as it is passed in as a variable during the LM execution
+
+# With revised covars --------
+## Run models
+mainCor_C_fctr_cog1 <- lm(eval(parse(text = withC_fctr_cog1)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
+mainCor_C_fctr_cog2 <- lm(eval(parse(text = withC_fctr_cog2)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
+mainCor_C_fctr_cog3 <- lm(eval(parse(text = withC_fctr_cog3)), data = df_complete, contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts))
+mainCor_C_fctr_numMem <- lm(eval(parse(text = withC_fctr_numMem)), data = df_complete,contrasts=c(crp_aliquot_fctr = "contr.treatment",ordinalFactorContrasts)) 
+## Summarise
+list_models_C_fctr <- c(withC_fctr_cog1, summary(mainCor_C_fctr_cog1), withC_fctr_cog2, summary(mainCor_C_fctr_cog2), withC_fctr_cog3, summary(mainCor_withC_fctr_cog3), withC_fctr_numMem, summary(mainCor_C_fctr_numMem)) # list of no covariate crp_fctr models. Name of the LM is included before the summary as it is passed in as a variable during the LM execution
+
+## Capture outputs ------
+# capture.output(list_models_noC_fctr)
+# capture.output(list_models_C_fctr)
 ```
