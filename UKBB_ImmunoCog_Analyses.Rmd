@@ -169,7 +169,7 @@ med_diagram <- function(mediation_data){
 # A - Analysis
 ## Import data
 ```{r importData, echo=FALSE}
-# df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
+# df <- read.csv("./UKBB_dfForAnal_03_21_2022.csv", ) # import df
 load("UKBB_dfForAnal_03_26_2022.Rdata")
 # df
 
