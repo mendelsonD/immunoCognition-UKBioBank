@@ -25,7 +25,7 @@ library(DescTools)
 knitr::knit_engines$set(python = reticulate::eng_python)
 reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
 
-outputPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/Outputs" # working directory to desired output location
+outputPath <- "./Outputs" # working directory to desired output location
 setwd(outputPath)
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
@@ -157,17 +157,17 @@ PCASave <- function(PCAOut, fileName){
 ## Data Preperation
 
 ```{r removeEIDs, echo=FALSE}
-# df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17.csv") # import df
-# eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
+# df_all <- read_csv("~/CCData/Daniel_2022-03-17.csv") # import df
+# eidToRemove <- read_csv("~/CCData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
 # 
 # df_all <- df_all %>% filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
-# write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17_ProperEID.csv", row.names=FALSE)
+# write.csv(df_all, "~/CCData/Daniel_2022-03-17_ProperEID.csv", row.names=FALSE)
 # rm(df_all, eidToRemove) # remove dataframes not in use
 
 ```
 
 ```{r dataPrep, echo=FALSE}
-df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17_ProperEID.csv", guess_max = 10000) # import df
+df_all <- read_csv("~/CCData/Daniel_2022-03-17_ProperEID.csv", guess_max = 10000) # import df
          
 # cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
 # df_all <- df_all %>% 
