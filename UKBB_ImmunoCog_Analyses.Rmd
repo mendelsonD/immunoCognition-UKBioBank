@@ -42,9 +42,9 @@ runCor <- function(df, X, Y, M, covars, contrasts, YisFactor, name){
   expression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = covars) # total model: predict Y from X and C  
 
   if(YisFactor){
-    model <- glm(formula = eval(parse(text = expression)), data = df, contrasts = contrasts, family = "binomial")
+    model <- glm(formula = eval(parse(text = expression)), data = df, contrasts = contrasts, family = "binomial", na.action = na.omit)
   } else {
-    model <- lm(eval(parse(text = expression)), data = df, contrasts = contrasts)
+    model <- lm(eval(parse(text = expression)), data = df, contrasts = contrasts, na.action = na.omit)
   }
   
   capture.output(
@@ -206,7 +206,7 @@ med_diagram <- function(mediation_data){
 # df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
 load("UKBB_dfForAnal_03_26_2022.Rdata")
 # df
-
+sort(colnames(df))
 ```
 
 ````{r makeOrdinal, echo=FALSE}
@@ -282,16 +282,7 @@ load("UKBB_dfForAnal_03_26_2022.Rdata")
 
 # Scale cog vars --------
 # cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
-cogVars <- starts_with("cog", vars = colnames(df))
-cogVars_t2 <- cogVars[ends_with("_t2", vars = colnames(df[cogVars]))]
-cogVarsToZ <- cogVars_t2[which(!colnames(df[c(cogVars_t2)]) %in% c("cog_prospMem_result_t2", "cog_timeCompleted_t2", "cog_hourCompleted"))]
-crp <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log"))
-varsToZ <-c(crp, cogVarsToZ)
 
-df_cog_z <- df[varsToZ] %>% 
-  mutate(across(.fns = scale, .names = "{colnames(df[varsToZ])}_z"))
-df <- cbind(df, df_cog_z)
-df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
 
 ````
 
@@ -312,22 +303,28 @@ cogVars_t2_fctr <- which(colnames(df) %in% c("cog_prospMem_result_t2"))
 cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
 cogPCOutputs_tert <- cogPCOutputs[ends_with("_tert", vars=colnames(df[cogPCOutputs]))]
 cogPCOutputs_z <- cogPCOutputs[ends_with("_z", vars=colnames(df[cogPCOutputs]))]
+cogOutcomes <- colnames(df[c(cogPCOutputs_z, cogVars_t2_z)])
+cogOutcomes_fctr <- colnames(df[cogVars_t2_fctr])
 # colnames(df[cogPCOutputs_z])
 
 numMemCol <- which(colnames(df) == "cog_numMem_maxDigitRemem_t2")
-covars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "ses_townsend_t0", "med_SSRI0", "waistToHip_z", "diet_processedMeat_t0", "sleep_duration0_t0", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0"))
-revisedCovars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "ses_townsend_t0", "waistToHip_z"))
+covars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "med_SSRI0", "weight_waistToHip_z", "diet_processedMeat_t0", "sleep_duration0_t0_z", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0"))
+revisedCovars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z"))
 covars_brain <- which(colnames(df) %in% c("hand_t0", "cog_hourCompleted", "brain_headScale_t2"))
 
-varsOfInterest <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_brain) # list of variables used in correlation/mediation analyses
-df_small <- df[c(1,varsOfInterest, which(colnames(df) == "missingEssentialVar"))]
+varsOfInterest_allC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, covars) # list of variables used in correlation/mediation analyses
+varsOfInterest_revC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_brain) # list of variables used in correlation/mediation analyses
+df_small_allC <- df[c(1,varsOfInterest_allC, which(colnames(df) == "missingEssentialVar"))]
+df_small <- df[c(1,varsOfInterest_revC, which(colnames(df) == "missingEssentialVar"))]
 
+
+essentialVarsAnalysis <- c(cogOutcomes, cogOutcomes_fctr,  colnames(df[brainVars_specific_z]), colnames(df[revisedCovars]), colnames(df[covars_brain]))
+save(essentialVarsAnalysis, file = "revisedEssentialVarsAnalysis.RData")
 ```
 
 ````{r missingVars, echo=FALSE}
 df_complete  <- df_small
-df_complete <- df_small[complete.cases(df_small), ]
-cat(nrow(df) - nrow(df_complete), "cases are missing one value in one of the variables and were thus removed.")
+# cat(nrow(df) - nrow(df_complete), "cases are missing one value in one of the variables and were thus removed.")
 
 save(df_complete, file = paste("UKBB_data_corAnalyses_", date, ".csv", sep = ""))
 
@@ -338,10 +335,6 @@ save(df_complete, file = paste("UKBB_data_corAnalyses_", date, ".csv", sep = "")
 Indep var: 'crp_log_z'; 
 Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
 ```{r corAnalyses_noC, echo=FALSE}
-# Run models ---------------
-
-cogOutcomes <- colnames(df[c(cogPCOutputs_z, cogVars_t2_z)])
-cogOutcomes_fctr <- colnames(df[cogVars_t2_fctr])
 individualAnalysis <- list()
 mainCor_noC <- list()
 analysisName <- "UKBB_Anal_cor_noC"
@@ -366,32 +359,32 @@ for(i in cogOutcomes_fctr){
 ### With covariates
 Indep var: 'crp_log_z'; 
 Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
-Covariates = `r colnames(df[revisedCovars])`
+Covariates = `r colnames(df[covars])`
 ```{r corAnalyses_C, echo=FALSE}
-# ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
-#                                exercise_IPAQActivityGroup_t0 = "contr.treatment",
-#                                sleep_duration0_t0_tert = "contr.treatment",
-#                                ses_townsend_t0_tert = "contr.treatment",
-#                                demo_age_assess0_t0_tert = "contr.treatment")
+ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
+                               exercise_IPAQActivityGroup_t0 = "contr.treatment",
+                               sleep_duration0_t0_tert = "contr.treatment",
+                               ses_townsend_t0_tert = "contr.treatment",
+                               demo_age_assess0_t0_tert = "contr.treatment")
 
 individualAnalysis <- list()
 mainCor_C <- list()
-analysisName <- "UKBB_Anal_cor_C"
+analysisName <- "UKBB_Anal_cor_allC"
 
 for(i in cogOutcomes){
   analysisName <- glue("{analysisName}_{i}")
-  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars]), M = "", YisFactor = F, name = analysisName, contrasts = c())
+  individualAnalysis <- runCor(df = df_small_allC, X = "crp_log_z", Y = i, covars = colnames(df[covars]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
   mainCor_noC <- c(mainCor_C, individualAnalysis)
   # print(summary(listAnalyses_cor_noC))
-  analysisName <- "UKBB_Anal_cor_C"
+  analysisName <- "UKBB_Anal_cor_allC"
 }
 
 for(i in cogOutcomes_fctr){
   analysisName <- glue("{analysisName}_{i}")
-  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars]), M = "", YisFactor = T, name = analysisName, contrasts = c())
+  individualAnalysis <- runCor(df = df_small_allC, X = "crp_log_z", Y = i, covars = colnames(df[covars]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
   mainCor_noC <- c(mainCor_C, individualAnalysis)
   # print(summary(listAnalyses_cor_noC))
-  analysisName <- "UKBB_Anal_cor_C"
+  analysisName <- "UKBB_Anal_cor_allC"
 }
 
 ```
@@ -425,37 +418,40 @@ avPlots(mainCor_C_log_cog3, pt.wts = T)
 ```
 
 ### With revised covariates
+Covars: `r colnames(df[revisedCovars])`
 ``` {r saveCorAnalyses, echo=FALSE}
-covarsRevised1 <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "waistToHip_z"))
-
 # ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
 #                                exercise_IPAQActivityGroup_t0 = "contr.treatment",
 #                                sleep_duration0_t0_tert = "contr.treatment",
 #                                ses_townsend_t0_tert = "contr.treatment",
 #                                demo_age_assess0_t0_tert = "contr.treatment")
 
+ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
+                               exercise_IPAQActivityGroup_t0 = "contr.treatment",
+                               sleep_duration0_t0_tert = "contr.treatment",
+                               ses_townsend_t0_tert = "contr.treatment",
+                               demo_age_assess0_t0_tert = "contr.treatment")
+
 individualAnalysis <- list()
-listAnalyses_cor_C <- list()
 mainCor_C <- list()
+analysisName <- "UKBB_Anal_cor_revC"
+
 for(i in cogOutcomes){
-  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = colnames(df[covarsRevised1]), M = "")
-  model <- lm(eval(parse(text = expression)), data = df_complete)
-  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
-  individualAnalysis <- c(expression, model)
-  mainCor_C <- c(mainCor_C, individualAnalysis)
-  print(paste("---- ", expression, " ----", sep = ""))
-  print(summary(model))
+  analysisName <- glue("{analysisName}_{i}")
+  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars]), M = "", YisFactor = F, name = analysisName, contrasts = c())
+  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  # print(summary(listAnalyses_cor_noC))
+  analysisName <- "UKBB_Anal_cor_revC"
 }
 
 for(i in cogOutcomes_fctr){
-  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = colnames(df[covarsRevised1]), M = "")
-  model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
-  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
-  individualAnalysis <- c(expression, model)
-  mainCor_C <- c(mainCor_C, individualAnalysis)
-  print(paste("---- ", expression, " ----", sep = ""))
-  print(summary(model))
+  analysisName <- glue("{analysisName}_{i}")
+  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars]), M = "", YisFactor = T, name = analysisName, contrasts = c())
+  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  # print(summary(listAnalyses_cor_noC))
+  analysisName <- "UKBB_Anal_cor_revC"
 }
+
 ```
 
 ```{r avPlots, echo=FALSE}
