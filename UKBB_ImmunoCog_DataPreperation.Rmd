@@ -587,7 +587,8 @@ kable(comparisonDroppedCases)
 ### Summarise
 ```{r saveDf, echo=FALSE}
 df <- df_retained
-# write.csv(df_retained, file = paste("UKBB_dfRetained_", date, ".csv", sep = "")) # exports wilcoxOutput to a CSV file
+write.csv(df_retained, file = paste("UKBB_dfRetained_", date, ".csv", sep = "")) # exports wilcoxOutput to a CSV file
+write.csv(psych::describe(df), file = glue("UKBB_describedRetainedCases_{date}.csv")) # exports wilcoxOutput to a CSV file
 varsToSummarise <- c(1:ncol(df))
   
 numVars<- lapply(df, numNotFactor)

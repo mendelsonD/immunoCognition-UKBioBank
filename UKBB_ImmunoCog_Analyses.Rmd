@@ -13,6 +13,7 @@ library(car)
 library(gridExtra)
 library(stringr)
 library(glue)
+library(psych)
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
 
@@ -205,6 +206,8 @@ med_diagram <- function(mediation_data){
 ```{r importData, echo=FALSE}
 # df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
 load("UKBB_dfForAnal_03_26_2022.Rdata")
+
+write.csv(describe(df), file = glue("UKBB_allVarSummary_{date}.csv"))
 # df
 sort(colnames(df))
 ```
