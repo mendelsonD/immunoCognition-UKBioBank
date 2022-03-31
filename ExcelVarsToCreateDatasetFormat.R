@@ -34,7 +34,11 @@ library(readxl)
 library(stringr)
 library(dplyr)
 
+<<<<<<< HEAD
 df <- read_xlsx("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/VariableLists/UKBB_Variables-03_16_2022.xlsx", sheet = 1)
+=======
+df <- read_xlsx("./UKBB_Variables-03_12_2022.xlsx", sheet = 1)
+>>>>>>> 37e8ed19a46a603e75d1cdbb0b37557ca3955292
 head(df)
 dim(df)
 getwd()
