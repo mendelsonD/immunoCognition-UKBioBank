@@ -22,11 +22,10 @@ library(knitr)
 library(finalfit)
 library(Hmisc)
 library(DescTools)
+library(coin)
 knitr::knit_engines$set(python = reticulate::eng_python)
 reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
 
-outputPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/Outputs" # working directory to desired output location
-setwd(outputPath)
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
 
@@ -150,6 +149,45 @@ PCASave <- function(PCAOut, fileName){
   
 ```
 
+## Compare non-normal vairables
+```{r wilcoxTest, echo=FALSE}
+runWilcox <- function(varsOfInterest, df, by, fileName){
+  require(rcompanion)  
+  # wilcoxOutput <- data.frame("value type" = c("statistic","p", "n1", "n2", "r(effSize)"), row.names = 1) # initialize dataframe for the output
+  wilcoxOutput <- data.frame("value type" = c("statistic","p", "r(effSize)"), row.names = 1) # initialize dataframe for the output
+    i <- integer(0)
+    for(i in varsOfInterest){ # iterate through the variables of interest. Run wilcoxon-paired rank test. Put results into a dataframe 
+      # print(i)
+      x <- as.numeric(unlist(df[i])) # put variable {i} for completers into a temporary vector, make numeric.
+      
+      wilcoxRaw <- wilcox.test(x ~ unlist(df[by]), alternative = c("two.sided"), paired = F) # run wilcoxon paired-rank
+      wilcoxStat <- format(wilcoxRaw$statistic, scientific = T, digits = 3) # Extract W statistic of test. N.b., the 'W' statistic reported here is equivalent to the U statistic: https://stats.stackexchange.com/questions/79843/is-the-w-statistic-output-by-wilcox-test-in-r-the-same-as-the-u-statistic
+      wilcoxP <- format(wilcoxRaw$p.value, scientific = T, digits = 3) # Extract P statistic of test
+      r <- wilcoxonR(x = x, g = unlist(df[by]))
+      wilcoxInterest <- c(wilcoxStat, wilcoxP, r) # combine W statistic, p, n1 and n2 into a vector
+      wilcoxOutput[[i]] <- with(wilcoxOutput, wilcoxInterest) # Add the results for variable {i} to the output dataframe
+      # print(wilcoxInterest)
+      
+      # n1 <- length(x) - sum(is.na(x)) # counts number of non-NA values in x
+      # n2 <- length(y) - sum(is.na(y)) # counts number of non-NA values in y
+      
+      # if(n1 <= 1 | n2 <= 1){
+      #   print(paste("Not enough observations to compare ", i, ". This variable was skipped."))
+      # } else {
+      #   wilcoxRaw <- wilcox.test(x, y, alternative = c("two.sided"), paired = F) # run wilcoxon paired-rank
+      #   wilcoxStat <- format(wilcoxRaw$statistic, scientific = F, digits = 3) # Extract W statistic of test. N.b., the 'W' statistic reported here is equivalent to the U statistic: https://stats.stackexchange.com/questions/79843/is-the-w-statistic-output-by-wilcox-test-in-r-the-same-as-the-u-statistic
+      #   wilcoxP <- format(wilcoxRaw$p.value, scientific = F, digits = 3) # Extract P statistic of test
+      #   r <- wilcoxonR()
+      #   wilcoxInterest <- c(wilcoxStat, wilcoxP, n1, n2, r) # combine W statistic, p, n1 and n2 into a vector
+      #   wilcoxOutput[[i]] <- with(wilcoxOutput, wilcoxInterest) # Add the results for variable {i} to the output dataframe
+      #   # print(wilcoxInterest)
+      # }
+    }
+    # return(wilcoxonOutput)
+    write.csv(wilcoxOutput, file = glue("{fileName}_{date}.csv")) #exports wilcoxOutput to a CSV file
+    print(paste("The Wilcoxon comparison has been saved as:", glue("{fileName}_{date}.csv")))
+  } # "varsOfInterest" - list of variable names to compare between groups; "df" data frame with all vars of interest and grouping variable; "by" - grouping variable;
+```
 # -------------------------------
 
 # 1 - Biobank data analysis
@@ -321,6 +359,17 @@ medVars0 <- which(colnames(df) %in% colnames(df[medVars[medVars0]]))
 medVars2 <- ends_with("2", vars = colnames(df[medVars]))
 medVars2 <- which(colnames(df) %in% colnames(df[medVars[medVars2]]))
 
+medVars0_excludingSSRI <- medVars0[-which(colnames(df[medVars0]) == "med_SSRI0")]
+medVars2_excludingSSRI <- medVars2[-which(colnames(df[medVars2]) == "med_SSRI2")]
+df <- df %>% 
+  mutate("med_AnyOfInterest0_excludingSSRI" = factor(case_when(
+    if_any(any_of(medVars0_excludingSSRI), function(x) (x == "TRUE")) ~ 1,
+    if_all(all_of(medVars0_excludingSSRI), function(x) (x == "FALSE")) ~ 0))) %>% 
+  mutate("med_AnyOfInterest2_excludingSSRI" = factor(case_when(
+    if_any(any_of(medVars2_excludingSSRI), function(x) (x == "TRUE")) ~ 1,
+    if_all(all_of(medVars2_excludingSSRI), function(x) (x == "FALSE")) ~ 0)))
+medVars0 <- c(medVars0, which(colnames(df) == "med_AnyOfInterest0_excludingSSRI"))
+medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2_excludingSSRI"))
 df <- df %>% 
   mutate("med_AnyOfInterest0" = factor(case_when(
     if_any(any_of(medVars0), function(x) (x == "TRUE")) ~ 1,
@@ -329,7 +378,7 @@ df <- df %>%
     if_any(any_of(medVars2), function(x) (x == "TRUE")) ~ 1,
     if_all(all_of(medVars2), function(x) (x == "FALSE")) ~ 0)))
 medVars0 <- c(medVars0, which(colnames(df) == "med_AnyOfInterest0"))
-
+medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2"))
 medVars0NoCases <- c()
 for(i in medVars0){
   if(levels(as.factor(df[i])) == FALSE){
@@ -429,9 +478,15 @@ df <- df %>%
   mutate(med_SSRI2 = factor(case_when(
          med_SSRI2 == "FALSE" ~ 0,
          med_SSRI2 == "TRUE" ~ 1))) %>% 
-  mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2))
-  
+  mutate(med_AnyOfInterest0 = factor(med_AnyOfInterest0)) %>% 
+  mutate(med_AnyOfInterest0_excludingSSRI = factor(med_AnyOfInterest0_excludingSSRI)) %>% 
+  mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2)) %>% 
+  mutate(med_AnyOfInterest2_excludingSSRI = factor(med_AnyOfInterest2_excludingSSRI))
+
+df$crp_aliquotdelay <- as.duration(interval(df$crp_timeCollected_t0, df$crp_assaydate_t0)) %/% as.duration(years(1))  
+
 df <- readr::type_convert(df) # automatically detect
+df_interim <- df
 ```
 
 ## Remove cases with missing variables
@@ -468,6 +523,7 @@ df <- cbind(df, df_cog_z[cog_zVars])
 
 finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess","waistToHip_z"))
 load("revisedCovarNames.RData")
+sort(colnames(df))
 # colnames(df[sesVars])
 # View(df[1:100, c(1,cogPCAVars)])
 ```
@@ -514,7 +570,7 @@ write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", date, ".csv", se
 df_retained <- df %>%
   filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
 
-varsToCompare <- c("demo_sex_t0", "demo_birthYear_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_age_assess2_t2", "ses_townsend_t0", "crp_aliquot_t0", "crp_log", "med_AnyOfInterest0", "med_SSRI0", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0", "weight_BMI0_t0", "weight_waistToHip", "diet_processedMeat_t0", "sleep_duration0_t0", "menopause_t0", "hand_t0")
+varsToCompare <- c("demo_sex_t0", "demo_birthYear_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_age_assess2_t2", "ses_townsend_t0", "crp_aliquot_t0", "crp_log", "med_AnyOfInterest0", "med_AnyOfInterest0_excludingSSRI", "med_SSRI0", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0", "weight_BMI0_t0", "weight_waistToHip", "diet_processedMeat_t0", "sleep_duration0_t0", "menopause_t0", "hand_t0", "crp_hourCollected", "crp_timeFasting_t0", "crp_aliquotdelay")
 
 varsToCompare_ColNum <- which(colnames(df) %in% varsToCompare)
 
@@ -541,26 +597,30 @@ numVarColsToCompare <- (which(colnames(df) %in% colnames(df_numVarsToCompare)))
 normalityPlots <- mapply(normalCheck, df[numVarColsToCompare], colName = colnames(df[numVarColsToCompare]), colNum = numVarColsToCompare)
 # N.b. QQ plot should follow a straight line
 # nonParametricVars <- c(3,4,5,9,15,16, 17,19,36,38,41,43,49,56,57,58,66,67,69,101) # vector specifying which values of dependent to run non-parametric tests on 
-nonParametricVars <- c(3,9,12,38,40,41,69)
+nonParametricVars <- c(3,8,9,38,40,41,69,105)
 ```
 
 ### Compare removed cases to retained cases
 
 ```{r compareMissing, echo=FALSE}
 nonParaDep <- which(varsToCompare %in% colnames(df[nonParametricVars]))
-
+str(df$demo_sex_t0)
 summaryMissing <- list()
 nonPara <- c()
-for(i in varsToCompare){
-  if(i %in% nonParaDep == TRUE){
-    nonPara <- i
-  }
-  newRow <- df %>% 
-    summary_factorlist(dependent = i, explanatory = "missingEssentialVar", cont = "median", cont_nonpara = nonPara, p = T, p_cat = "chisq", add_dependent_label = T, add_col_totals = T, add_row_totals = T, na_include = F)
-  # print(newRow)
-  summaryMissing <- c(summaryMissing, newRow)
-}
-capture.output(summaryMissing, file = paste("UKBB_compareMissingCases_", date, ".csv", sep = ""))
+df$demo_daysBtwAssess
+nonParaToCompare <- c("demo_age_assess0_t0", "demo_age_assess2_t2", "demo_daysBtwAssess", "ses_townsend_t0", "crp_timeFasting_t0", "crp_timeCollected_t0", "crp_aliquotdelay", "crp_aliquot_t0")
+runWilcox(nonParaToCompare, df = df, by = "missingEssentialVar", fileName = "UKBB_compareMissing_wilcox")
+
+# for(i in varsToCompare){
+#   if(i %in% nonParaDep == TRUE){
+#     nonPara <- i
+#   }
+#   newRow <- df %>% 
+#     summary_factorlist(dependent = i, explanatory = "missingEssentialVar", cont = "median", cont_nonpara = nonPara, p = T, p_cat = "chisq", add_dependent_label = T, add_col_totals = T, add_row_totals = T, na_include = F)
+#   # print(newRow)
+#   summaryMissing <- c(summaryMissing, newRow)
+# }
+# capture.output(summaryMissing, file = paste("UKBB_compareMissingCases_", date, ".csv", sep = ""))
 # save(summaryMissing, file = paste("UKBB_compareMissingCases", date, ".csv"))
 
 comparisonDroppedCases <- TOne(df[varsToCompare], grp = df$missingEssentialVar, add.length = T, total = T, 
@@ -570,18 +630,26 @@ comparisonDroppedCases <- TOne(df[varsToCompare], grp = df$missingEssentialVar, 
             Format(median(x, na.rm = T), digits = 3),
             Format(IQR(x, na.rm = T), digits = 3)),
           TEST = list(
-            num  = list(fun = function(x, g){summary(aov(x ~ g))[[1]][1, "Pr(>F)"]},
+            num  = list(fun = function(x, g){paste("F(", summary(aov(x ~ g))[[1]][1, "Df"],",", summary(aov(x ~ g))[[1]][2, "Df"], ") = ", formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5), " p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "g", digits = 3), sep = "")},
                         lbl = "ANOVA"),
-            cat  = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+            cat  = list(fun = function(x, g){paste(
+                                                  "chisq(", chisq.test(table(x, g))$parameter, ") =", 
+                                                   formatC(chisq.test(table(x, g))$statistic, digits = 5), 
+                                                   "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
                         lbl = "Chi-Square test"),
-            dich = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+            dich = list(fun = function(x, g){paste(
+                                                  "chisq(", chisq.test(table(x, g))$parameter, ") =", 
+                                                   formatC(chisq.test(table(x, g))$statistic, digits = 5), 
+                                                   "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
                         lbl = "Chi-Square test")), 
           fmt = list(abs  = Fmt("abs"), 
              num  = Fmt("num"), 
              per  = Fmt("per"),
              pval = as.fmt(fmt = "p*")))
+
 write.csv(comparisonDroppedCases, file = paste("UKBB_compareMissingCases_TOne", date, ".csv", sep = ""))
 kable(comparisonDroppedCases)
+
 ```
 
 ### Summarise
@@ -621,16 +689,24 @@ TOne(df[varsToSummarise], grp = df$crp_aliquot_fctr, add.length = T, colnames = 
             Format(median(x, na.rm = T), digits = 3),
             Format(IQR(x, na.rm = T), digits = 3)),
      TEST = list(
-            num  = list(fun = function(x, g){summary(aov(x ~ g))[[1]][1, "Pr(>F)"]},
+            num  = list(fun = function(x, g){paste(
+                                                    "F(", summary(aov(x ~ g))[[1]][1, "Df"],",", summary(aov(x ~ g))[[1]][2, "Df"], ") = ", formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5), 
+                                                    " p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "g", digits = 3), sep = "")},
                         lbl = "ANOVA"),
-            cat  = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+            cat  = list(fun = function(x, g){paste(
+                                                  "chisq(", chisq.test(table(x, g))$parameter, ") =", 
+                                                   formatC(chisq.test(table(x, g))$statistic, digits = 5), 
+                                                   "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
                         lbl = "Chi-Square test"),
-            dich = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+            dich = list(fun = function(x, g){paste(
+                                                  "chisq(", chisq.test(table(x, g))$parameter, ") =", 
+                                                   formatC(chisq.test(table(x, g))$statistic, digits = 5), 
+                                                   "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
                         lbl = "Chi-Square test")), 
-           fmt = list(abs  = Fmt("abs"), 
-                   num  = Fmt("num"), 
-                   per  = Fmt("per"),
-                   pval = as.fmt(fmt = "p*")))
+          fmt = list(abs  = Fmt("abs"), 
+             num  = Fmt("num"), 
+             per  = Fmt("per"),
+             pval = as.fmt(fmt = "p*")))
 
 # possibleErrorVars <- df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])]
 # possibleErrorVarsNum <- lapply(possibleErrorVars, numNotFactor)
@@ -679,7 +755,7 @@ numVars <- c((which(colnames(df) %in% colnames(df_numVars))), which(colnames(df)
 # df <- df_retained
 ```
 # finalize vars for analysis
-```{r normalityInRetained, echo=FALSE}
+```{r varsforAnal, echo=FALSE}
 df_properCRP <- df %>%
   filter(crp_aliquot_t0 <= 10 | is.na(crp_aliquot_t0) == TRUE) # remove CRP > 10
 cat(nrow(df) - nrow(df_properCRP), " cases were removed as CRP > 10.", sep = "")
@@ -702,7 +778,6 @@ cor.test(rank(df$crp_aliquot_t0), rank(df$crp_timeFasting_t0), na.action = na.om
 cat("CRP aliquots were performed between", paste(min(df$crp_assaydate_t0))," and ", paste(max(df$crp_assaydate_t0)))
 df$crp_assaydate_t0 <- as.POSIXct(df$crp_assaydate_t0)
 
-df$crp_aliquotdelay <- as.duration(interval(df$crp_timeCollected_t0, df$crp_assaydate_t0)) %/% as.duration(years(1))
 cat("the mean time between blood sample and CRP measurement was (in years): \n\t", "mean:", mean(df$crp_aliquotdelay), "SD: ", sd(df$crp_aliquotdelay), "\n\t Median: ", median(df$crp_aliquotdelay), "IQR: ", iqr(df$crp_aliquotdelay))
 
 cor.test(rank(df$crp_aliquotdelay), rank(df$crp_aliquot_t0))
@@ -837,11 +912,11 @@ nonNormalVarsOfInt <- c(9,12,13,40, 106, 107, 108, 109)
 
 ## apply normality correction
 ### Split non-normal variables into tertiles
-df <- df %>% 
-  mutate(ses_townsend_t0_z = scale(df$ses_townsend_t0)) %>% # scale townsend score
-  mutate(cog_PC_1_z = scale(df$cog_PC_1)) %>% # scale PC1 score
-  mutate(cog_PC_2_z = scale(df$cog_PC_2)) %>% # scale PC2 score
-  mutate(cog_PC_3_z = scale(df$cog_PC_3)) # scale PC3 score
+# df <- df %>% 
+#   mutate(ses_townsend_t0_z = scale(df$ses_townsend_t0)) %>% # scale townsend score
+#   mutate(cog_PC_1_z = scale(df$cog_PC_1)) %>% # scale PC1 score
+#   mutate(cog_PC_2_z = scale(df$cog_PC_2)) %>% # scale PC2 score
+#   mutate(cog_PC_3_z = scale(df$cog_PC_3)) # scale PC3 score
 
 df <- df %>% 
   mutate(demo_age_assess0_t0_tert = factor(cut2(df$demo_age_assess0_t0, g = 3), order = T)) %>% # split into tertiles

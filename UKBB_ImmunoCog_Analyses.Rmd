@@ -205,7 +205,7 @@ med_diagram <- function(mediation_data){
 ## Import data
 ```{r importData, echo=FALSE}
 # df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
-load("UKBB_dfForAnal_03_26_2022.Rdata")
+load("UKBB_dfForAnal_03_31_2022.Rdata")
 
 write.csv(describe(df), file = glue("UKBB_allVarSummary_{date}.csv"))
 # df
@@ -286,7 +286,6 @@ sort(colnames(df))
 # Scale cog vars --------
 # cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
 
-
 ````
 
 ## Vars of interest
@@ -342,6 +341,9 @@ individualAnalysis <- list()
 mainCor_noC <- list()
 analysisName <- "UKBB_Anal_cor_noC"
 
+
+individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = "cog_PC_1_z", covars = "", M = "", YisFactor = F, name = analysisName, contrasts = c())
+
 for(i in cogOutcomes){
   analysisName <- glue("{analysisName}_{i}")
   individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = "", M = "", YisFactor = F, name = analysisName, contrasts = c())
@@ -374,18 +376,25 @@ individualAnalysis <- list()
 mainCor_C <- list()
 analysisName <- "UKBB_Anal_cor_allC"
 
+PC1_allC <- runCor(df = df_small_allC, X = "crp_log_z", Y = "cog_PC_1_z", covars = colnames(df[covars]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
+summary(PC1_allC)
+
+# for numeric variables
 for(i in cogOutcomes){
   analysisName <- glue("{analysisName}_{i}")
   individualAnalysis <- runCor(df = df_small_allC, X = "crp_log_z", Y = i, covars = colnames(df[covars]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
-  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  mainCor_allC <- c(mainCor_C, individualAnalysis)
+  capture.output(summary(individualAnalysis), file = glue("{analysisName}_{date}.txt"))
   # print(summary(listAnalyses_cor_noC))
   analysisName <- "UKBB_Anal_cor_allC"
 }
 
+# for factor variables
 for(i in cogOutcomes_fctr){
   analysisName <- glue("{analysisName}_{i}")
   individualAnalysis <- runCor(df = df_small_allC, X = "crp_log_z", Y = i, covars = colnames(df[covars]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
-  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  mainCor_allC <- c(mainCor_C, individualAnalysis)
+  capture.output(summary(individualAnalysis), file = glue("{analysisName}_{date}.txt"))
   # print(summary(listAnalyses_cor_noC))
   analysisName <- "UKBB_Anal_cor_allC"
 }
@@ -401,9 +410,10 @@ for(i in cogOutcomes_fctr){
 
 ```{r assumptionChecks, echo=FALSE}
 # Correctly specified
-avPlots(mainCor_C_log_cog1, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
-avPlots(mainCor_C_log_cog2, pt.wts = T)
-avPlots(mainCor_C_log_cog3, pt.wts = T)
+
+avPlots(PC1_allC, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
+avPlots(mainCor_C_cog2, pt.wts = T)
+avPlots(mainCor_C_cog3, pt.wts = T)
   cat("\n \t\t Remove variable that is not predicting unique variance. Do so one at a time--excluding the one with a slope closest to 0 if applicable--and do so only at the end!")
   # !! only remove predictors at the end !!
   ###
@@ -442,7 +452,7 @@ analysisName <- "UKBB_Anal_cor_revC"
 for(i in cogOutcomes){
   analysisName <- glue("{analysisName}_{i}")
   individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars]), M = "", YisFactor = F, name = analysisName, contrasts = c())
-  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  mainCor_revC <- c(mainCor_C, individualAnalysis)
   # print(summary(listAnalyses_cor_noC))
   analysisName <- "UKBB_Anal_cor_revC"
 }
@@ -450,7 +460,7 @@ for(i in cogOutcomes){
 for(i in cogOutcomes_fctr){
   analysisName <- glue("{analysisName}_{i}")
   individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars]), M = "", YisFactor = T, name = analysisName, contrasts = c())
-  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  mainCor_revC <- c(mainCor_C, individualAnalysis)
   # print(summary(listAnalyses_cor_noC))
   analysisName <- "UKBB_Anal_cor_revC"
 }
@@ -458,9 +468,9 @@ for(i in cogOutcomes_fctr){
 ```
 
 ```{r avPlots, echo=FALSE}
-avPlots(mainCor_C_log_cog1, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
-avPlots(mainCor_C_log_cog2, pt.wts = T)
-avPlots(mainCor_C_log_cog3, pt.wts = T)
+avPlots(mainCor_C_cog1, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
+avPlots(mainCor_C_cog2, pt.wts = T)
+avPlots(mainCor_C_cog3, pt.wts = T)
 
 ```
 
@@ -528,16 +538,17 @@ for(med in colnames(df[mediators])){
 
 ```
 
-# Plots & figures
+# Plots & figures - !! Needs revision !!
 ## Correlation analyses
+
 ``` {r corPlots, echo=FALSE}
 # Plots --------
 ## no covars --------
 ### Residual plots ----------
 residualDf_cog1_noC <- dplyr::select(df_complete,crp_log_z,cog_PC_1_z) %>%
-  dplyr::mutate(fits=fitted(mainCor_noC_log_cog1),
-                resids=resid(mainCor_noC_log_cog1),
-                sresids=rstudent(mainCor_noC_log_cog1))
+  dplyr::mutate(fits=fitted(mainCor_noC_cog1),
+                resids=resid(mainCor_noC_cog1),
+                sresids=rstudent(mainCor_noC_cog1))
 residualPlot_cog1_noC <- ggplot(data=residualDf_cog1_noC,mapping=aes(x=fits,y=resids)) +
   labs(title = "Residual plot - Cognitive component 1 (z score) ~ log(CRP)", 
                       x = "fitted values", 
@@ -546,9 +557,9 @@ residualPlot_cog1_noC <- ggplot(data=residualDf_cog1_noC,mapping=aes(x=fits,y=re
   geom_hline(yintercept = 0,linetype="dashed")
   
 residualDf_cog2_noC <- dplyr::select(df_complete,crp_log_z,cog_PC_2_z) %>%
-  dplyr::mutate(fits=fitted(mainCor_noC_log_cog2),
-                resids=resid(mainCor_noC_log_cog2),
-                sresids=rstudent(mainCor_noC_log_cog2))
+  dplyr::mutate(fits=fitted(mainCor_noC_cog2),
+                resids=resid(mainCor_noC_cog2),
+                sresids=rstudent(mainCor_noC_cog2))
 residualPlot_cog2_noC <- ggplot(data=residualDf_cog2_noC,mapping=aes(x=fits,y=resids)) +
   labs(title = "Residual plot - Cognitive component 2 (z score) ~ log(CRP)", 
                       x = "fitted values", 
@@ -557,9 +568,9 @@ residualPlot_cog2_noC <- ggplot(data=residualDf_cog2_noC,mapping=aes(x=fits,y=re
   geom_hline(yintercept = 0,linetype="dashed")
 
 residualDf_cog3_noC <- dplyr::select(df_complete,crp_log_z,cog_PC_1_z) %>%
-  dplyr::mutate(fits=fitted(mainCor_noC_log_cog1),
-                resids=resid(mainCor_noC_log_cog1),
-                sresids=rstudent(mainCor_noC_log_cog1))
+  dplyr::mutate(fits=fitted(mainCor_noC_cog1),
+                resids=resid(mainCor_noC_cog1),
+                sresids=rstudent(mainCor_noC_cog1))
 residualPlot_cog3_noC <- ggplot(data=residualDf_cog1_noC,mapping=aes(x=fits,y=resids)) +
   labs(title = "Residual plot - Cognitive component 3 (z score) ~ log(CRP)", 
                       x = "fitted values", 
@@ -568,36 +579,36 @@ residualPlot_cog3_noC <- ggplot(data=residualDf_cog1_noC,mapping=aes(x=fits,y=re
   geom_hline(yintercept = 0,linetype="dashed")
 
 ### Scatterplots --------------
-plot_noC_log_cog1 <- ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_1_z, colour = rgb(.1,.1,.1,.7))) + 
+plot_noC_cog1 <- ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_1_z, colour = rgb(.1,.1,.1,.7))) + 
                   geom_point(alpha = .15, size = 1, color = "black") +
                   labs(title = "Cognitive component 1 vs log(CRP)", 
                       x = "log of crp aliquot", 
                       y = "Cognition component 1 (z score)") + 
-                  geom_abline(intercept = coef(mainCor_noC_log_cog1)[1], slope = coef(mainCor_noC_log_cog1)[2]) + 
+                  geom_abline(intercept = coef(mainCor_noC_cog1)[1], slope = coef(mainCor_noC_cog1)[2]) + 
                   theme(legend.position = "none")
-plot_noC_log_cog2 <- ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_2_z)) + 
+plot_noC_cog2 <- ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_2_z)) + 
                   geom_point(alpha = .15, size = 1, color = "black") +
                   labs(title = "Cognitive component 2 vs log(CRP)", 
                       x = "log of crp aliquot", 
                       y = "Cognition component 2 (z score)") + 
-                  geom_abline(intercept = coef(mainCor_noC_log_cog2)[1], slope = coef(mainCor_noC_log_cog2)[2]) + 
+                  geom_abline(intercept = coef(mainCor_noC_cog2)[1], slope = coef(mainCor_noC_cog2)[2]) + 
                   theme(legend.position = "none")
 
-plot_noC_log_cog3 <- ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_3_z)) + 
+plot_noC_cog3 <- ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_3_z)) + 
                   geom_point(alpha = .15, size = 1, color = "black") +
                   labs(title = "Cognitive component 3 vs log(CRP)", 
-                      x = "log of crp aliquot", 
+                      x = "log of crp aliquot",
                       y = "Cognition component 3 (z score)") + 
-                  geom_abline(intercept = coef(mainCor_noC_log_cog3)[1], slope = coef(mainCor_noC_log_cog3)[2]) + 
+                  geom_abline(intercept = coef(mainCor_noC_cog3)[1], slope = coef(mainCor_noC_cog3)[2]) + 
                   theme(legend.position = "none")
-plots_noC_log <- c(plot_noC_log_cog1, plot_noC_log_cog2, plot_noC_log_cog3)
+plots_noC <- c(plot_noC_cog1, plot_noC_cog2, plot_noC_cog3)
 
 ## With covars -----------
 ### Residual plots --------
 residualDf_cog1_C <- dplyr::select(df_complete, "crp_log_z", colnames(df[covars]), "cog_PC_1_z") %>% 
-  dplyr::mutate(fits=fitted(mainCor_C_log_cog1 ),
-                resids=resid(mainCor_C_log_cog1 ),
-                sresids=rstudent(mainCor_C_log_cog1 ))
+  dplyr::mutate(fits=fitted(mainCor_C_cog1 ),
+                resids=resid(mainCor_C_cog1 ),
+                sresids=rstudent(mainCor_C_cog1 ))
 residualPlot_cog1_C <- ggplot(data=residualDf_cog1_C,mapping=aes(x=fits,y=resids)) +
   labs(title = "Residual plot - Cognitive component 1 (z score) ~ log(CRP) and covariates", 
                       x = "fitted values", 
@@ -606,9 +617,9 @@ residualPlot_cog1_C <- ggplot(data=residualDf_cog1_C,mapping=aes(x=fits,y=resids
   geom_hline(yintercept = 0,linetype="dashed")
 
 residualDf_cog2_C <- dplyr::select(df_complete, "crp_log_z", colnames(df[covars]), "cog_PC_2_z") %>%
-  dplyr::mutate(fits=fitted(mainCor_C_log_cog2),
-                resids=resid(mainCor_C_log_cog2),
-                sresids=rstudent(mainCor_C_log_cog2))
+  dplyr::mutate(fits=fitted(mainCor_C_cog2),
+                resids=resid(mainCor_C_cog2),
+                sresids=rstudent(mainCor_C_cog2))
 residualPlot_cog2_C <- ggplot(data=residualDf_cog2_C,mapping=aes(x=fits,y=resids)) +
   labs(title = "Residual plot - Cognitive component 2 (z score) ~ log(CRP) and covariates", 
                       x = "fitted values", 
@@ -617,9 +628,9 @@ residualPlot_cog2_C <- ggplot(data=residualDf_cog2_C,mapping=aes(x=fits,y=resids
   geom_hline(yintercept = 0,linetype="dashed")
 
 residualDf_cog3_C <- dplyr::select(df_complete, "crp_log_z", colnames(df[covars]), "cog_PC_3_z") %>%
-  dplyr::mutate(fits=fitted(mainCor_C_log_cog3),
-                resids=resid(mainCor_C_log_cog3),
-                sresids=rstudent(mainCor_C_log_cog3))
+  dplyr::mutate(fits=fitted(mainCor_C_cog3),
+                resids=resid(mainCor_C_cog3),
+                sresids=rstudent(mainCor_C_cog3))
 residualPlot_cog3_C <- ggplot(data=residualDf_cog3_C,mapping=aes(x=fits,y=resids)) +
   labs(title = "Residual plot - Cognitive component 3 (z score) ~ log(CRP) and covariates", 
                       x = "fitted values", 
@@ -630,35 +641,63 @@ residualPlot_cog3_C <- ggplot(data=residualDf_cog3_C,mapping=aes(x=fits,y=resids
 residPlots_C <- c(residualPlot_cog1_C, residualPlot_cog2_C, residualPlot_cog3_C)
 
 ### Scatterplots ---------
-plot_C_log_cog1 <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_PC_1_z)) + 
+length(df$crp_log)
+df$cog_PC_1_z <- scale(df$cog_PC_1)
+plot(df$crp_log, df$cog_PC_1_z)
+df_complete$demo_age_assess0_t0_z <- scale(df_complete$demo_age_assess0_t0)
+df$demo_daysBtwAssess_z <- df$demo_demo_daysBtwAssess
+runCor(df = df, X = "crp_log_z", Y ="cog_PC_1_z", covars = c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z"), M = "", YisFactor = F, contrasts = c(), name = "cor_revC")
+df$crp_log
+ggplot(data = df, aes(x=crp_log, y=cog_PC_1_z)) + # ideally: plot PC1 vs CRP, with 2 x-axes: one for the log value, the other for the raw CRP values; and 2 ablines: one for the model with no covars, the second with the revised covariates
+                  geom_point(alpha = .5, size = 1, color = "orange") +
+                  labs(title = "Cognitive component 1 vs log(CRP) when controling for covariates", 
+                      x = "log of crp aliquot", 
+                      y = "Cognition component 1 (z score)") + 
+                  geom_abline(aes(intercept = 7.944e-18, slope = -7.499e-02, color="no covariates")) +
+                  geom_abline(aes(intercept = -0.71221, slope = -0.08176, color="revised covariates")) +
+                  labs(color=NULL)
+                  annotate(geom = "text", x = perc, y = -0.1*yrng, label = labs, size=4) + # should add second axis. SEe https://stackoverflow.com/questions/22285360/add-second-x-axis-in-ggplot2
+                  annotate(geom = "text", x=0, y=-0.16*yrng, label="CRP value", size=4.5)
+
+                  
+                  
+
+plot_noC_cog1 <- ggplot(data = df, aes(x=crp_log, y=cog_PC_1_z))
+plot_noC_cog1 <- ggplot(data = df, aes(x=crp_log, y=cog_PC_1))
+sort(colnames(df))
+plot(df_complete$crp_log, df_complete$cog_PC_1)
+length(df_complete$cog_PC_1)
+plot_C_cog1 <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_PC_1_z)) + 
                   geom_point(alpha = .15, size = 1, color = "black") +
                   labs(title = "Cognitive component 1 vs log(CRP) when controling for covariates", 
                       x = "log of crp aliquot", 
                       y = "Cognition component 1 (z score)") + 
-                  geom_abline(intercept = coef(mainCor_C_log_cog1)[1], slope = coef(mainCor_C_log_cog1)[2], linetype = "dashed") +
+                  geom_abline(intercept = coef(mainCor_C_cog1)[1], slope = coef(mainCor_C_cog1)[2], linetype = "dashed") +
                   theme(legend.position = "none")
-plot_C_log_cog2 <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_PC_2_z)) + 
+plot_C_cog2 <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_PC_2_z)) + 
                   geom_point(alpha = .15, size = 1, color = "black") + 
                   labs(title = "Cognitive component 2 vs log(CRP) when controling for covariates", 
                       x = "log of crp aliquot", 
                       y = "Cognition component 2 (z score)") + 
-                  geom_abline(intercept = coef(mainCor_C_log_cog2)[1], slope = coef(mainCor_C_log_cog2)[2], linetype = "dashed") +  
+                  geom_abline(intercept = coef(mainCor_C_cog2)[1], slope = coef(mainCor_C_cog2)[2], linetype = "dashed") +  
                   theme(legend.position = "none")
-plot_C_log_cog3 <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_PC_3_z)) + 
+plot_C_cog3 <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_PC_3_z)) + 
                   geom_point(alpha = .15, size = 1, color = "black") +
                   labs(title = "Cognitive component 3 vs log(CRP) when controling for covariates", 
                       x = "log of crp aliquot", 
                       y = "Cognition component 3 (z score)") + 
-                  geom_abline(intercept = coef(mainCor_C_log_cog3)[1], slope = coef(mainCor_C_log_cog2)[3], linetype = "dashed") +
+                  geom_abline(intercept = coef(mainCor_C_cog3)[1], slope = coef(mainCor_C_cog2)[3], linetype = "dashed") +
                   theme(legend.position = "none")
-plot_C_log_numMem <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_numMem_maxDigitRemem_t2)) + 
+plot_C_numMem <- ggplot(data = df_complete, aes(x=crp_aliquot_log, y=cog_numMem_maxDigitRemem_t2)) + 
                   geom_point(alpha = .15, size = 1, color = "black") +
                   labs(title = "Cognitive component 3 vs log(CRP) when controling for covariates", 
                       x = "log of crp aliquot", 
                       y = "Cognition component 3 (z score)") + 
-                  geom_abline(intercept = coef(mainCor_C_log_cog3)[1], slope = coef(mainCor_C_log_cog2)[3], linetype = "dashed") +
+                  geom_abline(intercept = coef(mainCor_C_cog3)[1], slope = coef(mainCor_C_cog2)[3], linetype = "dashed") +
                   theme(legend.position = "none")
-plots_C_log <- c(plot_C_log_cog1, plot_C_log_cog2, plot_C_log_cog3)
+plots_C <- c(plot_C_cog1, plot_C_cog2, plot_C_cog3)
+
+sum(df$crp_aliquot_t0 < 3)/dim(df)[1]
 
 ```
 
