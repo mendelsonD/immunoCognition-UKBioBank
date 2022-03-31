@@ -25,7 +25,7 @@ library(DescTools)
 knitr::knit_engines$set(python = reticulate::eng_python)
 reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
 
-outputPath <- "./Outputs" # working directory to desired output location
+outputPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/Outputs" # working directory to desired output location
 setwd(outputPath)
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
@@ -157,17 +157,17 @@ PCASave <- function(PCAOut, fileName){
 ## Data Preperation
 
 ```{r removeEIDs, echo=FALSE}
-# df_all <- read_csv("~/CCData/Daniel_2022-03-17.csv") # import df
-# eidToRemove <- read_csv("~/CCData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
+# df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17.csv") # import df
+# eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
 # 
 # df_all <- df_all %>% filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
-# write.csv(df_all, "~/CCData/Daniel_2022-03-17_ProperEID.csv", row.names=FALSE)
+# write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17_ProperEID.csv", row.names=FALSE)
 # rm(df_all, eidToRemove) # remove dataframes not in use
 
 ```
 
 ```{r dataPrep, echo=FALSE}
-df_all <- read_csv("~/CCData/Daniel_2022-03-17_ProperEID.csv", guess_max = 10000) # import df
+df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17_ProperEID.csv", guess_max = 10000) # import df
          
 # cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
 # df_all <- df_all %>% 
@@ -263,7 +263,6 @@ df <- df %>%
     demo_ethnicity_t0 == "Bangladeshi" ~ "South Asian",
     demo_ethnicity_t0 == "Indian" ~ "South Asian",
     demo_ethnicity_t0 == "Pakistani" ~ "South Asian",
-    demo_ethnicity_t0 == "Bangladeshi" ~ "South Asian",
     demo_ethnicity_t0 == "African" ~ "African/Caribbean",
     demo_ethnicity_t0 == "Caribbean" ~ "African/Caribbean",
     demo_ethnicity_t0 == "Chinese" ~ "East Asian",
@@ -453,22 +452,40 @@ exerciseVars <- starts_with("exercise_", vars = colnames(df))
 completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
 cogPCAVars <- which(colnames(df) %in% c("cog_numMem_maxDigitRemem_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2"))
 
-finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess","waistToHip_z"))
+cogVars <- starts_with("cog", vars = colnames(df))
+cogVars_t2 <- cogVars[ends_with("_t2", vars = colnames(df[cogVars]))]
+cogVarsToZ <- cogVars_t2[which(!colnames(df[c(cogVars_t2)]) %in% c("cog_prospMem_result_t2", "cog_timeCompleted_t2", "cog_hourCompleted"))]
+crp <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log"))
+covars <- which(colnames(df) %in% c("weight_waistToHip", "sleep_duration0_t0"))
+varsToZ <- c(crp, cogVarsToZ, covars)
 
+df_cog_z <- df[varsToZ] %>% 
+  mutate(across(.fns = scale, .names = "{colnames(df[varsToZ])}_z"))
+cog_zVars <- which(! colnames(df_cog_z) %in% colnames(df[varsToZ]))
+
+df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
+df <- cbind(df, df_cog_z[cog_zVars])
+
+finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess","waistToHip_z"))
+load("revisedCovarNames.RData")
 # colnames(df[sesVars])
 # View(df[1:100, c(1,cogPCAVars)])
 ```
 
 ```{r removeMissing, echo=FALSE}
-essentialVars <- c(demoVars, completionTimeVars, crpAliqVars, cogPCAVars, brainVolVars, finalCovars) # list of variable names that must be complete in order for case to be retained
+essentialVars <- c(completionTimeVars, crpAliqVars, cogPCAVars, brainVolVars, finalCovars) # list of variable names that must be complete in order for case to be retained
+essentialVarsAnalysis <- essentialVarsAnalysis
+# sort(colnames(df[essentialVars]))
+
 df <- df %>% 
   mutate(missingEssentialVar = case_when(
-    if_any(any_of(essentialVars), function(x)(
+    if_any(.cols = essentialVars, function(x)(
       is.na(x))) ~ "Remove",
       TRUE ~ "Keep" )) %>% 
-  mutate(missingEssentialVar = factor(missingEssentialVar))
+  mutate(missingEssentialVar = factor(missingEssentialVar)) 
 
 table(df$missingEssentialVar)
+# table(df$missingEssentialVarsanalysis)
 
 df_removed <- df %>%
   filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # add rows with missing values to new df
@@ -480,7 +497,7 @@ df_removed <- df %>%
 Critical variables: `r colnames(df[essentialVars])` `r nrow(df_removed)` unique cases have missing values for critical variables and will thus be removed.
 
 ```{r missingValues, echo=FALSE}
-numMissing <- matrix(ncol=2, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]), c("NACount", "NotNA")))
+numMissing <- matrix(ncol=2, nrow = length(essentialVars), dimnames = list(colnames(df_removed[essentialVars]), c("NACount", "NotMissingOnThisVar")))
 
 for(i in 1:length(essentialVars)){
   numMissing[i,] <- c(sum(is.na(df_removed[essentialVars[i]])), sum(!is.na(df_removed[essentialVars[i]])))
@@ -489,7 +506,7 @@ for(i in 1:length(essentialVars)){
 numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 
 kable(numMissing_df, caption = paste("Number of missing cases per variable. Number of rows with at least one missing value: ", nrow(df_removed), " out of ", sum(df$missingEssentialVar == "Keep")+nrow(df_removed), " total cases (", round(nrow(df_removed)/(sum(df$missingEssentialVar == "Keep")+nrow(df_removed))*100, 2), "%).", sep = ""))
-
+write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", date, ".csv", sep = ""))
 ```
 
 ### Normality
@@ -570,7 +587,8 @@ kable(comparisonDroppedCases)
 ### Summarise
 ```{r saveDf, echo=FALSE}
 df <- df_retained
-# write.csv(df_retained, file = paste("UKBB_dfRetained_", date, ".csv", sep = "")) # exports wilcoxOutput to a CSV file
+write.csv(df_retained, file = paste("UKBB_dfRetained_", date, ".csv", sep = "")) # exports wilcoxOutput to a CSV file
+write.csv(psych::describe(df), file = glue("UKBB_describedRetainedCases_{date}.csv")) # exports wilcoxOutput to a CSV file
 varsToSummarise <- c(1:ncol(df))
   
 numVars<- lapply(df, numNotFactor)
@@ -661,6 +679,34 @@ numVars <- c((which(colnames(df) %in% colnames(df_numVars))), which(colnames(df)
 # df <- df_retained
 ```
 # finalize vars for analysis
+```{r normalityInRetained, echo=FALSE}
+df_properCRP <- df %>%
+  filter(crp_aliquot_t0 <= 10 | is.na(crp_aliquot_t0) == TRUE) # remove CRP > 10
+cat(nrow(df) - nrow(df_properCRP), " cases were removed as CRP > 10.", sep = "")
+df <- df_properCRP
+```
+## Correl of CRP vars 
+```{r correlDietVars, echo=FALSE}
+print("Hour collected")
+median(hour(df$crp_timeCollected_t0))
+iqr(hour(df$crp_timeCollected_t0))
+cat("Correlation between CRP and hour collected: ")
+cor.test(rank(df$crp_aliquot_t0), rank(hour(df$crp_timeCollected_t0)), na.action = na.omit, conf.level = .95)
+
+print("Fasting time")
+median(df$crp_timeFasting_t0)
+iqr(df$crp_timeFasting_t0)
+cat("Correlation between CRP and hours fasted before blood draw: ")
+cor.test(rank(df$crp_aliquot_t0), rank(df$crp_timeFasting_t0), na.action = na.omit)
+
+cat("CRP aliquots were performed between", paste(min(df$crp_assaydate_t0))," and ", paste(max(df$crp_assaydate_t0)))
+df$crp_assaydate_t0 <- as.POSIXct(df$crp_assaydate_t0)
+
+df$crp_aliquotdelay <- as.duration(interval(df$crp_timeCollected_t0, df$crp_assaydate_t0)) %/% as.duration(years(1))
+cat("the mean time between blood sample and CRP measurement was (in years): \n\t", "mean:", mean(df$crp_aliquotdelay), "SD: ", sd(df$crp_aliquotdelay), "\n\t Median: ", median(df$crp_aliquotdelay), "IQR: ", iqr(df$crp_aliquotdelay))
+
+cor.test(rank(df$crp_aliquotdelay), rank(df$crp_aliquot_t0))
+```
 ## Correlations between diet variables
 
 ```{r correlDietVars, echo=FALSE}
@@ -830,12 +876,15 @@ scaledVarNames <- ends_with("_z", vars = colnames(df_numVarsInt_z))
 
 df <- as.data.frame(cbind(df, df_numVarsInt_z[scaledVarNames]))
 ```
+
 # Save DF
 ```{r saveDfFinal, echo=FALSE}
 write.csv(df, file = paste("UKBB_dfForAnal_", date, ".csv", sep = "")) # exports cleaned dataframe with all variables ready for analysis
+save(df, file = paste("UKBB_dfForAnal_", date, ".Rdata", sep = ""))
 getwd()
 ```
 
 ```{r printRSessionInfo, echo=FALSE}
 sessionInfo()
+capture.output(sessionInfo(), file = paste("UKBB_rSessionInfo_DataPrep_", date, ".csv", sep = ""))
 ```
