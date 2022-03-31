@@ -34,42 +34,42 @@ library(readxl)
 library(stringr)
 library(dplyr)
 
-df <- read_xlsx("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/VariableLists/UKBB_Variables-03_12_2022.xlsx", sheet = 1)
+df <- read_xlsx("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/VariableLists/UKBB_Variables-03_16_2022.xlsx", sheet = 1)
 head(df)
 dim(df)
 getwd()
 setwd("./Outputs/") # set working directory to desired output location
 outputName <- str_c("Daniel-VarList_Create-Dataset-", format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y"), ".txt")
 
-
 df <- df %>%
   mutate_all(as.character)
+df <- df[-which(df$VarName == "eid"),]
 output <- ""
 
 for(i in 1:nrow(df)){
-  VarName <- df[i, "VarName"]
-  DataField <- df[i, "DataField"]
-  Instance <- df[i, "InstanceNum"]
+  VarName <- df[i, which(colnames(df) == "VarName")]
+  DataField <- df[i, which(colnames(df) == "DataField")]
+  Instance <- df[i, which(colnames(df) == "InstanceNum")]
   
-  if(df[[i,"NumArray"]] == 0){
+  if(df[i, which(colnames(df) == "NumArray")] == 0){
     MaxArrayRange <- 1
   } else {
-    MaxArrayRange <- df[i, "NumArray"]
+    MaxArrayRange <- df[i, which(colnames(df) == "NumArray")]
   }
   
-  if(grepl(pattern = c("T|true|yes|y|1"), x = df[i,"Include"], ignore.case = T)  == T){ 
+  if(grepl(pattern = c("T|true|yes|y|1"), x = df[i, which(colnames(df) == "Include")], ignore.case = T)  == T){ 
     Include <- "True" 
-  } else if(grepl(pattern = c("F|false|no|n|0"), x = df[i,"Include"], ignore.case = T)  == T){
+  } else if(grepl(pattern = c("F|false|no|n|0"), x = df[i,which(colnames(df) == "Include")], ignore.case = T)  == T){
     Include <- "False" 
   } else { 
-    cat(glue("Error. Variable, ", df[i,"VarName"], " has an incorrect value for the 'Include' column. Accepted values are 'T' or 'F'. It is assumed to be False."))
+    cat(glue("Error. Variable, ", df[i,which(colnames(df) == "VarName")], " has an incorrect value for the 'Include' column. Accepted values are 'T' or 'F'. It is assumed to be False."))
     Include <- "False"
   }
   
   # coding
-  if(grepl(" = ", df[i,"Coding"], fixed = TRUE) == T){ # check if contains " = "
+  if(grepl(" = ", df[i,which(colnames(df) == "Coding")], fixed = TRUE) == T){ # check if contains " = "
     Coding <- "{"
-    individualValueMeaningPair <- strsplit(df[i,"Coding"][[1]], "; ")[[1]] # separate each code/variable pair, split based on '; '
+    individualValueMeaningPair <- strsplit(df[i,which(colnames(df) == "Coding")][[1]], "; ")[[1]] # separate each code/variable pair, split based on '; '
     for(j in 1:length(individualValueMeaningPair)){
       ValMean <- strsplit(individualValueMeaningPair[[j]][1], split = " = ")
       if(is.na(ValMean[[1]][2]) == F){ # If there is data specifying units, this argument will be ignored
