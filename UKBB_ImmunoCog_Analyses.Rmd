@@ -11,6 +11,9 @@ library(dplyr)
 library(ggplot2)
 library(car)
 library(gridExtra)
+library(stringr)
+library(glue)
+library(psych)
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
 
@@ -35,6 +38,25 @@ createLMExpression <- function(varNames, X, Y, M, C){
 ```
 
 ## Correlation Analyses
+```{r corAnalysisFx, echo=FALSE}
+runCor <- function(df, X, Y, M, covars, contrasts, YisFactor, name){
+  expression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = covars) # total model: predict Y from X and C  
+
+  if(YisFactor){
+    model <- glm(formula = eval(parse(text = expression)), data = df, contrasts = contrasts, family = "binomial", na.action = na.omit)
+  } else {
+    model <- lm(eval(parse(text = expression)), data = df, contrasts = contrasts, na.action = na.omit)
+  }
+  
+  capture.output(
+      cat(" -- Linear Model Analysis Output -- "),
+      cat("\n ------------------ \n Model expression: \n\t", expression),
+      print(summary(model)),
+      file = paste(name, "_", date, ".txt", sep = ""))
+  
+  return(model)
+}
+```
 ## Mediation Analyses
 ### Using package: mediation
 
@@ -62,7 +84,7 @@ runMediation <- function(df, X, Y, M, covars, mediatorModelExpression, outcomeMo
 
 ```{r RMediationFunction, echo=FALSE}
 # see psyc 536 lecture 5 notes
-runRMediation <- function(df, X, Y, M, covars, contrasts){
+runRMediation <- function(df, X, Y, M, covars, contrasts, YisFactor, name){
   require(RMediation)
   
   totModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = "", C = covars) # total model: predict Y from X and C
@@ -70,19 +92,20 @@ runRMediation <- function(df, X, Y, M, covars, contrasts){
   bPathExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = covars) # b path & direct path model: predict Y from X, M, and C
   
   # total effect
-  totModel <- lm(eval(parse(text = totModelExpression)), data = df, contrasts = contrasts)
-  cat("\n ------------------ \n 'total model' linear model expression: \n\t", totModelExpression)
-  print(summary(totModel))
-  
+  if(YisFactor == TRUE){
+    totModel <- glm(eval(parse(text = totModelExpression)), data = df, contrasts = contrasts, family = "binomial")
+  } else{
+    totModel <- lm(eval(parse(text = totModelExpression)), data = df, contrasts = contrasts)
+  }
   # a path -- predict M from X
   aModel <- lm(eval(parse(text = aPathExpression)), data = df,  contrasts = contrasts)
-  cat("\n ------------------ \n 'a path' linear model expression: \n\t", aPathExpression)
-  print(summary(aModel))
   
   # b path -- predict Y from X, M and C
-  bModel <- lm(eval(parse(text = bPathExpression)), data = df,  contrasts = contrasts)
-  cat("\n ------------------ \n 'b path' linear model expression: \n\t", bPathExpression)
-  print(summary(bModel))
+    if(YisFactor == TRUE){
+      bModel <- glm(eval(parse(text = bPathExpression)), data = df, contrasts = contrasts, family = "binomial")
+    } else{
+      bModel <- lm(eval(parse(text = bPathExpression)), data = df,  contrasts = contrasts)
+    }
   
   a <- coef(aModel)[which(names(coef(aModel)) == X)] # want coef for effect of X on M
   a.se <- coef(summary(aModel))[which(names(coef(aModel)) == X),2] # want S.E. of the regression coef of X on M. N.b. index is [row of X, column of standard errors of estimate]
@@ -90,10 +113,22 @@ runRMediation <- function(df, X, Y, M, covars, contrasts){
   b.se <- coefficients(summary(bModel))[which(names(coef(bModel)) == M),2] # want coef for effect of M on Y
   
   med <- medci(mu.x = a, mu.y = b, se.x = a.se, se.y = b.se, rho = 0, alpha = .05, plot = T, plotCI = T, type = "asymp")
+  capture.output(
+    cat(" -- Linear Model Analysis Output -- "),
+    cat("\n ------------------ \n 'total model' linear model expression: \n\t", totModelExpression),
+    print(summary(totModel)),
+    cat("\n ------------------ \n 'a path' linear model expression: \n\t", aPathExpression),
+    print(summary(aModel)),
+    cat("\n ------------------ \n 'b path' linear model expression: \n\t", bPathExpression),
+    print(summary(bModel)),
+    cat("\n ------------------ \n Mediated Effect \n\t "),
+    cat("Estimate: \t", med$Estimate, "\n\t SE:\t\t",  med$SE, "\n\t 95%CILow:\t", med$`97.5% CI`[1], "\n\t 95%CIHi:\t", med$`97.5% CI`[2]),
+    file = paste(name, "_", date, ".txt", sep = ""))
+
   return(med)
-  #format output somehow
-} # input: 'df' - dataframe containing all relevant variables; 'X' - name of the predictor variable; 'Y' - name of the outcome variable; 'M' - name of the mediator variable; 'C' - list of names of covariate variables
+} # input: 'df' - dataframe containing all relevant variables; 'X' - name of the predictor variable; 'Y' - name of the outcome variable; 'M' - name of the mediator variable; 'C' - list of names of covariate variables; 'contrasts' - a list of ordinal variables specifying their contrasts; 'YisFactor' - if outcome is a factor, logical. If yes, logistic regression will be performed.; 'name' - name of analysis to be used for output filename
 ```
+
 
 ## Figure and table functions
 ### Mediation diagrams
@@ -169,10 +204,12 @@ med_diagram <- function(mediation_data){
 # A - Analysis
 ## Import data
 ```{r importData, echo=FALSE}
-# df <- read.csv("./UKBB_dfForAnal_03_21_2022.csv", ) # import df
+# df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
 load("UKBB_dfForAnal_03_26_2022.Rdata")
-# df
 
+write.csv(describe(df), file = glue("UKBB_allVarSummary_{date}.csv"))
+# df
+sort(colnames(df))
 ```
 
 ````{r makeOrdinal, echo=FALSE}
@@ -248,17 +285,7 @@ load("UKBB_dfForAnal_03_26_2022.Rdata")
 
 # Scale cog vars --------
 # cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
-cogVars <- starts_with("cog", vars = colnames(df))
-cogVars_t2 <- cogVars[ends_with("_t2", vars = colnames(df[cogVars]))]
-cogVarsToZ <- cogVars_t2[which(!colnames(df[c(cogVars_t2)]) %in% c("cog_prospMem_result_t2", "cog_timeCompleted_t2", "cog_hourCompleted"))]
-crp <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log"))
-varsToZ <-c(crp, cogVarsToZ)
 
-df$crp_log
-df_cog_z <- df[varsToZ] %>% 
-  mutate(across(.fns = scale, .names = "{colnames(df[varsToZ])}_z"))
-df <- cbind(df, df_cog_z)
-df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
 
 ````
 
@@ -279,97 +306,96 @@ cogVars_t2_fctr <- which(colnames(df) %in% c("cog_prospMem_result_t2"))
 cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
 cogPCOutputs_tert <- cogPCOutputs[ends_with("_tert", vars=colnames(df[cogPCOutputs]))]
 cogPCOutputs_z <- cogPCOutputs[ends_with("_z", vars=colnames(df[cogPCOutputs]))]
+cogOutcomes <- colnames(df[c(cogPCOutputs_z, cogVars_t2_z)])
+cogOutcomes_fctr <- colnames(df[cogVars_t2_fctr])
 # colnames(df[cogPCOutputs_z])
 
 numMemCol <- which(colnames(df) == "cog_numMem_maxDigitRemem_t2")
-covars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "ses_townsend_t0", "med_SSRI0", "waistToHip_z", "diet_processedMeat_t0", "sleep_duration0_t0", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0"))
-revisedCovars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "ses_townsend_t0", "waistToHip_z"))
-covars_cog <- which(colnames(df) %in% c("hand_t0", "cog_hourCompleted"))
+covars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "med_SSRI0", "weight_waistToHip_z", "diet_processedMeat_t0", "sleep_duration0_t0_z", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0"))
+revisedCovars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z"))
+covars_brain <- which(colnames(df) %in% c("hand_t0", "cog_hourCompleted", "brain_headScale_t2"))
 
-varsOfInterest <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_cog) # list of variables used in correlation/mediation analyses
-df_small <- df[c(1,varsOfInterest, which(colnames(df) == "missingEssentialVar"))]
+varsOfInterest_allC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, covars) # list of variables used in correlation/mediation analyses
+varsOfInterest_revC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_brain) # list of variables used in correlation/mediation analyses
+df_small_allC <- df[c(1,varsOfInterest_allC, which(colnames(df) == "missingEssentialVar"))]
+df_small <- df[c(1,varsOfInterest_revC, which(colnames(df) == "missingEssentialVar"))]
 
+
+essentialVarsAnalysis <- c(cogOutcomes, cogOutcomes_fctr,  colnames(df[brainVars_specific_z]), colnames(df[revisedCovars]), colnames(df[covars_brain]))
+save(essentialVarsAnalysis, file = "revisedEssentialVarsAnalysis.RData")
 ```
 
 ````{r missingVars, echo=FALSE}
 df_complete  <- df_small
-df_complete <- df_small[complete.cases(df_small), ]
-cat(nrow(df) - nrow(df_complete), "cases are missing one value in one of the variables and were thus removed.")
+# cat(nrow(df) - nrow(df_complete), "cases are missing one value in one of the variables and were thus removed.")
 
 save(df_complete, file = paste("UKBB_data_corAnalyses_", date, ".csv", sep = ""))
 
 ````
 ## correlational analyses
-x = CRP; Y1 = cog_1_z; Y2 = cog_2_z; Y3 = cog_3_z;
+
 ### No covariates
-!!! In outputs, specify what subset of participants it is for !!!
+Indep var: 'crp_log_z'; 
+Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
 ```{r corAnalyses_noC, echo=FALSE}
-# Run models ---------------
-
-cogOutcomes <- colnames(df[c(cogPCOutputs_z, cogVars_t2_z)])
-
 individualAnalysis <- list()
-listAnalyses_cor_noC <- list()
 mainCor_noC <- list()
+analysisName <- "UKBB_Anal_cor_noC"
+
 for(i in cogOutcomes){
-  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = "", M = "")
-  model <- lm(eval(parse(text = expression)), data = df_complete)
-  listAnalyses_cor_noC <- c(listAnalyses, expression)
-  individualAnalysis <- c(expression, model)
+  analysisName <- glue("{analysisName}_{i}")
+  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = "", M = "", YisFactor = F, name = analysisName, contrasts = c())
   mainCor_noC <- c(mainCor_noC, individualAnalysis)
-  print(paste("---- ", expression, " ----", sep = ""))
-  print(summary(model))
+  # print(summary(listAnalyses_cor_noC))
+  analysisName <- "UKBB_Anal_cor_noC"
 }
 
-cogOutcomes_fctr <- colnames(df[cogVars_t2_fctr])
 for(i in cogOutcomes_fctr){
-  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = "", M = "")
-  model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
-  listAnalyses_cor_noC <- c(listAnalyses_cor_noC, expression)
-  individualAnalysis <- c(expression, model)
+  analysisName <- glue("{analysisName}_{i}")
+  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = "", M = "", YisFactor = T, name = analysisName, contrasts = c())
   mainCor_noC <- c(mainCor_noC, individualAnalysis)
-  print(paste("---- ", expression, " ----", sep = ""))
-  print(summary(model))
+  # print(summary(listAnalyses_cor_noC))
+  analysisName <- "UKBB_Anal_cor_noC"
 }
 ```
 
 ### With covariates
-x = CRP; Y1 = cog_1_z; Y2 = cog_2_z; Y3 = cog_3_z; Covariates = `r colnames(df[revisedCovars])`
+Indep var: 'crp_log_z'; 
+Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
+Covariates = `r colnames(df[covars])`
 ```{r corAnalyses_C, echo=FALSE}
-# ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
-#                                exercise_IPAQActivityGroup_t0 = "contr.treatment",
-#                                sleep_duration0_t0_tert = "contr.treatment",
-#                                ses_townsend_t0_tert = "contr.treatment",
-#                                demo_age_assess0_t0_tert = "contr.treatment")
+ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
+                               exercise_IPAQActivityGroup_t0 = "contr.treatment",
+                               sleep_duration0_t0_tert = "contr.treatment",
+                               ses_townsend_t0_tert = "contr.treatment",
+                               demo_age_assess0_t0_tert = "contr.treatment")
 
 individualAnalysis <- list()
-listAnalyses_cor_C <- list()
 mainCor_C <- list()
+analysisName <- "UKBB_Anal_cor_allC"
+
 for(i in cogOutcomes){
-  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = colnames(df[revisedCovars]), M = "")
-  model <- lm(eval(parse(text = expression)), data = df_complete)
-  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
-  individualAnalysis <- c(expression, model)
-  mainCor_C <- c(mainCor_C, individualAnalysis)
-  print(paste("---- ", expression, " ----", sep = ""))
-  print(summary(model))
+  analysisName <- glue("{analysisName}_{i}")
+  individualAnalysis <- runCor(df = df_small_allC, X = "crp_log_z", Y = i, covars = colnames(df[covars]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
+  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  # print(summary(listAnalyses_cor_noC))
+  analysisName <- "UKBB_Anal_cor_allC"
 }
 
 for(i in cogOutcomes_fctr){
-  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = "", M = "")
-  model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
-  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
-  individualAnalysis <- c(expression, model)
-  mainCor_C <- c(mainCor_C, individualAnalysis)
-  print(paste("---- ", expression, " ----", sep = ""))
-  print(summary(model))
+  analysisName <- glue("{analysisName}_{i}")
+  individualAnalysis <- runCor(df = df_small_allC, X = "crp_log_z", Y = i, covars = colnames(df[covars]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
+  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  # print(summary(listAnalyses_cor_noC))
+  analysisName <- "UKBB_Anal_cor_allC"
 }
+
 ```
 
 ``` {r saveCorAnalyses, echo=FALSE}
 # save analysis outputs
-capture.output(mainCor_noC, file = paste("UKBB_corAnalyses_noC_", date, ".csv", sep=""))
-capture.output(mainCor_C, file = paste("UKBB_corAnalyses_C_", date, ".csv", sep=""))
+# capture.output(mainCor_noC, file = paste("UKBB_corAnalyses_noC_", date, ".csv", sep=""))
+# capture.output(mainCor_C, file = paste("UKBB_corAnalyses_C_", date, ".csv", sep=""))
 
 ```
 
@@ -395,37 +421,40 @@ avPlots(mainCor_C_log_cog3, pt.wts = T)
 ```
 
 ### With revised covariates
+Covars: `r colnames(df[revisedCovars])`
 ``` {r saveCorAnalyses, echo=FALSE}
-covarsRevised1 <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess_z", "waistToHip_z"))
-
 # ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
 #                                exercise_IPAQActivityGroup_t0 = "contr.treatment",
 #                                sleep_duration0_t0_tert = "contr.treatment",
 #                                ses_townsend_t0_tert = "contr.treatment",
 #                                demo_age_assess0_t0_tert = "contr.treatment")
 
+ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
+                               exercise_IPAQActivityGroup_t0 = "contr.treatment",
+                               sleep_duration0_t0_tert = "contr.treatment",
+                               ses_townsend_t0_tert = "contr.treatment",
+                               demo_age_assess0_t0_tert = "contr.treatment")
+
 individualAnalysis <- list()
-listAnalyses_cor_C <- list()
 mainCor_C <- list()
+analysisName <- "UKBB_Anal_cor_revC"
+
 for(i in cogOutcomes){
-  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = colnames(df[covarsRevised1]), M = "")
-  model <- lm(eval(parse(text = expression)), data = df_complete)
-  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
-  individualAnalysis <- c(expression, model)
-  mainCor_C <- c(mainCor_C, individualAnalysis)
-  print(paste("---- ", expression, " ----", sep = ""))
-  print(summary(model))
+  analysisName <- glue("{analysisName}_{i}")
+  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars]), M = "", YisFactor = F, name = analysisName, contrasts = c())
+  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  # print(summary(listAnalyses_cor_noC))
+  analysisName <- "UKBB_Anal_cor_revC"
 }
 
 for(i in cogOutcomes_fctr){
-  expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, C = colnames(df[covarsRevised1]), M = "")
-  model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
-  listAnalyses_cor_C <- c(listAnalyses_cor_C, expression)
-  individualAnalysis <- c(expression, model)
-  mainCor_C <- c(mainCor_C, individualAnalysis)
-  print(paste("---- ", expression, " ----", sep = ""))
-  print(summary(model))
+  analysisName <- glue("{analysisName}_{i}")
+  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars]), M = "", YisFactor = T, name = analysisName, contrasts = c())
+  mainCor_noC <- c(mainCor_C, individualAnalysis)
+  # print(summary(listAnalyses_cor_noC))
+  analysisName <- "UKBB_Anal_cor_revC"
 }
+
 ```
 
 ```{r avPlots, echo=FALSE}
@@ -446,21 +475,23 @@ mediators <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2_z", "brain_v
 individualAnalysis <- list()
 listAnalyses_med_noC <- list()
 mainMed_noC <- list()
+analysisName <- "UKBB_Anal_med_noC"
+
 for(med in colnames(df[mediators])){
   for(i in cogOutcomes){
-    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""))
+    analysisName <- glue("{analysisName}_{med}_{i}")
+    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""), YisFactor = F, name = analysisName)
     # mainMed_noC <- c(mainMed_noC, model)
     print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
+    analysisName <- glue("UKBB_Anal_med_noC")
   }
-  # for(i in cogOutcomes_fctr){
-  #   expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, M = med, C = "")
-  #   model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
-  #   listAnalyses_med_noC <- c(listAnalyses_med_noC, expression)
-  #   individualAnalysis <- c(expression, model)
-  #   mainMed_noC <- c(mainMed_noC, individualAnalysis)
-  #   print(paste("---- ", expression, " ----", sep = ""))
-  #   print(summary(model))
-  # }
+  for(i in cogOutcomes_fctr){
+     analysisName <- glue("{analysisName}_{med}_{i}")
+    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""), YisFactor = T, name = analysisName)
+    # mainMed_noC <- c(mainMed_noC, model)
+    print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
+    analysisName <- glue("UKBB_Anal_med_noC")
+  }
 }
 
 ```
@@ -471,27 +502,28 @@ Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
 Mediators: `r colnames(df[mediators])`; 
 Covariates: `r colnames(df[covarsMed])`
 ```{r medAnalyses, echo=FALSE}
-covarsMed <- c(covarsRevised1, covars_cog )
-# Add  cognition only covars
+covarsMed <- c(covarsRevised1, covars_brain) # Add  cognition only covars
 
 individualAnalysis <- list()
 listAnalyses_med_C <- list()
 mainMed_C <- list()
+analysisName <- "UKBB_Anal_med_C"
+
 for(med in colnames(df[mediators])){
   for(i in cogOutcomes){
-    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = c(""))
-    # mainMed_C <- c(mainMed_C, model)
-    print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
+    analysisName <- glue("{analysisName}_{med}_{i}")
+    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = c(""), YisFactor = F, name = analysisName)
+    mainMed_C <- c(mainMed_C, model)
+    # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
+    analysisName <- glue("UKBB_Anal_med_C")
   }
-  # for(i in cogOutcomes_fctr){
-  #   expression <- createLMExpression(varNames = colnames(df), X = "crp_log_z", Y = i, M = med, C = "")
-  #   model <- glm(formula = eval(parse(text = expression)), data = df_complete, family = "binomial")
-  #   listAnalyses_med_C <- c(listAnalyses_med_C, expression)
-  #   individualAnalysis <- c(expression, model)
-  #   mainMed_C <- c(mainMed_C, individualAnalysis)
-  #   print(paste("---- ", expression, " ----", sep = ""))
-  #   print(summary(model))
-  # }
+  for(i in cogOutcomes_fctr){
+    analysisName <- glue("{analysisName}_{med}_{i}")
+    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = c(""), YisFactor = T, name = analysisName)
+    mainMed_C <- c(mainMed_C, model)
+    # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
+    analysisName <- glue("UKBB_Anal_med_C")
+  }
 }
 
 ```
