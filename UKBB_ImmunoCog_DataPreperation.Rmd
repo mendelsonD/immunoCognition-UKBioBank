@@ -608,7 +608,7 @@ str(df$demo_sex_t0)
 summaryMissing <- list()
 nonPara <- c()
 df$demo_daysBtwAssess
-nonParaToCompare <- c("demo_age_assess0_t0", "demo_age_assess2_t2", "demo_daysBtwAssess", "ses_townsend_t0", "crp_timeFasting_t0", "crp_timeCollected_t0", "crp_aliquotdelay", "crp_aliquot_t0")
+nonParaToCompare <- c("demo_age_assess0_t0", "demo_age_assess2_t2", "demo_daysBtwAssess", "ses_townsend_t0", "crp_timeFasting_t0", "crp_timeCollected_t0", "crp_aliquotdelay", "crp_aliquot_t0", "weight_BMI0_t0", "weight_BMI2_t2")
 runWilcox(nonParaToCompare, df = df, by = "missingEssentialVar", fileName = "UKBB_compareMissing_wilcox")
 
 # for(i in varsToCompare){
