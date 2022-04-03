@@ -150,14 +150,14 @@ med_diagram <- function(mediation_data){
   require(glue)
   require(DiagrammeR)
   
-  height = .75
-  width = 3
+  height = .5
+  width = 2.5
   graph_label = mediation_data$main
-  node_text_size = 12
-  edge_text_size = 12
+  node_text_size = 14
+  edge_text_size = 14
   color = "black"
-  ranksep = .2
-  minlen = 2
+  ranksep = .35
+  minlen = 3
   engine = "dot"
   
   mediation_data$height  <- height   # node height
@@ -189,7 +189,6 @@ med_diagram <- function(mediation_data){
           mm -> yy [label = '<<coef_my>>'];
           xx -> mm [label = '<<coef_xm>>'];
           xx -> yy [label = '<<coef_xy>>'];
-          xx -> yy [label = '<<coef_indEffect>>']
         
         { rank = same; mm }
         { rank = same; xx; yy }
@@ -332,8 +331,6 @@ covars_brain <- which(colnames(df) %in% c("hand_t0", "brain_headScale_t2"))
 
 varsOfInterest_allC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, covars) # list of variables used in correlation/mediation analyses
 varsOfInterest_revC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_brain) # list of variables used in correlation/mediation analyses
-colnames(df_small)
-
 
 essentialVarsAnalysis <- c(colnames(df[cogPCOutputs_z]), colnames(df[crp]), colnames(df[brainVars_specific_z]), colnames(df[revisedCovars]), colnames(df[covars_brain]))
 essentialVarsAnalysisNum <- c(crp, crp_log_z, brainVars_specific_z, cogPCOutputs_z, revisedCovars, covars_brain)
@@ -705,14 +702,17 @@ sum(df$crp_aliquot_t0 < 3)/dim(df)[1]
 ```
 ## Main scatter plot
 ```{r mainScatterplot, echo=FALSE}
+# Main, lines for covariates and no covariates
 ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_1_z)) + # ideally: plot PC1 vs CRP, with 2 x-axes: one for the log value, the other for the raw CRP values; and 2 ablines: one for the model with no covars, the second with the revised covariates
                   geom_point(alpha = .3, size = 1,  color = "grey4", shape = 21) +
-                  geom_abline(aes(intercept = 0, slope = -7.499e-02, colour="no covariates"), size = 1, alpha = .7) +                
-                  geom_abline(aes(intercept = 0, slope = -0.020185, colour="with covariates"), size = 1, alpha = .7) +                
+                  # geom_abline(aes(intercept = 0, slope = -0.083709, colour="no covariates, \n b = –0.08 ***"), size = 1, alpha = .7) +
+                  geom_abline(aes(intercept = 0, slope = -0.020185, colour="with covariates, \n b = –0.02 *"), size = 1, alpha = .7) +
                   labs(color=NULL) + 
                   scale_x_continuous(
                     name = "Log of CRP (z score)",
                     position = "bottom",
+                    breaks = c(-2,0,2),
+                    minor_breaks = seq(-2, 2, by = 1),
                     sec.axis = sec_axis( 
                       trans = ~ exp(((.*sd(df_complete$crp_log)) + mean(df_complete$crp_log))),
                       name = "CRP serum concentration (mg/L)",
@@ -723,22 +723,65 @@ ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_1_z)) + # ideally: plot PC1
                   scale_y_continuous(
                     name = "General cognitive performance (z score)",
                     limits = c(-3,3),
-                    breaks = seq(from = -3, to = 3, by = 1),
+                    breaks = c(-2,0,2),
+                    minor_breaks = seq(from = -3, to = 3, by = 1),
                     sec.axis = dup_axis(breaks = 0, name = "")) + 
-                labs(caption = glue("n = {format(nrow(df_complete), big.mark = ',')}"))+
+                labs(caption = glue("n = {format(nrow(df_complete), big.mark = ',')}")) +
                 theme(
                   aspect.ratio = 4/7,
-                  panel.grid.major = element_blank(),
-                  panel.grid.minor = element_blank(),
+                  # panel.grid.major = element_blank(),
+                  # panel.grid.minor = element_blank(),
                   panel.background = element_rect(fill = 'light grey'),
-                  legend.background = element_rect(fill = 'light grey'),
+                  # legend.background = element_rect(fill = 'light grey'),
+                  legend.key.size = unit(2, 'lines'),
                   text = element_text(family = "calibri", size = 12, colour = "black"),
                   line = element_line(colour = "black", size = .5)
                   ) + 
+            # guides(fill = guide_legend(byrow = TRUE)) +
             scale_colour_brewer(palette="Set1")
+
+
+# Regression line for age and CRP with covars
+ggplot(data = df_complete, aes(x=demo_age_assess0_t0_z, y=cog_PC_1_z)) + # ideally: plot PC1 vs CRP, with 2 x-axes: one for the log value, the other for the raw CRP values; and 2 ablines: one for the model with no covars, the second with the revised covariates
+                  geom_point(alpha = .7, size = 1,  shape = 21) +
+                  geom_abline(aes(intercept = 0, slope = -0.428634, colour="age, \n b = –0.42 ***"), size = 1, alpha = .7) +
+                  scale_x_continuous(
+                    name = "Age (z score)",
+                    position = "bottom",
+                    breaks = c(-2,0,2),
+                    # labels = c("-2","0", ".05", 2),
+                    minor_breaks = seq(-2, 2, by = 1),
+                    sec.axis = sec_axis(
+                      name = "Age (years)",
+                      trans = ~ ((.*7.33) + 54.02),
+                      breaks = seq(from = (54.02- 2*7.33), to = (54.02 + 2*7.33), by = 7.33),
+                      labels = c(round(seq(from = (54.02- 2*7.33), to = (54.02 + 2*7.33), by = 7.33),0))
+                    ))+  
+                geom_vline(xintercept = 0, colour = "blue") +              
+                geom_vline(xintercept = 0.047, colour = "blue") +
+                scale_y_continuous(
+                    name = "General cognitive performance (z score)",
+                    limits = c(-3,3),
+                    breaks = c(-2,0,2),
+                    minor_breaks = seq(from = -3, to = 3, by = 1),
+                    sec.axis = dup_axis(breaks = 0, name = "")) + 
+                labs(caption = glue("Increase of 0.34 years (blue lines) associated with -0.02 Z-scores of general cognitive performance. \n n = {format(nrow(df_complete), big.mark = ',')}")) +
+                theme(
+                  aspect.ratio = 4/7,
+                  # panel.grid.major = element_blank(),
+                  # panel.grid.minor = element_blank(),
+                  panel.background = element_rect(fill = 'light grey'),
+                  # legend.background = element_rect(fill = 'light grey'),
+                  legend.key.size = unit(2, 'lines'),
+                  text = element_text(family = "calibri", size = 12, colour = "black"),
+                  line = element_line(colour = "black", size = .5)
+                  ) + 
+            # guides(fill = guide_legend(byrow = TRUE)) +
+            scale_colour_brewer(palette="Set1")
+
 sum(table(df_complete$crp_log))
 ```
-
+## Mediation Diagrams
 ```{r medDiagrams, echo=FALSE}
 # mediation diagram
 medDigram_wbv <- med_diagram(mediation_data =  data.frame(
@@ -746,10 +789,9 @@ medDigram_wbv <- med_diagram(mediation_data =  data.frame(
     lab_x   = "C-Reactive Protein",
     lab_m   = "Total brain volume",
     lab_y   = "General cognitive performance",
-    coef_xm = "-0.01**, p = .003",
-    coef_my = "0.17***, p < 2e-16",
-    coef_xy = "direct effect: -.01*, p = .05",
-    coef_indEffect = paste("indirect effect = -0.002*, 95%CI[-0.003, -0.001]")))
+    coef_xm = "–0.011 **",
+    coef_my = "0.166 ***",
+    coef_xy = "c\` = –0.017 * \n ab = –0.002 **"))
 # * sig at .05, ** at .01, *** at .001
 
 medDiagram_HippoL <- med_diagram(mediation_data =  data.frame(
@@ -757,20 +799,18 @@ medDiagram_HippoL <- med_diagram(mediation_data =  data.frame(
     lab_x   = "C-Reactive Protein",
     lab_m   = "Left hippocampal volume",
     lab_y   = "General cognitive performance",
-    coef_xm = "0.01, p = .34",
-    coef_my = "0.05***, p = 4e-9",
-    coef_xy = "direct effect: -0.02*, p = .02",
-    coef_indEffect = paste("indirect effect < 0.001, 95%CI[-0.0003, 0.001]")))
+    coef_xm = "0.006",
+    coef_my = "0.048 ***",
+    coef_xy = "c\` = –0.017 * \n ab = 0.0003"))
 
 medDiagram_HippoR <- med_diagram(mediation_data =  data.frame(
     main = "CRP on general cognition via right hippocampal volume",  
     lab_x   = "C-Reactive Protein",
     lab_m   = "Right hippocampal volume",
     lab_y   = "General cognitive performance",
-    coef_xm = "0.01, p = .39",
-    coef_my = "0.04***, p = 3e-7",
-    coef_xy = "direct effect: -0.02*, p = .03",
-    coef_indEffect = paste("indirect effect = 0.0002, 95%CI[-0.0003, 0.001]")))
+    coef_xm = "0.006",
+    coef_my = "0.042 ***",
+    coef_xy = "c\` = –0.017 * \n ab = 0.0002"))
 
 ```
 

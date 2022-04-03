@@ -14,47 +14,51 @@ library(stringr)
 ```
 
 ```{r corFormat, echo=FALSE}
-corFormat <- function(modelName, filePath, files, depVar, listOfCovars, outputPrefix){
-  df_main <- matrix(ncol = 13, dimnames = list(c(), c("model Name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p")))
-  df_covarsSpecificModel <- matrix(nrow = 5)
-  df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
-  list_covarAllModels <- list() # this will store all dataframes with covariate information
-  # initialize counters
-  file <- ""
-  covar <- ""
-  date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
+date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming  
+
+df_main <- matrix(ncol = 13, dimnames = list(c(), c("model Name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p")))
+df_covarsSpecificModel <- matrix(nrow = 5)
+listOfCovars <- c("crp_log_z","demo_sex_t0Male","smoke_currently_t0Yes","diet_processedMeat_t0Less than once a week","diet_processedMeat_t0Once a week","diet_processedMeat_t02-4 times a week","diet_processedMeat_t05-6 times a week","diet_processedMeat_t0Once or more daily","demo_ethnicity_t0East Asian","demo_ethnicity_t0Mixed","demo_ethnicity_t0Other ethnic group","demo_ethnicity_t0South Asian","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0moderate","exercise_IPAQActivityGroup_t0high","med_SSRI01","sleep_duration0_t0_z","weight_waistToHip_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","ses_townsend_t0_z","cog_hourCompleted_z")
+df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
+list_covarAllModels <- list() # this will store all dataframes with covariate information
+filePath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/CorAnalyses/allC/04_01_2022/"
+files <- c("UKBB_Anal_cor_allC_cog_digsub_cor_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_fluidIntel_QsAttempted_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_fluidIntel_score_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_matrix_cor_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_numMem_maxDigitRemem_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_PC_1_z_04_01_2022","UKBB_Anal_cor_allC_cog_PC_2_z_04_01_2022","UKBB_Anal_cor_allC_cog_PC_3_z_04_01_2022","UKBB_Anal_cor_allC_cog_prospMem_result_t2_04_01_2022","UKBB_Anal_cor_allC_cog_prospMem_timeDelay_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_reactiontime_mean_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_TMT_alphanumDuration_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_TMT_alphanumErrors_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_TMT_numericDuration_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_TMT_numericErrors_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_tower_cor_t2_z_04_01_2022")
+
+
+# initialize counters
+covar <- c()
   
-  for(file in files){
-    specificFilePath <- glue("{filePath}/{file}.txt")
-    fileObj <- readLines(specificFilePath)
-    
-    lmExpression <- grep("~",fileObj, value = TRUE) # from this line, extract analysis name
-    lmExpression <- unlist(strsplit(lmExpression, "\\s+"))
-    indepVar <- lmExpression[starts_with("cog_", vars = lmExpression)]
-    name <- glue("{modelName}_{indepVar}")
-    
-    depVarValues <- grep(depVar, fileObj, value = TRUE)[2]
-    depVarValues <- unlist(strsplit(depVarValues, "\\s+"))
-    
-    if(TRUE %in% grepl("<", depVarValues)){
-      pAndSymbol <- glue("{depVarValues[[5]]}{depVarValues[[6]]}")
-      depVarValuesNoSigChar <- c(depVarValues[1:4], pAndSymbol)
-    } else {
-      depVarValuesNoSigChar <- depVarValues[1:5]
-    }
+for(file in files){
+  specificFilePath <- glue("{filePath}/{file}.txt")
+  fileObj <- readLines(specificFilePath)
   
-    effectSizes <- grep("Multiple R-squared",fileObj, value = TRUE)
-    effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
-    R2 <- substr(effectSizes[3], 1, nchar(effectSizes[3])-1)
-    R2adj <- effectSizes[6]
-    
-    FTest <- grep("F-statistic",fileObj, value = TRUE)
-    FTest <- unlist(strsplit(FTest, "\\s+"))
-    FStat <- FTest[2]
-    df1 <- FTest[4]
-    df2 <- FTest[6]
-    p <- FTest[which(FTest == grep("p-value",FTest, value = TRUE)):length(FTest)]
-    
+  lmExpression <- grep("~",fileObj, value = TRUE) # from this line, extract analysis name
+  lmExpression <- unlist(strsplit(lmExpression, "\\s+"))
+  indepVar <- lmExpression[starts_with("cog_", vars = lmExpression)]
+  name <- glue("{modelName}_{indepVar}")
+  
+  depVarValues <- grep(depVar, fileObj, value = TRUE)[2]
+  depVarValues <- unlist(strsplit(depVarValues, "\\s+"))
+  
+  if(TRUE %in% grepl("<", depVarValues)){
+    pAndSymbol <- glue("{depVarValues[[5]]}{depVarValues[[6]]}")
+    depVarValuesNoSigChar <- c(depVarValues[1:4], pAndSymbol)
+  } else {
+    depVarValuesNoSigChar <- depVarValues[1:5]
+  }
+
+  effectSizes <- grep("Multiple R-squared",fileObj, value = TRUE)
+  effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
+  R2 <- substr(effectSizes[3], 1, nchar(effectSizes[3])-1)
+  R2adj <- effectSizes[6]
+  
+  FTest <- grep("F-statistic",fileObj, value = TRUE)
+  FTest <- unlist(strsplit(FTest, "\\s+"))
+  FStat <- FTest[2]
+  df1 <- FTest[4]
+  df2 <- FTest[6]
+  p <- FTest[which(FTest == grep("p-value",FTest, value = TRUE)):length(FTest)]
+  
     if(TRUE %in% grepl("<", p)){
       p <- glue("{FTest[[9]]}{FTest[[10]]}")
       # p <- paste(FTest[[9]], FTest[[10]], sep = "")
@@ -109,7 +113,7 @@ corFormat <- function(modelName, filePath, files, depVar, listOfCovars, outputPr
     df_mainRow <- c(name, indepVar, depVarValuesNoSigChar, R2, R2adj, FStat, df1, df2, p)  # "Model name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p"
     df_main <- rbind(df_main, " " = df_mainRow)
   }
-  
+
   df_main <- df_main[-1,]
   write.csv(df_main, file = glue("{outputPrefix}_CRPWeights_{date}.csv"))
 } # 'modelName' - name of model for labelling output rows (usually 'cor' or 'med'), 'filePath' - path to folder housing files, 'files' - name of files (without extensions), 'depVar' - dependnet variable (usually CRP_log_z), 'listOfCovars' - list of covariate variable names as listed in LM output (include level of contrast for categorical variables). If no covars, define as '""', 'outputPrefix' - string indicating the prefix for the output file. Note, independent variable is assumed to be the variable beginning with "cog_"
@@ -328,6 +332,6 @@ for(file in files){
 }
 as.data.frame(df_main)
 df_main <- df_main[-1,]
-write.csv(df_main, file = glue("UKBB_med_anal_results_CRPWeights_{date}.csv"))
+write.csv(df_main, file = glue("UKBB_med_anal_results_CRPWeights_revC_{date}.csv"))
 write.csv(df_main, file = glue("{outputPrefix}_CRPWeights_{date}.csv"))
 ```

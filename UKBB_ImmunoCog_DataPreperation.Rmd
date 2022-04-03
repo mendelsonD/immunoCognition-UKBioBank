@@ -26,7 +26,7 @@ library(coin)
 knitr::knit_engines$set(python = reticulate::eng_python)
 reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
 
-date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
+
 ```
 
 # 0 - Functions
@@ -215,6 +215,7 @@ df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndS
 df <- df_all # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
 # rm(df_small) # remove dataframes not in use
 # sort(colnames(df))
+date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 ```
 
 ### Standardize categorical vars
@@ -487,6 +488,7 @@ df$crp_aliquotdelay <- as.duration(interval(df$crp_timeCollected_t0, df$crp_assa
 
 df <- readr::type_convert(df) # automatically detect
 df_interim <- df
+save(df_interim, file = "UKBB_dfFormatted_full.RData")
 ```
 
 ## Remove cases with missing variables
@@ -495,6 +497,8 @@ demoVars <- starts_with("demo_", vars = colnames(df))
 sesVars <- starts_with("ses_", vars = colnames(df))
 crpAliqVars <- starts_with("crp_aliquot", vars = colnames(df))
 brainVolVars <- starts_with("brain_vol", vars = colnames(df))
+brainVars_specific <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2", "brain_vol_hippocamp_L_t2", "brain_vol_hippocamp_R_t2"))
+
 cogVars <- starts_with("cog_", vars = colnames(df))
 
 dietVars <- starts_with("diet_", vars = colnames(df))
@@ -521,18 +525,20 @@ cog_zVars <- which(! colnames(df_cog_z) %in% colnames(df[varsToZ]))
 df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
 df <- cbind(df, df_cog_z[cog_zVars])
 
-finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_daysBtwAssess","waistToHip_z"))
-load("revisedCovarNames.RData")
+finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0"))
+load("revisedEssentialVarsAnalysis.RData")
+
 sort(colnames(df))
 # colnames(df[sesVars])
 # View(df[1:100, c(1,cogPCAVars)])
 ```
 
 ```{r removeMissing, echo=FALSE}
-essentialVars <- c(completionTimeVars, crpAliqVars, cogPCAVars, brainVolVars, finalCovars) # list of variable names that must be complete in order for case to be retained
-essentialVarsAnalysis <- essentialVarsAnalysis
-# sort(colnames(df[essentialVars]))
+essentialVars <- c(which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0")), completionTimeVars, crpAliqVars, cogPCAVars, brainVars_specific) # list of variable names that must be complete in order for case to be retained
 
+essentialVars <- essentialVarsAnalysis
+sort(colnames(df[essentialVars]))
+# sort(colnames(df))
 df <- df %>% 
   mutate(missingEssentialVar = case_when(
     if_any(.cols = essentialVars, function(x)(
@@ -594,21 +600,22 @@ df_numVarsToCompare <- as.data.frame(do.call(cbind, numVarsToCompare))
 numVarColsToCompare <- (which(colnames(df) %in% colnames(df_numVarsToCompare)))
 
 # For each variable in this list, determine if normal --------
-normalityPlots <- mapply(normalCheck, df[numVarColsToCompare], colName = colnames(df[numVarColsToCompare]), colNum = numVarColsToCompare)
+which(colnames(df) == "diet_alcohol_yesterdayIntake_t0")
+normalityPlots <- mapply(normalCheck, df[c(numVarColsToCompare, 74)], colName = colnames(df[c(numVarColsToCompare, 74)]), colNum = c(numVarColsToCompare, 74))
 # N.b. QQ plot should follow a straight line
 # nonParametricVars <- c(3,4,5,9,15,16, 17,19,36,38,41,43,49,56,57,58,66,67,69,101) # vector specifying which values of dependent to run non-parametric tests on 
-nonParametricVars <- c(3,8,9,38,40,41,69,105)
+nonParametricVars <- c(3,8,9,12,38,40,41,69,74,105)
 ```
 
 ### Compare removed cases to retained cases
 
 ```{r compareMissing, echo=FALSE}
 nonParaDep <- which(varsToCompare %in% colnames(df[nonParametricVars]))
-str(df$demo_sex_t0)
+
 summaryMissing <- list()
 nonPara <- c()
-df$demo_daysBtwAssess
-nonParaToCompare <- c("demo_age_assess0_t0", "demo_age_assess2_t2", "demo_daysBtwAssess", "ses_townsend_t0", "crp_timeFasting_t0", "crp_timeCollected_t0", "crp_aliquotdelay", "crp_aliquot_t0", "weight_BMI0_t0", "weight_BMI2_t2")
+nonParaToCompare <- c("demo_age_assess0_t0", "demo_age_assess2_t2", "demo_daysBtwAssess", "ses_townsend_t0", "crp_timeFasting_t0", "crp_timeCollected_t0", "crp_aliquotdelay", "crp_aliquot_t0", "weight_BMI0_t0", "weight_BMI2_t2", "diet_alcohol_yesterdayIntake_t0", "sleep_duration0_t0")
+
 runWilcox(nonParaToCompare, df = df, by = "missingEssentialVar", fileName = "UKBB_compareMissing_wilcox")
 
 # for(i in varsToCompare){
@@ -622,6 +629,23 @@ runWilcox(nonParaToCompare, df = df, by = "missingEssentialVar", fileName = "UKB
 # }
 # capture.output(summaryMissing, file = paste("UKBB_compareMissingCases_", date, ".csv", sep = ""))
 # save(summaryMissing, file = paste("UKBB_compareMissingCases", date, ".csv"))
+
+sum(!is.na(df$diet_alcohol_yesterdayIntake_t0))
+median(df$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+IQR(df$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+median(df_retained$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+IQR(df_retained$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+median(df_removed$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+IQR(df_removed$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+
+sum(!is.na(df$demo_daysBtwAssess))
+mean(df$demo_daysBtwAssess, na.rm = T)
+sd(df$demo_daysBtwAssess, na.rm = T)
+mean(df$demo_daysBtwAssess, na.rm = T)
+sd(df_retained$demo_daysBtwAssess, na.rm = T)
+mean(df_removed$demo_daysBtwAssess, na.rm = T)
+sd(df_removed$demo_daysBtwAssess, na.rm = T)
+t.test(df$demo_daysBtwAssess, group = df$missingEssentialVar)
 
 comparisonDroppedCases <- TOne(df[varsToCompare], grp = df$missingEssentialVar, add.length = T, total = T, 
           FUN = function(x) gettextf("%s (%s); %s (%s)",
@@ -764,13 +788,13 @@ df <- df_properCRP
 ## Correl of CRP vars 
 ```{r correlDietVars, echo=FALSE}
 print("Hour collected")
-median(hour(df$crp_timeCollected_t0))
-iqr(hour(df$crp_timeCollected_t0))
+median(hour(df$crp_timeCollected_t0), na.rm = T)
+iqr(hour(df$crp_timeCollected_t0), na.rm = T)
 cat("Correlation between CRP and hour collected: ")
 cor.test(rank(df$crp_aliquot_t0), rank(hour(df$crp_timeCollected_t0)), na.action = na.omit, conf.level = .95)
 
 print("Fasting time")
-median(df$crp_timeFasting_t0)
+median(df$crp_timeFasting_t0, na.rm = T)
 iqr(df$crp_timeFasting_t0)
 cat("Correlation between CRP and hours fasted before blood draw: ")
 cor.test(rank(df$crp_aliquot_t0), rank(df$crp_timeFasting_t0), na.action = na.omit)
@@ -778,7 +802,7 @@ cor.test(rank(df$crp_aliquot_t0), rank(df$crp_timeFasting_t0), na.action = na.om
 cat("CRP aliquots were performed between", paste(min(df$crp_assaydate_t0))," and ", paste(max(df$crp_assaydate_t0)))
 df$crp_assaydate_t0 <- as.POSIXct(df$crp_assaydate_t0)
 
-cat("the mean time between blood sample and CRP measurement was (in years): \n\t", "mean:", mean(df$crp_aliquotdelay), "SD: ", sd(df$crp_aliquotdelay), "\n\t Median: ", median(df$crp_aliquotdelay), "IQR: ", iqr(df$crp_aliquotdelay))
+cat("the mean time between blood sample and CRP measurement was (in years): \n\t", "mean:", mean(df$crp_aliquotdelay, na.rm = T), "SD: ", sd(df$crp_aliquotdelay, na.rm = T), "\n\t Median: ", median(df$crp_aliquotdelay, na.rm = T), "IQR: ", iqr(df$crp_aliquotdelay))
 
 cor.test(rank(df$crp_aliquotdelay), rank(df$crp_aliquot_t0))
 ```
@@ -896,7 +920,7 @@ numMemCol <- which(colnames(df) == "cog_numMem_maxDigitRemem_t2")
 looseCovars <- c("demo_sex_t0", "demo_ethnicity_t0",  "demo_age_assess0_t0", "demo_daysBtwAssess", "ses_townsend_t0", "med_SSRI0", "waistToHip", "diet_processedMeat_t0", "sleep_duration0_t0", "sleep_duration2_t2", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0")
 covars <- unlist(lapply(looseCovars, FUN = function(x) (which(colnames(df) == x))))
 
-varsOfInterest <- c(crp_fctrCol, brainVarsOfInt, cogPCOutputs, numMemCol, covars) # list of variables used in correlation/mediation analyses
+varsOfInterest <- c(crp_fctrCol, brainVarsOfInt, cogPCOutputs, covars) # list of variables used in correlation/mediation analyses
 # length(colnames(df[varsOfInterest]))
 
 # create list of non-factor numeric variables for normality check ----
@@ -907,7 +931,7 @@ numVarsOfInterest <- (which(colnames(df) %in% colnames(df_numVarsOfInt)))
 
 normalityPlotsCorrel <- mapply(normalCheck, df[numVarsOfInterest], colName = colnames(df[numVarsOfInterest]), colNum = numVarsOfInterest)
 
-nonNormalVarsOfInt <- c(9,12,13,40, 106, 107, 108, 109)
+nonNormalVarsOfInt <- c(9,12,13,40,126,127,128)
 # normalityPlotsCorrel_nonNorm <- mapply(normalCheck, df[nonNormalVarsOfInt], colName = colnames(df[nonNormalVarsOfInt]), colNum = nonNormalVarsOfInt)
 
 ## apply normality correction
@@ -918,18 +942,19 @@ nonNormalVarsOfInt <- c(9,12,13,40, 106, 107, 108, 109)
 #   mutate(cog_PC_2_z = scale(df$cog_PC_2)) %>% # scale PC2 score
 #   mutate(cog_PC_3_z = scale(df$cog_PC_3)) # scale PC3 score
 
-df <- df %>% 
-  mutate(demo_age_assess0_t0_tert = factor(cut2(df$demo_age_assess0_t0, g = 3), order = T)) %>% # split into tertiles
-  mutate(sleep_duration0_t0_tert = factor(cut2(df$sleep_duration0_t0, g = 3), order = T)) %>%  # sleep duration 0, split into tertiles
-  mutate(sleep_duration2_t2_tert = factor(cut2(df$sleep_duration2_t2, g = 3), order = T)) %>%  # sleep duration 2, split into tertiles
-  mutate(ses_townsend_t0_tert = factor(cut2(df$ses_townsend_t0_z, g = 3), order = T)) %>%  # townsend, split into tertiles
-  mutate(cog_PC_1_tert = factor(cut2(df$cog_PC_1_z, g = 3), order = T)) %>% # cognition principle component 1, split into tertiles
-  mutate(cog_PC_2_tert = factor(cut2(df$cog_PC_2_z, g = 3), order = T)) %>% # cognition principle component 2, split into tertiles
-  mutate(cog_PC_3_tert = factor(cut2(df$cog_PC_3_z, g = 3), order = T)) # cognition principle component 3, split into tertiles
+# df <- df %>% 
+#   mutate(demo_age_assess0_t0_tert = factor(cut2(df$demo_age_assess0_t0, g = 3), order = T)) %>% # split into tertiles
+#   mutate(sleep_duration0_t0_tert = factor(cut2(df$sleep_duration0_t0, g = 3), order = T)) %>%  # sleep duration 0, split into tertiles
+#   mutate(sleep_duration2_t2_tert = factor(cut2(df$sleep_duration2_t2, g = 3), order = T)) %>%  # sleep duration 2, split into tertiles
+#   mutate(ses_townsend_t0_tert = factor(cut2(df$ses_townsend_t0_z, g = 3), order = T)) %>%  # townsend, split into tertiles
+#   mutate(cog_PC_1_tert = factor(cut2(df$cog_PC_1_z, g = 3), order = T)) %>% # cognition principle component 1, split into tertiles
+#   mutate(cog_PC_2_tert = factor(cut2(df$cog_PC_2_z, g = 3), order = T)) %>% # cognition principle component 2, split into tertiles
+#   mutate(cog_PC_3_tert = factor(cut2(df$cog_PC_3_z, g = 3), order = T)) # cognition principle component 3, split into tertiles
 
 normCorrected <- which(colnames(df) %in% c("demo_age_assess0_t0_tert", "ses_townsend_t0_tert", "sleep_duration0_t0_tert", "sleep_duration2_t2_tert", "cog_PC_1_tert", "cog_PC_2_tert", "cog_PC_3_tert"))
 
-revisedvarsOfInterest <- c(varsOfInterest[! varsOfInterest %in% nonNormalVarsOfInt],normCorrected)
+revisedvarsOfInterest <- c(varsOfInterest,normCorrected)
+# revisedvarsOfInterest <- c(varsOfInterest[! varsOfInterest %in% nonNormalVarsOfInt],normCorrected)
 
 # standardize numeric variables of interest
 numRevisedVarsOfInt <- lapply(df[revisedvarsOfInterest], numNotFactor) # I want this to return a list of names that are not null
@@ -940,7 +965,7 @@ for(i in colnames(df_numRevisedVarsOfInt)){
 }
 revisedVarsColnums <- which(colnames(df) %in% revisedvarsOfInterest)
   
-df_z <- df %>% mutate("{colnames(df[revisedVarsColnums])}_z" = across(.cols = revisedVarsColnums, .fns = scale))
+df_z <- df %>% mutate("{colnames(df[revisedVarsColnums])}_z" = across(.cols = all_of(revisedVarsColnums), .fns = scale))
 
 df_numRevisedVarsOfInt <- as.data.frame(do.call(cbind, numRevisedVarsOfInt))
 df_numVarsInt_z <- c()
@@ -950,6 +975,7 @@ df_numVarsInt_z <- df_numRevisedVarsOfInt %>%
 scaledVarNames <- ends_with("_z", vars = colnames(df_numVarsInt_z))
 
 df <- as.data.frame(cbind(df, df_numVarsInt_z[scaledVarNames]))
+# sort(colnames(df))
 ```
 
 # Save DF
