@@ -705,8 +705,8 @@ sum(df$crp_aliquot_t0 < 3)/dim(df)[1]
 # Main, lines for covariates and no covariates
 ggplot(data = df_complete, aes(x=crp_log_z, y=cog_PC_1_z)) + # ideally: plot PC1 vs CRP, with 2 x-axes: one for the log value, the other for the raw CRP values; and 2 ablines: one for the model with no covars, the second with the revised covariates
                   geom_point(alpha = .3, size = 1,  color = "grey4", shape = 21) +
-                  # geom_abline(aes(intercept = 0, slope = -0.083709, colour="no covariates, \n b = –0.08 ***"), size = 1, alpha = .7) +
-                  geom_abline(aes(intercept = 0, slope = -0.020185, colour="with covariates, \n b = –0.02 *"), size = 1, alpha = .7) +
+                  geom_abline(aes(intercept = 0, slope = -0.083709, colour="no covariates, \n b = –0.08 ***"), size = 1, alpha = .7) +
+                  # geom_abline(aes(intercept = 0, slope = -0.020185, colour="with covariates, \n b = –0.02 *"), size = 1, alpha = .7) +
                   labs(color=NULL) + 
                   scale_x_continuous(
                     name = "Log of CRP (z score)",
@@ -778,6 +778,9 @@ ggplot(data = df_complete, aes(x=demo_age_assess0_t0_z, y=cog_PC_1_z)) + # ideal
                   ) + 
             # guides(fill = guide_legend(byrow = TRUE)) +
             scale_colour_brewer(palette="Set1")
+
+hist(df_complete$crp_aliquot_t0)
+hist(df_complete$crp_log)
 
 sum(table(df_complete$crp_log))
 ```
