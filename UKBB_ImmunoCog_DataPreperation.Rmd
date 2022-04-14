@@ -299,22 +299,8 @@ df <- df %>%
     demo_ethnicity_t0 == "British" ~ "White",
     demo_ethnicity_t0 == "Irish" ~ "White",
     demo_ethnicity_t0 == "Any other white background" ~ "White",
-    demo_ethnicity_t0 == "Bangladeshi" ~ "South Asian",
-    demo_ethnicity_t0 == "Indian" ~ "South Asian",
-    demo_ethnicity_t0 == "Pakistani" ~ "South Asian",
-    demo_ethnicity_t0 == "African" ~ "African/Caribbean",
-    demo_ethnicity_t0 == "Caribbean" ~ "African/Caribbean",
-    demo_ethnicity_t0 == "Chinese" ~ "East Asian",
-    demo_ethnicity_t0 == "Asian or Asian British" ~ "Other ethnic group",
-    demo_ethnicity_t0 == "Black or Black British" ~ "Other ethnic group",
-    demo_ethnicity_t0 == "Any other Asian background" ~ "Other ethnic group",
-    demo_ethnicity_t0 == "Any other Black background" ~ "Other ethnic group",
-    demo_ethnicity_t0 == "White and Black African" ~ "Mixed",
-    demo_ethnicity_t0 == "White and Black Caribbean" ~ "Mixed",
-    demo_ethnicity_t0 == "White and Asian" ~ "Mixed",
-    demo_ethnicity_t0 == "Any other mixed background" ~ "Mixed",
-    TRUE ~ demo_ethnicity_t0
-    ))
+    TRUE ~ "Other"
+     ))
 ```
 
 ### Add columns
