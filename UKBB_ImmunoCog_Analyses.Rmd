@@ -8,6 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
+library(glmnet)
 library(ggplot2)
 library(car)
 library(gridExtra)
@@ -206,7 +207,7 @@ med_diagram <- function(mediation_data){
 ```{r importData, echo=FALSE}
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 # df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
-load("UKBB_dfForAnal_04_01_2022.Rdata")
+load("UKBB_dfForAnal_05_02_2022.Rdata")
 
 # write.csv(describe(df), file = glue("UKBB_allVarSummary_{date}.csv"))
 # df
@@ -292,14 +293,22 @@ sort(colnames(df))
 
 ## Vars of interest
 ```{r varsOfIntDefine, echo=FALSE}
+
 crp <- which(colnames(df) == "crp_aliquot_t0")
 crp_fctrCol <- which(colnames(df) == "crp_aliquot_fctr")
 crp_log <-  which(colnames(df) == "crp_aliquot_log")
 crp_log_z <- which(colnames(df) == "crp_log_z")
 
-brainVars <- starts_with("brain_vol_", vars = colnames(df))
-brainVars_z <-brainVars[ends_with("_z", vars = colnames(df[brainVars]))]
-brainVars_specific_z <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2_z", "brain_vol_hippocamp_L_t2_z", "brain_vol_hippocamp_R_t2_z"))
+
+brainPrefix <- c("area_","gmVol_", "GWcont_","mIntensity","mThick_", "vol_", "weigted_mFA_", "weigted_mICVF_", "weigted_mISOVF_", "weigted_mL1_", "weigted_mL2_", "weigted_mL3_", "weigted_mMD_", "weigted_mMO_", "weigted_mOD_")
+brainMorphVars <- c()
+for(i in brainPrefix){
+  iVars <- starts_with(i, vars = colnames(df))
+  # cat(paste(i, ":", length(iVars), "\n"), sep = "")
+  brainMorphVars <- c(brainMorphVars, iVars)
+}
+brainMorphVars_z <-brainMorphVars[ends_with("_z", vars = colnames(df[brainMorphVars]))]
+# brainMorphVars_specific_z <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2_z", "brain_vol_hippocamp_L_t2_z", "brain_vol_hippocamp_R_t2_z"))
 
 cogVars <- starts_with("cog", vars = colnames(df))
 cogVars_t2_z <- cogVars[ends_with("_t2_z", vars = colnames(df[cogVars]))]
@@ -312,28 +321,28 @@ cogOutcomes_fctr <- colnames(df[cogVars_t2_fctr])
 numMemCol <- which(colnames(df) == "cog_numMem_maxDigitRemem_t2")
 # colnames(df[cogPCOutputs_z])
 
-mediators <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2_z", "brain_vol_hippocamp_L_t2_z", "brain_vol_hippocamp_R_t2_z"))
+mediators <- brainMorphVars_z
 
 df$cog_hourCompleted_z <- scale(df$cog_hourCompleted)
-covars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "med_SSRI0", "weight_waistToHip_z", "diet_processedMeat_t0", "sleep_duration0_t0_z", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0", "cog_hourCompleted_z"))
+covars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "smoke_currently0_t0", "smoke_currently2_t2","exercise_IPAQActivityGroup_t0"))
 duplicateVarNames <- ends_with(".1", vars = colnames(df[covars]))
 covars <- covars[-duplicateVarNames]
 
-revisedCovars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0"))
-duplicateVarNames <- ends_with(".1", vars = colnames(df[revisedCovars]))
-revisedCovars <- revisedCovars[-duplicateVarNames]
+# revisedCovars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0"))
+# duplicateVarNames <- ends_with(".1", vars = colnames(df[revisedCovars]))
+# revisedCovars <- revisedCovars[-duplicateVarNames]
 
-revisedCovars1 <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z"))
-duplicateVarNames <- ends_with(".1", vars = colnames(df[revisedCovars1]))
-revisedCovars1 <- revisedCovars1[-duplicateVarNames]
+# revisedCovars1 <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z"))
+# duplicateVarNames <- ends_with(".1", vars = colnames(df[revisedCovars1]))
+# revisedCovars1 <- revisedCovars1[-duplicateVarNames]
 
 covars_brain <- which(colnames(df) %in% c("hand_t0", "brain_headScale_t2"))
 
-varsOfInterest_allC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, covars) # list of variables used in correlation/mediation analyses
-varsOfInterest_revC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_brain) # list of variables used in correlation/mediation analyses
+varsOfInterest_allC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainMorphVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, covars) # list of variables used in correlation/mediation analyses
+varsOfInterest_revC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainMorphVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_brain) # list of variables used in correlation/mediation analyses
 
-essentialVarsAnalysis <- c(colnames(df[cogPCOutputs_z]), colnames(df[crp]), colnames(df[brainVars_specific_z]), colnames(df[revisedCovars]), colnames(df[covars_brain]))
-essentialVarsAnalysisNum <- c(crp, crp_log_z, brainVars_specific_z, cogPCOutputs_z, revisedCovars, covars_brain)
+essentialVarsAnalysis <- c(colnames(df[cogPCOutputs_z]), colnames(df[crp]), colnames(df[brainMorphVars_specific_z]), colnames(df[revisedCovars]), colnames(df[covars_brain]))
+essentialVarsAnalysisNum <- c(crp, crp_log_z, brainMorphVars_specific_z, cogPCOutputs_z, revisedCovars, covars_brain)
 save(essentialVarsAnalysis, file = "revisedEssentialVarsAnalysis.RData")
 
 df_small_allC <- df[c(1,essentialVarsAnalysisNum, which(colnames(df) == "missingEssentialVar"))]
