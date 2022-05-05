@@ -86,7 +86,13 @@ runMediation <- function(df, X, Y, M, covars, mediatorModelExpression, outcomeMo
 # see psyc 536 lecture 5 notes
 runRMediation <- function(df, X, Y, M, covars, contrasts, YisFactor, name, alpha){
   require(RMediation)
-  
+  relevantVars <- c()
+  for(i in c(X, Y, M, covars)){
+    if(i != ""){
+      relevantVars <- c(relevantVars, i)
+    }
+  }
+  df <- df[complete.cases(df[c(relevantVars)]),]
   totModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = "", C = covars) # total model: predict Y from X and C
   aPathExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = "", C = covars) # a path model: predict M from X and C
   bPathExpression <- createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = covars) # b path & direct path model: predict Y from X, M, and C
@@ -112,7 +118,9 @@ runRMediation <- function(df, X, Y, M, covars, contrasts, YisFactor, name, alpha
   b <- coef(bModel)[which(names(coef(bModel)) == M)] # want coef for effect of M on Y
   b.se <- coefficients(summary(bModel))[which(names(coef(bModel)) == M),2] # want coef for effect of M on Y
   
-  med <- medci(mu.x = a, mu.y = b, se.x = a.se, se.y = b.se, rho = 0, alpha = alpha, plot = T, plotCI = T, type = "asymp")
+  fileName <- paste(name, "_", date, ".txt", sep = "")
+  
+  med <- medci(mu.x = a, mu.y = b, se.x = a.se, se.y = b.se, rho = 0, alpha = alpha, plot = F, type = "asymp")
   capture.output(
     cat(" -- Linear Model Analysis Output -- "),
     cat("\n ------------------ \n 'total model' linear model expression: \n\t", totModelExpression),
@@ -122,13 +130,209 @@ runRMediation <- function(df, X, Y, M, covars, contrasts, YisFactor, name, alpha
     cat("\n ------------------ \n 'b path' linear model expression: \n\t", bPathExpression),
     print(summary(bModel)),
     cat("\n ------------------ \n Mediated Effect \n\t "),
-    cat("Estimate: \t", med$Estimate, "\n\t SE:\t\t",  med$SE, "\n\t", 100*(1-alpha), "%CILow:\t", med$`97.5% CI`[1], "\n\t", 100*(1-alpha),"%CIHi:\t", med$`97.5% CI`[2]),
-    file = paste(name, "_", date, ".txt", sep = ""))
-
-  return(med)
+    cat("Estimate: \t", med$Estimate, "\n\t SE:\t\t",  med$SE, "\n\t", 100*(1-alpha), "%CILow:\t", med$`97.5% CI`[1], "\n\t", 100*(1-alpha),"%CIHi:\t", med$`97.5% CI`[2],"\n"),
+    file = fileName)
+  
+  return(fileName)
 } # input: 'df' - dataframe containing all relevant variables; 'X' - name of the predictor variable; 'Y' - name of the outcome variable; 'M' - name of the mediator variable; 'C' - list of names of covariate variables; 'contrasts' - a list of ordinal variables specifying their contrasts; 'YisFactor' - if outcome is a factor, logical. If yes, logistic regression will be performed.; 'name' - name of analysis to be used for output filename; 'alpha' - critical p-value. Used for calculating confidence interval.
 ```
 
+## Format RMediation function Outputs
+```{r formatMedOutputFx, echo=FALSE}
+formatMedOutput <- function(outputDF, filePath, fileName, analysisName, logReg){
+  specificFilePath <- glue("{filePath}/{fileName}")
+  fileObj <- readLines(specificFilePath)
+  
+  splits <- grep("~", fileObj)
+  split1 <- splits[2]-2
+  split2 <- splits[3]-2
+  medOutput <- grep("Mediated Effect", fileObj)
+  
+  text_directEffect <- fileObj[2:split1]
+  text_aPath <- fileObj[(split1+1):split2]
+  text_bPath <- fileObj[(split2+1):(medOutput-1)]
+  text_mediatedEffect <- fileObj[medOutput:length(fileObj)]
+  models <- list(text_directEffect, text_aPath, text_bPath)
+  
+  variables <- c()
+  values <- c()
+  
+  for(i in 1:(length(models))){ # iterate through all three models
+    # Find name of mediator, indep var
+    sectionText <- unlist(models[i])
+    lmExpression <- grep("~", sectionText, value = TRUE) # from this line, extract analysis name
+    lmExpression <- unlist(strsplit(lmExpression, "\\s+"))
+    indepVar <- lmExpression[which(lmExpression == "~")-1] # n.b. indep var of this model may not be indep var of mediation analysis
+    depVar <- lmExpression[which(lmExpression == "~")+1]
+    
+    depVarValues <- grep(depVar, sectionText, value = TRUE)
+    if(length(depVarValues) == 2){
+      depVarValues <- depVarValues[2]
+    }
+    
+    depVarValues <- unlist(strsplit(depVarValues, "\\s+"))
+    
+    if(TRUE %in% grepl("<", depVarValues) && nchar(depVarValues[grep("<",depVarValues)]) == 1){
+      pAndSymbol <- glue("{depVarValues[[5]]}{depVarValues[[6]]}")
+      depVarValuesNoSigChar <- c(depVarValues[2:4], pAndSymbol)
+    } else {
+      depVarValuesNoSigChar <- depVarValues[2:5]
+    }
+    
+    ########################################################33
+    # bPathRows <- grep("b path", sectionText, value = TRUE)
+    # if(is.null(bPathRows) == FALSE){ # extract med -> Y in b path model
+    #   brainVarValues <- sectionText[starts_with("brain_", vars = sectionText)]
+    #   for(i in length(brainVarValues)){
+    #     splitRow <- strsplit(brainVarValues[i], "\\s+")
+    #     for(j in splitRow){
+    #       if(splitRow %in% listOfMediators == T){
+    #         print("hi")
+    #       }
+    #     }
+    #   }
+    #   
+    #   contains(brainVarValues, vars = listOfMediators)
+    #   brainVarValues <- unlist(strsplit(brainVarValues, "\\s+"))
+    #   if(TRUE %in% grepl("<", brainVarValues) && nchar(brainVarValues[grep("<", brainVarValues)]) == 1){
+    #     pAndSymbol <- glue("{brainVarValues[[5]]}{brainVarValues[[6]]}")
+    #     brainVarValuesNoSigChar <- c(brainVarValues[2:4], pAndSymbol)
+    #   } else {
+    #     brainVarValuesNoSigChar <- brainVarValues[2:5]
+    #   }73.18
+    #   df_covarsSpecificModel <- cbind(df_covarsSpecificModel,  brainVarValuesNoSigChar)
+    # }
+    #####################################################################333
+
+    # listOfCovars <- c(, )
+    # if(listOfCovars[1] != ""){
+    #   for(covar in listOfCovars){
+    #   #   covarValues <- grep(covar, sectionText, value = TRUE)
+    #   #   if(is.null(covarValues) == F){
+    #   #     if(length(covarValues) == 2){
+    #   #       covarValues <- covarValues[2]
+    #   #     }
+    #   #     indexNumBegin <- length(unlist(strsplit(covar, "\\s+")))
+    #   #     covarValues <- unlist(strsplit(covarValues, "\\s+"))
+    #   # 
+    #   #     indexOfFirstNum <- indexNumBegin + 1
+    #   #     indexOfLastNum <- indexNumBegin + 4
+    #   #     
+    #   #     if(TRUE %in% grepl("<", covarValues)){
+    #   #       indexPreP <- indexOfLastNum - 1
+    #   #       covarValues <- c(covar, covarValues[indexOfFirstNum : indexPreP], glue("{covarValues[[indexOfLastNum]]}{covarValues[[indexOfLastNum+1]]}"))
+    #   #     # p <- paste(FTest[[9]], FTest[[10]], sep = "")
+    #   #     } else {
+    #   #       covarValues <- c(covar, covarValues[indexOfFirstNum:indexOfLastNum])
+    #   #     }
+    #   #   } else{
+    #   #     covarValues <- rep("Error, missing data.", 5)
+    #   #   }
+    #   #   df_covarsSpecificModel <- cbind(df_covarsSpecificModel, covarValues)
+    #   # }
+    #   # name <- glue("{name}_C")
+    #   # if(sum(is.na(df_covarsSpecificModel[,1])) == nrow(df_covarsSpecificModel)){
+    #   #     df_covarsSpecificModel <-  df_covarsSpecificModel[,-1]
+    #   # }
+    #   # dimnames(df_covarsSpecificModel) <- list(c(), listOfCovars)
+    #   # df_covarsSpecificModel_tmp <- df_covarsSpecificModel[-1,]
+    #   # df_covarsSpecificModel_tmp <- cbind("modelName" = name, "statistic" = c("parameter estimate", "SE", "t", "p"), df_covarsSpecificModel_tmp)
+    #   # if(nrow(df_covarForModel) == 1){
+    #   #   df_covarForModel <- rbind(df_covarForModel[-1,], df_covarsSpecificModel_tmp)
+    #   # } else {
+    #   #   df_covarForModel <- rbind(df_covarForModel, df_covarsSpecificModel_tmp)
+    #   # }
+    #   # df_covarsSpecificModel <- c()
+    #   # write.csv(df_covarForModel, file = glue("{outputPrefix}_CovarWeights_{date}.csv"))
+    #   }
+    # } else {
+    #   # name <- glue("{name}_noC")
+    # }
+    
+    if(logReg == F || i == 2){ # the b path will always be linear regression as all brain morphology variables are continuous
+      effectSizes <- grep("Multiple R-squared",sectionText, value = TRUE)
+      effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
+      R2 <- substr(effectSizes[3], 1, nchar(effectSizes[3])-1)
+      R2adj <- effectSizes[6]
+      
+      FTest <- grep("F-statistic",sectionText, value = TRUE)
+      FTest <- unlist(strsplit(FTest, "\\s+"))
+      FStat <- FTest[2]
+      df1 <- FTest[4]
+      df2 <- FTest[6]
+      
+      p <- FTest[which(FTest == grep("p-value", FTest, value = TRUE)):length(FTest)]
+      if(TRUE %in% grepl("<", p) && nchar(p[grep("<",p)]) == 1){
+        p <- glue("{FTest[[9]]}{FTest[[10]]}")
+        # p <- paste(FTest[[9]], FTest[[10]], sep = "")
+      } else {
+        p <- FTest[which(FTest == grep("p-value", FTest, value = TRUE))+1]
+      }
+      
+      if(i == 2){
+        variables <- append(variables, c(indepVar, depVar))
+        values <- append(values, c(depVarValuesNoSigChar, R2, R2adj, FStat, df1, df2, p))
+      } else {
+        AIC <- "NA"
+        variables <- append(variables, c(indepVar, depVar))
+        values <- append(values, c(depVarValuesNoSigChar, R2, R2adj, FStat, df1, df2, p, AIC))
+      }
+      
+    } else{
+      R2 <- "NA"
+      R2adj <- "NA"
+      FStat <- "NA"
+      
+      df <- grep("Null deviance:",sectionText, value = TRUE)
+      df <- unlist(strsplit(df, "\\s+"))
+      # print(df)
+      df1  <- df[4] # null deviance df
+      df2 <- df[6]
+      
+      p <- "NA"
+      AIC <- grep("AIC:",sectionText, value = TRUE)
+      AIC <- unlist(strsplit(AIC , "\\s+"))
+      # print(AIC)
+      AIC  <-  AIC[2]
+  
+      variables <- append(variables, c(indepVar, depVar))
+      values <- append(values, c(depVarValuesNoSigChar, R2, R2adj, FStat, df1, df2, p, AIC))
+    }
+  }
+  
+  indepVar <- variables[2]
+  medVar <- variables[3]
+  depVar <- variables[1]
+  vars <- c(indepVar, medVar, depVar)
+  name <- glue("{analysisName}_{medVar}_{depVar}")
+  
+  # Extract indirect effect
+  sectionText <- text_mediatedEffect
+  
+  medEff_est <- grep("Estimate",sectionText, value = TRUE)
+  medEff_est <- unlist(strsplit(medEff_est, "\\s+"))
+  medEff_est <-  medEff_est[3]
+  
+  medEff_SE <- grep("SE",sectionText, value = TRUE)
+  medEff_SE <- unlist(strsplit(medEff_SE, "\\s+"))
+  medEff_SE <-  medEff_SE[3]
+
+  medEff_95Low <- grep("%CILow",sectionText, value = TRUE)
+  medEff_95Low <- unlist(strsplit(medEff_95Low, "\\s+"))
+  medEff_95Low <-  medEff_95Low[4]
+  
+  medEff_95Hi <- grep("%CIHi",sectionText, value = TRUE)
+  medEff_95Hi <- unlist(strsplit(medEff_95Hi, "\\s+"))
+  
+  medEff_95Hi <- medEff_95Hi[4]
+  
+  indEff <- c(medEff_est, medEff_SE, medEff_95Low, medEff_95Hi)
+  
+  outputDF <- rbind(outputDF, c(name, vars, indEff, values)) # specify the indices of valueList to retain in main_df
+  
+  return(outputDF)
+} # takes: outputDF: formatted matrix containing summary of each mediation analysis; filePath: location of text file containing mediation analysis output; fileName: name of text file containint mediation analysis; analysisName: name of analysis, e.g., 'med_noC'; logReg: logical indicates if the model is a logistic regression (i.e., discrete outcome variable)
+```
 
 ## Figure and table functions
 ### Mediation diagrams
@@ -206,12 +410,14 @@ med_diagram <- function(mediation_data){
 ## Import data
 ```{r importData, echo=FALSE}
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
-# df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfForAnal_03_21_2022.csv", ) # import df
-load("UKBB_dfForAnal_05_02_2022.Rdata")
+df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/UKBB_dfForAnal_All_05_05_2022.csv") # import df
+
+alldfs <- c("UKBB_dfForAnal_All_", "UKBB_dfForAnal_excludingDx","UKBB_dfForAnal_excludingSSRI","UKBB_dfForAnal_oldestTert","UKBB_dfForAnal_onlyDx","UKBB_dfForAnal_onlyMedUsers","UKBB_dfForAnal_youngestTert") # list of subset names to run through
+subsetDate <- "05_04_2022" # date of subsets, to recreate file name
 
 # write.csv(describe(df), file = glue("UKBB_allVarSummary_{date}.csv"))
 # df
-sort(colnames(df))
+# sort(colnames(df))
 
 ```
 
@@ -293,12 +499,11 @@ sort(colnames(df))
 
 ## Vars of interest
 ```{r varsOfIntDefine, echo=FALSE}
-
-crp <- which(colnames(df) == "crp_aliquot_t0")
+# sort(colnames(df))
 crp_fctrCol <- which(colnames(df) == "crp_aliquot_fctr")
-crp_log <-  which(colnames(df) == "crp_aliquot_log")
+crp_log <-  which(colnames(df) == "crp_log")
 crp_log_z <- which(colnames(df) == "crp_log_z")
-
+crp <- c(which(colnames(df) == "crp_aliquot_t0"), crp_fctrCol, crp_log, crp_log_z)
 
 brainPrefix <- c("area_","gmVol_", "GWcont_","mIntensity","mThick_", "vol_", "weigted_mFA_", "weigted_mICVF_", "weigted_mISOVF_", "weigted_mL1_", "weigted_mL2_", "weigted_mL3_", "weigted_mMD_", "weigted_mMO_", "weigted_mOD_")
 brainMorphVars <- c()
@@ -307,72 +512,57 @@ for(i in brainPrefix){
   # cat(paste(i, ":", length(iVars), "\n"), sep = "")
   brainMorphVars <- c(brainMorphVars, iVars)
 }
-brainMorphVars_z <-brainMorphVars[ends_with("_z", vars = colnames(df[brainMorphVars]))]
-# brainMorphVars_specific_z <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2_z", "brain_vol_hippocamp_L_t2_z", "brain_vol_hippocamp_R_t2_z"))
+df_brainMorphVarsZ <- df[brainMorphVars] %>% 
+  mutate(across(.fns = scale, .names = "{colnames(df[brainMorphVars])}_z")) # standardize brain morphology variables
+df_brainMorphVarsZ <- df_brainMorphVarsZ[,which(! colnames(df_brainMorphVarsZ) %in% colnames(df[brainMorphVars]))] # matrix of z-scores made in above line to add to main df
+brainMorphVars_Z_colNames <- colnames(df_brainMorphVarsZ)
+df <- cbind(df, df_brainMorphVarsZ[brainMorphVars_Z_colNames])
+rm(df_brainMorphVarsZ)
+brainMorphVars_Z_colNum <- which(colnames(df) %in% brainMorphVars_Z_colNames)
+mediators <- brainMorphVars_Z_colNames
 
 cogVars <- starts_with("cog", vars = colnames(df))
 cogVars_t2_z <- cogVars[ends_with("_t2_z", vars = colnames(df[cogVars]))]
-cogVars_t2_fctr <- which(colnames(df) %in% c("cog_prospMem_result_t2"))
-cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
-cogPCOutputs_tert <- cogPCOutputs[ends_with("_tert", vars=colnames(df[cogPCOutputs]))]
-cogPCOutputs_z <- cogPCOutputs[ends_with("_z", vars=colnames(df[cogPCOutputs]))]
-cogOutcomes <- colnames(df[c(cogPCOutputs_z, cogVars_t2_z)])
-cogOutcomes_fctr <- colnames(df[cogVars_t2_fctr])
-numMemCol <- which(colnames(df) == "cog_numMem_maxDigitRemem_t2")
-# colnames(df[cogPCOutputs_z])
-
-mediators <- brainMorphVars_z
+cogOutcomes_colNum <- c(cogVars_t2_z)
+cogOutcomes_colNames <- colnames(df[cogOutcomes_colNum]) # list of all numeric cognitive variables to assess
+prospMemCol <- which(colnames(df) == "cog_prospMem_result_t2")
+cogOutcomes_fctr <- c(prospMemCol)
+cogOutcomes_fctr_names <- colnames(df[cogOutcomes_fctr])
 
 df$cog_hourCompleted_z <- scale(df$cog_hourCompleted)
-covars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "smoke_currently0_t0", "smoke_currently2_t2","exercise_IPAQActivityGroup_t0"))
-duplicateVarNames <- ends_with(".1", vars = colnames(df[covars]))
-covars <- covars[-duplicateVarNames]
+covars_colNames <- c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "smoke_currently0_t0", "smoke_currently2_t2","exercise_IPAQActivityGroup_t0")
+covars_colNum <-  which(colnames(df) %in% covars_colNames)
 
-# revisedCovars <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0"))
-# duplicateVarNames <- ends_with(".1", vars = colnames(df[revisedCovars]))
-# revisedCovars <- revisedCovars[-duplicateVarNames]
+covars_brain_colNames <- c("hand_t0", "brain_headScale_t2")
+covars_brain_colNum <- which(colnames(df) %in% covars_brain_colNames)
 
-# revisedCovars1 <-  which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z"))
-# duplicateVarNames <- ends_with(".1", vars = colnames(df[revisedCovars1]))
-# revisedCovars1 <- revisedCovars1[-duplicateVarNames]
+essentialVarsAnalysis_colNum <- c(crp, cogOutcomes_colNum, cogOutcomes_fctr, brainMorphVars_Z_colNum, covars_colNum, covars_brain_colNum) # list of variables used in correlation/mediation analyses
+essentialVarsAnalysis_colNames <- colnames(df[essentialVarsAnalysis_colNum]) 
+# essentialVarsAnalysisNum <- c(crp, crp_log_z, brainMorphVars_specific_z, cogPCOutputs_z, revisedCovars, covars_brain)
+# save(essentialVarsAnalysis, file = "revisedEssentialVarsAnalysis.RData")
+eid <- which(colnames(df) == "eid")
+missingEssVar <- which(colnames(df) == "missingEssentialVar")
 
-covars_brain <- which(colnames(df) %in% c("hand_t0", "brain_headScale_t2"))
-
-varsOfInterest_allC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainMorphVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, covars) # list of variables used in correlation/mediation analyses
-varsOfInterest_revC <- c(crp, crp_fctrCol, crp_log, crp_log_z, brainMorphVars_specific_z, cogPCOutputs, cogVars_t2_z, cogVars_t2_fctr, revisedCovars, covars_brain) # list of variables used in correlation/mediation analyses
-
-essentialVarsAnalysis <- c(colnames(df[cogPCOutputs_z]), colnames(df[crp]), colnames(df[brainMorphVars_specific_z]), colnames(df[revisedCovars]), colnames(df[covars_brain]))
-essentialVarsAnalysisNum <- c(crp, crp_log_z, brainMorphVars_specific_z, cogPCOutputs_z, revisedCovars, covars_brain)
-save(essentialVarsAnalysis, file = "revisedEssentialVarsAnalysis.RData")
-
-df_small_allC <- df[c(1,essentialVarsAnalysisNum, which(colnames(df) == "missingEssentialVar"))]
-df_small <- df[c(1,varsOfInterest_revC, which(colnames(df) == "missingEssentialVar"))]
-
+df_small <- df[c(eid, essentialVarsAnalysis_colNum, missingEssVar)]
+# colnames(df_small)
 ```
 
 ````{r missingVars, echo=FALSE}
-df_complete <- df_small_allC[complete.cases(df_small_allC[c(essentialVarsAnalysis, crp_log)]),]
-# cat(nrow(df) - nrow(df_complete), "cases are missing one value in one of the variables and were thus removed.")
-df_complete  <- df_small
-
-df_complete <- df_small[complete.cases(df_small[c("ses_townsend_t0_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0")]),]
-df_complete <- df_small[complete.cases(df_small[essentialVarsAnalysis]),]
-save(df_complete, file = paste("UKBB_data_corAnalyses_allC", date, ".csv", sep = ""))
+df_complete <- df_small[complete.cases(df_small[c("ses_townsend_t0_z", "sleep_duration_mean02_z", "exercise_IPAQActivityGroup_t0")]),]
+save(df_complete, file = paste("UKBB_data_corAnalyses_", date, ".csv", sep = ""))
 
 ````
 ## correlational analyses
 
 ### No covariates
 Indep var: 'crp_log_z'; 
-Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
+Outcomes: `r colnames(df[c(cogOutcomes_colNum, cogOutcomes_fctr)])`
 ```{r corAnalyses_noC, echo=FALSE}
 individualAnalysis <- list()
 mainCor_noC <- list()
 analysisName <- "UKBB_Anal_cor_noC"
 
-individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = "cog_PC_1_z", covars = "", M = "", YisFactor = F, name = analysisName, contrasts = c())
-
-for(i in cogOutcomes){
+for(i in cogOutcomes_colNames){
   analysisName <- glue("{analysisName}_{i}")
   individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = "", M = "", YisFactor = F, name = analysisName, contrasts = c())
   mainCor_noC <- c(mainCor_noC, individualAnalysis)
@@ -380,7 +570,7 @@ for(i in cogOutcomes){
   analysisName <- "UKBB_Anal_cor_noC"
 }
 
-for(i in cogOutcomes_fctr){
+for(i in cogOutcomes_fctr_names){
   analysisName <- glue("{analysisName}_{i}")
   individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = "", M = "", YisFactor = T, name = analysisName, contrasts = c())
   mainCor_noC <- c(mainCor_noC, individualAnalysis)
@@ -391,8 +581,8 @@ for(i in cogOutcomes_fctr){
 
 ### With covariates
 Indep var: 'crp_log_z'; 
-Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
-Covariates = `r colnames(df[covars])`
+Outcomes: `r colnames(df[c(cogOutcomes_colNum, cogOutcomes_fctr)])`
+Covariates = `r colnames(df[covars_colNames])`
 ```{r corAnalyses_C, echo=FALSE}
 ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
                                exercise_IPAQActivityGroup_t0 = "contr.treatment",
@@ -402,30 +592,26 @@ ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
 
 individualAnalysis <- list()
 mainCor_C <- list()
-analysisName <- "UKBB_Anal_cor_allC"
-
-PC1_allC <- runCor(df = df_small_allC, X = "crp_log_z", Y = "cog_PC_1_z", covars = colnames(df[covars]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
-capture.output(summary(PC1_allC), file = glue("UKBB_cor_allC_PC1_z_{date}.txt"))
-summary(PC1_allC)
+analysisName <- "UKBB_Anal_cor"
 
 # for numeric variables
-for(i in cogOutcomes){
+for(i in cogOutcomes_colNames){
   analysisName <- glue("{analysisName}_{i}")
-  individualAnalysis <- runCor(df = df_small_allC, X = "crp_log_z", Y = i, covars = colnames(df[covars]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
+  individualAnalysis <- runCor(df = df_small, X = "crp_log_z", Y = i, covars = colnames(df[covars_colNames]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
   mainCor_allC <- c(mainCor_C, individualAnalysis)
   capture.output(summary(individualAnalysis), file = glue("{analysisName}_{date}.txt"))
   # print(summary(listAnalyses_cor_noC))
-  analysisName <- "UKBB_Anal_cor_allC"
+  analysisName <- "UKBB_Anal_cor"
 }
 
 # for factor variables
-for(i in cogOutcomes_fctr){
+for(i in cogOutcomes_fctr_names){
   analysisName <- glue("{analysisName}_{i}")
-  individualAnalysis <- runCor(df = df_small_allC, X = "crp_log_z", Y = i, covars = colnames(df[covars]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
+  individualAnalysis <- runCor(df = df_small, X = "crp_log_z", Y = i, covars = colnames(df[covars_colNames]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
   mainCor_allC <- c(mainCor_C, individualAnalysis)
   capture.output(summary(individualAnalysis), file = glue("{analysisName}_{date}.txt"))
   # print(summary(listAnalyses_cor_noC))
-  analysisName <- "UKBB_Anal_cor_allC"
+  analysisName <- "UKBB_Anal_cor"
 }
 
 ```
@@ -439,134 +625,104 @@ for(i in cogOutcomes_fctr){
 
 ```{r assumptionChecks, echo=FALSE}
 # Correctly specified
-avPlots(PC1_allC, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
-avPlots(mainCor_C_cog2, pt.wts = T)
-avPlots(mainCor_C_cog3, pt.wts = T)
-  cat("\n \t\t Remove variable that is not predicting unique variance. Do so one at a time--excluding the one with a slope closest to 0 if applicable--and do so only at the end!")
+# avPlots(PC1_allC, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
+# avPlots(mainCor_C_cog2, pt.wts = T)
+# avPlots(mainCor_C_cog3, pt.wts = T)
+  # cat("\n \t\t Remove variable that is not predicting unique variance. Do so one at a time--excluding the one with a slope closest to 0 if applicable--and do so only at the end!")
   # !! only remove predictors at the end !!
   ###
-  plot(df_complete$demo_ethnicity_t0, df_complete$cog_PC_1_z, xlab = "", las = 3, res = 30000)
-  ggplot(df_complete, aes(reorder(demo_ethnicity_t0, -cog_PC_1_z, sum), cog_PC_1_z)) + 
-    geom_boxplot() + 
-    geom_jitter(position=position_jitter(.01)) +
-    theme(axis.text.x = element_text(angle = 90), axis.line.x.top = element_line(1)) +
-    geom_point(alpha = .15, size = 1, color = "black")
-  
-  ggplot(data = df_complete, aes(x=demo_daysBtwAssess, y=cog_PC_1_z)) + 
-                  geom_point(alpha = .15, size = 1, color = "black") +
-                  theme(legend.position = "none")
-
-```
-
-### With revised covariates
-Covars: `r colnames(df[revisedCovars])`
-``` {r saveCorAnalyses, echo=FALSE}
-# ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
-#                                exercise_IPAQActivityGroup_t0 = "contr.treatment",
-#                                sleep_duration0_t0_tert = "contr.treatment",
-#                                ses_townsend_t0_tert = "contr.treatment",
-#                                demo_age_assess0_t0_tert = "contr.treatment")
-
-ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
-                               exercise_IPAQActivityGroup_t0 = "contr.treatment",
-                               sleep_duration0_t0_tert = "contr.treatment",
-                               ses_townsend_t0_tert = "contr.treatment",
-                               demo_age_assess0_t0_tert = "contr.treatment")
-
-individualAnalysis <- list()
-mainCor_C <- list()
-analysisName <- "UKBB_Anal_cor_rev1C"
-
-PC1_revC <- runCor(df = df_small_allC, X = "crp_log_z", Y = "cog_PC_1_z", covars = colnames(df[revisedCovars]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
-PC1_rev1C <- runCor(df = df_small_allC, X = "crp_log_z", Y = "cog_PC_1_z", covars = colnames(df[revisedCovars1]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
-
-for(i in cogOutcomes){
-  analysisName <- glue("{analysisName}_{i}")
-  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars1]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
-  mainCor_revC <- c(mainCor_C, individualAnalysis)
-  # print(summary(listAnalyses_cor_noC))
-  analysisName <- "UKBB_Anal_cor_revC"
-}
-
-for(i in cogOutcomes_fctr){
-  analysisName <- glue("{analysisName}_{i}")
-  individualAnalysis <- runCor(df = df_complete, X = "crp_log_z", Y = i, covars = colnames(df[revisedCovars1]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
-  mainCor_revC <- c(mainCor_C, individualAnalysis)
-  # print(summary(listAnalyses_cor_noC))
-  analysisName <- "UKBB_Anal_cor_revC"
-}
-
-```
-
-```{r avPlots, echo=FALSE}
-avPlots(PC1_revC, pt.wts = T) # if slope is 0 then the predictor is not predicting unique variance in the model. Slope of lines should be equivalent to the regression coefs in the model.
-avPlots(mainCor_C_cog2, pt.wts = T)
-avPlots(mainCor_C_cog3, pt.wts = T)
+  # plot(df_complete$demo_ethnicity_t0, df_complete$cog_PC_1_z, xlab = "", las = 3, res = 30000)
+  # ggplot(df_complete, aes(reorder(demo_ethnicity_t0, -cog_PC_1_z, sum), cog_PC_1_z)) + 
+  #   geom_boxplot() + 
+  #   geom_jitter(position=position_jitter(.01)) +
+  #   theme(axis.text.x = element_text(angle = 90), axis.line.x.top = element_line(1)) +
+  #   geom_point(alpha = .15, size = 1, color = "black")
+  # 
+  # ggplot(data = df_complete, aes(x=demo_daysBtwAssess, y=cog_PC_1_z)) + 
+  #                 geom_point(alpha = .15, size = 1, color = "black") +
+  #                 theme(legend.position = "none")
 
 ```
 
 ## Mediation analyses
 ### No covariates
-Indep var: 'crp_log_z'; 
-Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
-Mediators: `r colnames(df[mediators])`; 
 ```{r medAnalyses, echo=FALSE}
 individualAnalysis <- list()
 listAnalyses_med_noC <- list()
 mainMed_noC <- list()
-analysisName <- "UKBB_Anal_med_noC"
+analysisName <- "med_noC"
+mediators <- "vol_BrainSegNotVent_WB_t2_z"
+xoutputDF <- matrix(ncol = 40, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95%CI-Lo","IndEff_95%CI-Hi","dirEff_b", "dirEff_SE", "dirEff_X_t", "dirEff_X_p", "dirEff_R^2", "dirEff_R^2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_X_t", "aPath_X_p", "aPath_model_R^2", "aPath_model_R^2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_X_t", "bPath_X_p", "bPath_model_R^2", "bPath_model_R^2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
 
-for(med in colnames(df[mediators])){
-  for(i in cogOutcomes){
-    analysisName <- glue("{analysisName}_{med}_{i}")
-    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""), YisFactor = F, name = analysisName, alpha = .001)
-    # mainMed_noC <- c(mainMed_noC, model)
+
+for(med in colnames(df_complete[mediators])){
+  for(i in cogOutcomes_colNames){
+    analysisName <- glue("UKBB_Anal_{analysisName}_{med}_{i}")
+    fileName <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""), YisFactor = F, name = analysisName, alpha = .05)
+    analysisName <- "med_noC"
+    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = F)
     # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
-    analysisName <- glue("UKBB_Anal_med_noC")
   }
-  for(i in cogOutcomes_fctr){
-     analysisName <- glue("{analysisName}_{med}_{i}")
-    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""), YisFactor = T, name = analysisName, alpha = .001)
-    # mainMed_noC <- c(mainMed_noC, model)
+  for(i in cogOutcomes_fctr_names){
+    analysisName <- glue("UKBB_Anal_{analysisName}_{med}_{i}")
+    fileName <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""), YisFactor = T, name = analysisName, alpha = .05)
+    analysisName <- "med_noC"
+    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = T)
     # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
-    analysisName <- glue("UKBB_Anal_med_noC")
   }
 }
 
-```
+# as.data.frame(outputDF)
+outputDF <- outputDF[-1,] # remove first row if it is all NA values
+write.csv(outputDF, file = glue("UKBB_{analysisName}_results_CRPWeights_{date}.csv"))
 
-### With covariates
+```
 Indep var: 'crp_log_z'; 
-Outcomes: `r colnames(df[c(cogOutcomes, cogOutcomes_fctr)])`
+Outcomes: `r colnames(df[c(cogOoutputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = F)utcomes_colNames, cogOutcomes_fctr)])`
 Mediators: `r colnames(df[mediators])`; 
-Covariates: `r colnames(df[covarsMed])`
+analysisName <- glue("UKBB_Anal_med_revC")
+### With covariates
 ```{r medAnalyses, echo=FALSE}
-covarsMed <- c(revisedCovars, covars_brain) # Add  cognition only covars
+covarsMed <- c(covars_colNames, covars_brain_colNames) # Add  cognition only covars
 # colnames(df[covarsMed ])
 
 individualAnalysis <- list()
 listAnalyses_med_C <- list()
 mainMed_C <- list()
-analysisName <- "UKBB_Anal_med_revC"
+analysisName <- "med_C"
+mediators <- brainMorphVars_Z_colNames
+
+ordinalFactorContrasts <- c()
+
+outputDF <- matrix(ncol = 40, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95%CI-Lo","IndEff_95%CI-Hi","dirEff_b", "dirEff_SE", "dirEff_X_t", "dirEff_X_p", "dirEff_R^2", "dirEff_R^2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_X_t", "aPath_X_p", "aPath_model_R^2", "aPath_model_R^2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_X_t", "bPath_X_p", "bPath_model_R^2", "bPath_model_R^2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
 
 for(med in colnames(df[mediators])){
-  for(i in cogOutcomes){
-    analysisName <- glue("{analysisName}_{med}_{i}")
-    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = ordinalFactorContrasts, YisFactor = F, name = analysisName, alpha = .05)
-    mainMed_C <- c(mainMed_C, model)
+  for(i in cogOutcomes_colNames){
+    analysisName <- glue("UKBB_Anal_{analysisName}_{med}_{i}")
+    fileName <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = ordinalFactorContrasts, YisFactor = F, name = analysisName, alpha = .05)
+    analysisName <- "med_C"
+    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = F)
     # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
-    analysisName <- glue("UKBB_Anal_med_revC")
+    
   }
-  for(i in cogOutcomes_fctr){
-    analysisName <- glue("{analysisName}_{med}_{i}")
-    model <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = ordinalFactorContrasts, YisFactor = T, name = analysisName, alpha = .05)
-    mainMed_C <- c(mainMed_C, model)
+  for(i in cogOutcomes_fctr_names){
+    analysisName <- glue("UKBB_Anal_{analysisName}_{med}_{i}")
+    fileName <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = ordinalFactorContrasts, YisFactor = T, name = analysisName, alpha = .05)
+    analysisName <- "med_C"
+    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = T)
     # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
-    analysisName <- glue("UKBB_Anal_med_revC")
+
   }
 }
+outputDF <- as.data.frame(outputDF)
+outputDF <- outputDF[-1,] # remove first row if it is all NA values
+write.csv(outputDF, file = glue("UKBB_{analysisName}_results_CRPWeights_{date}.csv"))
 
 ```
+Indep var: 'crp_log_z'; 
+Outcomes: `r colnames(df[c(cogOutcomes_colNames, cogOutcomes_fctr)])`
+Mediators: `r colnames(df[mediators])`; 
+Covariates: `r colnames(df[covarsMed])`
 
 # Plots & figures - !! Needs revision !!
 ## Correlation analyses
