@@ -412,9 +412,6 @@ med_diagram <- function(mediation_data){
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
 df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/UKBB_dfForAnal_All_05_05_2022.csv") # import df
 
-alldfs <- c("UKBB_dfForAnal_All_", "UKBB_dfForAnal_excludingDx","UKBB_dfForAnal_excludingSSRI","UKBB_dfForAnal_oldestTert","UKBB_dfForAnal_onlyDx","UKBB_dfForAnal_onlyMedUsers","UKBB_dfForAnal_youngestTert") # list of subset names to run through
-subsetDate <- "05_04_2022" # date of subsets, to recreate file name
-
 # write.csv(describe(df), file = glue("UKBB_allVarSummary_{date}.csv"))
 # df
 # sort(colnames(df))
@@ -512,6 +509,7 @@ for(i in brainPrefix){
   # cat(paste(i, ":", length(iVars), "\n"), sep = "")
   brainMorphVars <- c(brainMorphVars, iVars)
 }
+brainMorphVars_colNames <- colnames(df[brainMorphVars])
 df_brainMorphVarsZ <- df[brainMorphVars] %>% 
   mutate(across(.fns = scale, .names = "{colnames(df[brainMorphVars])}_z")) # standardize brain morphology variables
 df_brainMorphVarsZ <- df_brainMorphVarsZ[,which(! colnames(df_brainMorphVarsZ) %in% colnames(df[brainMorphVars]))] # matrix of z-scores made in above line to add to main df
@@ -593,7 +591,7 @@ ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
 individualAnalysis <- list()
 mainCor_C <- list()
 analysisName <- "UKBB_Anal_cor"
-
+outputDF <- 
 # for numeric variables
 for(i in cogOutcomes_colNames){
   analysisName <- glue("{analysisName}_{i}")
@@ -652,7 +650,7 @@ listAnalyses_med_noC <- list()
 mainMed_noC <- list()
 analysisName <- "med_noC"
 mediators <- "vol_BrainSegNotVent_WB_t2_z"
-xoutputDF <- matrix(ncol = 40, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95%CI-Lo","IndEff_95%CI-Hi","dirEff_b", "dirEff_SE", "dirEff_X_t", "dirEff_X_p", "dirEff_R^2", "dirEff_R^2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_X_t", "aPath_X_p", "aPath_model_R^2", "aPath_model_R^2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_X_t", "bPath_X_p", "bPath_model_R^2", "bPath_model_R^2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
+outputDF <- matrix(ncol = 40, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95%CI-Lo","IndEff_95%CI-Hi","dirEff_b", "dirEff_SE", "dirEff_X_t", "dirEff_X_p", "dirEff_R^2", "dirEff_R^2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_X_t", "aPath_X_p", "aPath_model_R^2", "aPath_model_R^2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_X_t", "bPath_X_p", "bPath_model_R^2", "bPath_model_R^2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
 
 
 for(med in colnames(df_complete[mediators])){
@@ -660,14 +658,18 @@ for(med in colnames(df_complete[mediators])){
     analysisName <- glue("UKBB_Anal_{analysisName}_{med}_{i}")
     fileName <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""), YisFactor = F, name = analysisName, alpha = .05)
     analysisName <- "med_noC"
-    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = F)
+    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, mediation = T, logReg = F)
+    fileToRemove <- as.character(glue("./{fileName}")) 
+    file.remove(fileToRemove) # remove file
     # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
   }
   for(i in cogOutcomes_fctr_names){
     analysisName <- glue("UKBB_Anal_{analysisName}_{med}_{i}")
     fileName <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = "", contrasts = c(""), YisFactor = T, name = analysisName, alpha = .05)
     analysisName <- "med_noC"
-    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = T)
+    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, mediation = T, logReg = T)
+    fileToRemove <- as.character(glue("./{fileName}")) 
+    file.remove(fileToRemove) # remove file
     # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
   }
 }
@@ -689,34 +691,55 @@ covarsMed <- c(covars_colNames, covars_brain_colNames) # Add  cognition only cov
 individualAnalysis <- list()
 listAnalyses_med_C <- list()
 mainMed_C <- list()
-analysisName <- "med_C"
-mediators <- brainMorphVars_Z_colNames
 
+mediators <- brainMorphVars_Z_colNames
+# mediators <- c("area_Caudalanteriorcingulate_L_t2") # for testing purposes
 ordinalFactorContrasts <- c()
 
-outputDF <- matrix(ncol = 40, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95%CI-Lo","IndEff_95%CI-Hi","dirEff_b", "dirEff_SE", "dirEff_X_t", "dirEff_X_p", "dirEff_R^2", "dirEff_R^2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_X_t", "aPath_X_p", "aPath_model_R^2", "aPath_model_R^2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_X_t", "bPath_X_p", "bPath_model_R^2", "bPath_model_R^2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
+subsetPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/Subsets"
+alldfs <- c("UKBB_dfForAnal_excludingSSRI","UKBB_dfForAnal_excludingDx","UKBB_dfForAnal_onlyDx","UKBB_dfForAnal_oldestTert","UKBB_dfForAnal_onlyMedUsers","UKBB_dfForAnal_youngestTert") # list of subset names to run through
+# alldfs <- c("UKBB_dfForAnal_excludingSSRI") # for testing purposes
+subsetDate <- "05_04_2022" # date of subsets, to recreate file name
 
-for(med in colnames(df[mediators])){
-  for(i in cogOutcomes_colNames){
-    analysisName <- glue("UKBB_Anal_{analysisName}_{med}_{i}")
-    fileName <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = ordinalFactorContrasts, YisFactor = F, name = analysisName, alpha = .05)
-    analysisName <- "med_C"
-    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = F)
-    # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
-    
+for(j in alldfs){
+  subsetFileName <- glue("{j}_{subsetDate}.csv")
+  subsetName <- unlist(strsplit(j, "_"))[3]
+  df <- read.csv(glue("{subsetPath}/{subsetFileName}"))
+  
+  df_brainMorphVarsZ <- df[brainMorphVars_colNames] %>% 
+    mutate(across(.fns = scale, .names = "{colnames(df[brainMorphVars])}_z")) # standardize brain morphology variables
+  df_brainMorphVarsZ <- df_brainMorphVarsZ[,which(! colnames(df_brainMorphVarsZ) %in% colnames(df[brainMorphVars]))] # matrix of z-scores made in above line to add to main df
+  brainMorphVars_Z_colNames <- colnames(df_brainMorphVarsZ)
+  df <- cbind(df, df_brainMorphVarsZ[brainMorphVars_Z_colNames])
+  rm(df_brainMorphVarsZ)
+  
+  outputDF <- matrix(ncol = 40, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95%CI-Lo","IndEff_95%CI-Hi","dirEff_b", "dirEff_SE", "dirEff_X_t", "dirEff_X_p", "dirEff_R^2", "dirEff_R^2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_X_t", "aPath_X_p", "aPath_model_R^2", "aPath_model_R^2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_X_t", "bPath_X_p", "bPath_model_R^2", "bPath_model_R^2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
+  
+  analysisName <- glue("{subsetName}_med_C")
+  
+  for(med in colnames(df[mediators])){
+    for(i in cogOutcomes_colNames){
+      analysisName <- glue("UKBB_{analysisName}_{med}_{i}")
+      fileName <- runRMediation(df = df, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = ordinalFactorContrasts, YisFactor = F, name = analysisName, alpha = .05)
+      analysisName <- glue("{subsetName}_med_C")
+      outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, mediation = T, logReg = F)
+      fileToRemove <- as.character(glue("./{fileName}")) 
+      file.remove(fileToRemove) # remove file
+    }
+    for(i in cogOutcomes_fctr_names){
+      analysisName <- glue("UKBB_{analysisName}_{med}_{i}")
+      fileName <- runRMediation(df = df, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = ordinalFactorContrasts, YisFactor = T, name = analysisName, alpha = .05)
+      analysisName <- glue("{subsetName}_med_C")
+      outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, mediation = T, logReg = T)
+      fileToRemove <- as.character(glue("./{fileName}")) 
+      file.remove(fileToRemove) # remove file
+    }
   }
-  for(i in cogOutcomes_fctr_names){
-    analysisName <- glue("UKBB_Anal_{analysisName}_{med}_{i}")
-    fileName <- runRMediation(df = df_complete, X = "crp_log_z", Y = i, M = med, covars = colnames(df[covarsMed]), contrasts = ordinalFactorContrasts, YisFactor = T, name = analysisName, alpha = .05)
-    analysisName <- "med_C"
-    outputDF <- formatMedOutput(outputDF = outputDF, fileName = fileName, filePath = getwd(), analysisName = analysisName, logReg = T)
-    # print(paste("indirect effect = ", round(model$Estimate, 3), " 95%CI[", round(model$`97.5% CI`[1], 3), ", ", round(model$`97.5% CI`[2], 3), "]", sep = ""))
-
-  }
+  outputDF <- as.data.frame(outputDF)
+  outputDF <- outputDF[-1,] # remove first row if as it is all NA values
+  write.csv(outputDF, file = glue("UKBB_{analysisName}_results_{date}.csv"))
 }
-outputDF <- as.data.frame(outputDF)
-outputDF <- outputDF[-1,] # remove first row if it is all NA values
-write.csv(outputDF, file = glue("UKBB_{analysisName}_results_CRPWeights_{date}.csv"))
+
 
 ```
 Indep var: 'crp_log_z'; 
@@ -733,7 +756,7 @@ Covariates: `r colnames(df[covarsMed])`
 ### Residual plots ----------
 residualDf_cog1_noC <- dplyr::select(df_complete,crp_log_z,cog_PC_1_z) %>%
   dplyr::mutate(fits=fitted(mainCor_noC_cog1),
-                resids=resid(mainCor_noC_cog1),
+                resids=resid(mainCsubsetPathor_noC_cog1),
                 sresids=rstudent(mainCor_noC_cog1))
 residualPlot_cog1_noC <- ggplot(data=residualDf_cog1_noC,mapping=aes(x=fits,y=resids)) +
   labs(title = "Residual plot - Cognitive component 1 (z score) ~ log(CRP)", 
