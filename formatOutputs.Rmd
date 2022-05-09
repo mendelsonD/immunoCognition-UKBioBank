@@ -16,49 +16,54 @@ library(stringr)
 ```{r corFormat, echo=FALSE}
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming  
 
-df_main <- matrix(ncol = 13, dimnames = list(c(), c("model Name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p")))
-df_covarsSpecificModel <- matrix(nrow = 5)
-listOfCovars <- c("crp_log_z","demo_sex_t0Male","smoke_currently_t0Yes","diet_processedMeat_t0Less than once a week","diet_processedMeat_t0Once a week","diet_processedMeat_t02-4 times a week","diet_processedMeat_t05-6 times a week","diet_processedMeat_t0Once or more daily","demo_ethnicity_t0East Asian","demo_ethnicity_t0Mixed","demo_ethnicity_t0Other ethnic group","demo_ethnicity_t0South Asian","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0moderate","exercise_IPAQActivityGroup_t0high","med_SSRI01","sleep_duration0_t0_z","weight_waistToHip_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","ses_townsend_t0_z","cog_hourCompleted_z")
-df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
+listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z")
+
 list_covarAllModels <- list() # this will store all dataframes with covariate information
-filePath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/CorAnalyses/allC/04_01_2022/"
-files <- c("UKBB_Anal_cor_allC_cog_digsub_cor_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_fluidIntel_QsAttempted_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_fluidIntel_score_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_matrix_cor_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_numMem_maxDigitRemem_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_PC_1_z_04_01_2022","UKBB_Anal_cor_allC_cog_PC_2_z_04_01_2022","UKBB_Anal_cor_allC_cog_PC_3_z_04_01_2022","UKBB_Anal_cor_allC_cog_prospMem_result_t2_04_01_2022","UKBB_Anal_cor_allC_cog_prospMem_timeDelay_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_reactiontime_mean_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_TMT_alphanumDuration_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_TMT_alphanumErrors_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_TMT_numericDuration_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_TMT_numericErrors_t2_z_04_01_2022","UKBB_Anal_cor_allC_cog_tower_cor_t2_z_04_01_2022")
 
+filePath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/Correl-WithC"
+files <- c("UKBB_Anal_cor_cog_digsub_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_digsub_numAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_QsAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_score_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_numViewed_t2_z_05_05_2022","UKBB_Anal_cor_cog_numMem_maxDigitRemem_t2_z_05_05_2022","UKBB_Anal_cor_cog_prospMem_timeDelay_t2_z_05_05_2022","UKBB_Anal_cor_cog_reactiontime_mean_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_tower_cor_t2_z_05_05_2022")
+catFile <- c("UKBB_Anal_cor_cog_prospMem_result_t2_05_05_2022")
 
-# initialize counters
-covar <- c()
-  
-for(file in files){
-  specificFilePath <- glue("{filePath}/{file}.txt")
-  fileObj <- readLines(specificFilePath)
-  
-  lmExpression <- grep("~",fileObj, value = TRUE) # from this line, extract analysis name
-  lmExpression <- unlist(strsplit(lmExpression, "\\s+"))
-  indepVar <- lmExpression[starts_with("cog_", vars = lmExpression)]
-  name <- glue("{modelName}_{indepVar}")
-  
-  depVarValues <- grep(depVar, fileObj, value = TRUE)[2]
-  depVarValues <- unlist(strsplit(depVarValues, "\\s+"))
-  
-  if(TRUE %in% grepl("<", depVarValues)){
-    pAndSymbol <- glue("{depVarValues[[5]]}{depVarValues[[6]]}")
-    depVarValuesNoSigChar <- c(depVarValues[1:4], pAndSymbol)
-  } else {
-    depVarValuesNoSigChar <- depVarValues[1:5]
-  }
+corFormat(depVar = "crp_log_z", modelName = "cor_C", outputPrefix = "UKBB_cor_anal_crpCog_C", filePath = "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/Correl-WithC", listOfCovars = listOfCovars, files = files)
 
-  effectSizes <- grep("Multiple R-squared",fileObj, value = TRUE)
-  effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
-  R2 <- substr(effectSizes[3], 1, nchar(effectSizes[3])-1)
-  R2adj <- effectSizes[6]
+# bewlow function is broken
+corFormat <- function(modelName, filePath, files, depVar, listOfCovars, outputPrefix){  
+  df_main <- matrix(ncol = 13, dimnames = list(c(), c("model Name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p")))
+  df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
+  df_covarForModel_tmp <- c()
   
-  FTest <- grep("F-statistic",fileObj, value = TRUE)
-  FTest <- unlist(strsplit(FTest, "\\s+"))
-  FStat <- FTest[2]
-  df1 <- FTest[4]
-  df2 <- FTest[6]
-  p <- FTest[which(FTest == grep("p-value",FTest, value = TRUE)):length(FTest)]
+  for(file in files){
+    specificFilePath <- glue("{filePath}/{file}.txt")
+    fileObj <- readLines(specificFilePath)
+    
+    lmExpression <- grep("~", fileObj, value = TRUE) # from this line, extract analysis name
+    lmExpression <- unlist(strsplit(lmExpression, "\\s+"))
+    indepVar <- lmExpression[which(lmExpression == "~")-1] # n.b. indep var of this model may not be indep var of mediation analysis
+    name <- glue("{modelName}_{indepVar}")
+    cat(name)
+    depVarValues <- grep(depVar, fileObj, value = TRUE)[2]
+    depVarValues <- unlist(strsplit(depVarValues, "\\s+"))
+    
+    if(TRUE %in% grepl("<", depVarValues)){
+      pAndSymbol <- glue("{depVarValues[[5]]}{depVarValues[[6]]}")
+      depVarValuesNoSigChar <- c(depVarValues[1:4], pAndSymbol)
+    } else {
+      depVarValuesNoSigChar <- depVarValues[1:5]
+    }
+    # cat(paste(name, depVarValuesNoSigChar, sep = "\n\t"))
   
+    effectSizes <- grep("Multiple R-squared",fileObj, value = TRUE)
+    effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
+    R2 <- substr(effectSizes[3], 1, nchar(effectSizes[3])-1)
+    R2adj <- effectSizes[6]
+    
+    FTest <- grep("F-statistic",fileObj, value = TRUE)
+    FTest <- unlist(strsplit(FTest, "\\s+"))
+    FStat <- FTest[2]
+    df1 <- FTest[4]
+    df2 <- FTest[6]
+    p <- FTest[which(FTest == grep("p-value",FTest, value = TRUE)):length(FTest)]
+    
     if(TRUE %in% grepl("<", p)){
       p <- glue("{FTest[[9]]}{FTest[[10]]}")
       # p <- paste(FTest[[9]], FTest[[10]], sep = "")
@@ -66,49 +71,49 @@ for(file in files){
       p <- FTest[which(FTest == grep("p-value",FTest, value = TRUE))+1]
     }
     
-    if(listOfCovars[1] != ""){
-      for(covar in listOfCovars){
-        
-        covarValues <- grep(covar, fileObj, value = TRUE)
-        if(is.null(covarValues) == F){
-          if(length(covarValues) == 2){
-            covarValues <- covarValues[2]
-          }
-          indexNumBegin <- length(unlist(strsplit(covar, "\\s+")))
-          covarValues <- unlist(strsplit(covarValues, "\\s+"))
-      
-          indexOfFirstNum <- indexNumBegin + 1
-          indexOfLastNum <- indexNumBegin + 4
-          
-          if(TRUE %in% grepl("<", covarValues)){
-            indexPreP <- indexOfLastNum - 1
-            covarValues <- c(covar, covarValues[indexOfFirstNum : indexPreP], glue("{covarValues[[indexOfLastNum]]}{covarValues[[indexOfLastNum+1]]}"))
-          # p <- paste(FTest[[9]], FTest[[10]], sep = "")
-          } else {
-            covarValues <- c(covar, covarValues[indexOfFirstNum:indexOfLastNum])
-          }
-        } else{
-          covarValues <- rep("Error, missing data.", 5)
-        }
-        df_covarsSpecificModel <- cbind(df_covarsSpecificModel, covarValues)
-      }
-      name <- glue("{name}_C")
-      if(sum(is.na(df_covarsSpecificModel[,1])) == nrow(df_covarsSpecificModel)){
-          df_covarsSpecificModel <-  df_covarsSpecificModel[,-1]
-      }
-      dimnames(df_covarsSpecificModel) <- list(c(), listOfCovars)
-      df_covarsSpecificModel_tmp <- df_covarsSpecificModel[-1,]
-      df_covarsSpecificModel_tmp <- cbind("modelName" = name, "statistic" = c("parameter estimate", "SE", "t", "p"), df_covarsSpecificModel_tmp)
-      if(nrow(df_covarForModel) == 1){
-        df_covarForModel <- rbind(df_covarForModel[-1,], df_covarsSpecificModel_tmp)
-      } else {
-        df_covarForModel <- rbind(df_covarForModel, df_covarsSpecificModel_tmp)
-      }
-      df_covarsSpecificModel <- c()
-      write.csv(df_covarForModel, file = glue("{outputPrefix}_CovarWeights_{date}.csv"))
-    } else {
-      name <- glue("{name}_noC")
-    }
+    # if(listOfCovars[1] != ""){
+    #   for(covar in listOfCovars){
+    #     
+    #     covarValues <- grep(covar, fileObj, value = TRUE)
+    #     if(is.null(covarValues) == F){
+    #       if(length(covarValues) == 2){
+    #         covarValues <- covarValues[2]
+    #       }
+    #       indexNumBegin <- length(unlist(strsplit(covar, "\\s+")))
+    #       covarValues <- unlist(strsplit(covarValues, "\\s+"))
+    #   
+    #       indexOfFirstNum <- indexNumBegin + 1
+    #       indexOfLastNum <- indexNumBegin + 4
+    #       
+    #       if(TRUE %in% grepl("<", covarValues)){
+    #         indexPreP <- indexOfLastNum - 1
+    #         covarValues <- c(covar, covarValues[indexOfFirstNum : indexPreP], glue("{covarValues[[indexOfLastNum]]}{covarValues[[indexOfLastNum+1]]}"))
+    #       # p <- paste(FTest[[9]], FTest[[10]], sep = "")
+    #       } else {
+    #         covarValues <- c(covar, covarValues[indexOfFirstNum:indexOfLastNum])
+    #       }
+    #     } else{
+    #       covarValues <- rep("Error, missing data for covariates.", 5)
+    #     }
+    #     df_covarForModel_tmp <- cbind(df_covarForModel, covarValues)
+    #   }
+    #   name <- glue("{name}_C")
+    #   if(sum(is.na(df_covarForModel_tmp[,1])) == nrow(df_covarForModel_tmp)){
+    #      df_covarForModel_tmp <-  df_covarForModel_tmp[,-1]
+    #   }
+    #   dimnames(df_covarForModel) <- list(c(), listOfCovars)
+    #   df_covarForModel <- df_covarForModel_tmp
+    #   df_covarForModel <- cbind("modelName" = name, "statistic" = c("parameter estimate", "SE", "t", "p"), df_covarForModel_tmp)
+    #   if(nrow(df_covarForModel) == 1){
+    #     df_covarForModel <- rbind(df_covarForModel[-1,], df_covarForModel_tmp)
+    #   } else {
+    #     df_covarForModel <- rbind(df_covarForModel, df_covarForModel_tmp)
+    #   }
+    #   df_covarForModel <- c()
+    #   write.csv(df_covarForModel, file = glue("{outputPrefix}_CovarWeights_{date}.csv"))
+    # } else {
+    #   name <- glue("{name}_noC")
+    # }
     
     df_mainRow <- c(name, indepVar, depVarValuesNoSigChar, R2, R2adj, FStat, df1, df2, p)  # "Model name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p"
     df_main <- rbind(df_main, " " = df_mainRow)
@@ -116,7 +121,7 @@ for(file in files){
 
   df_main <- df_main[-1,]
   write.csv(df_main, file = glue("{outputPrefix}_CRPWeights_{date}.csv"))
-} # 'modelName' - name of model for labelling output rows (usually 'cor' or 'med'), 'filePath' - path to folder housing files, 'files' - name of files (without extensions), 'depVar' - dependnet variable (usually CRP_log_z), 'listOfCovars' - list of covariate variable names as listed in LM output (include level of contrast for categorical variables). If no covars, define as '""', 'outputPrefix' - string indicating the prefix for the output file. Note, independent variable is assumed to be the variable beginning with "cog_"
+} # 'modelName' - name of model for labelling output rows (usually 'cor' or 'med'), 'filePath' - path to folder housing files, 'files' - name of files (without extensions), 'depVar' - dependent variable (usually CRP_log_z), 'listOfCovars' - list of covariate variable names as listed in LM output (include level of contrast for categorical variables). If no covars, define as '""', 'outputPrefix' - string indicating the prefix for the output file. Note, independent variable is assumed to be the variable beginning with "cog_"
 
 ```
 
@@ -125,13 +130,11 @@ for(file in files){
 # listOfFiles <- c("UKBB_Anal_cor_revC_cog_digsub_cor_t2_z_03_26_2022","UKBB_Anal_cor_revC_cog_fluidIntel_QsAttempted_t2_z_03_26_2022") # a list of all file names
 
 # Correlational analyses -----
-listOfCovars <- c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0moderate", "exercise_IPAQActivityGroup_t0high") # list of covariate variable names as they appear in LM output
+listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z")
 
 corFormat(depVar = "crp_log_z", modelName = "cor_revC", outputPrefix = "UKBB_cor_anal_crpCog_revC", filePath = "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/CorAnalyses/NoC/04_01_2022", listOfCovars = listOfCovars, files = list("UKBB_Anal_cor_noC_cog_PC_1_z_04_01_2022","UKBB_Anal_cor_noC_cog_PC_2_z_04_01_2022","UKBB_Anal_cor_noC_cog_PC_3_z_04_01_2022"))
 
-readLines("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/CorAnalyses/revC/revC_04_01_2022/UKBB_Anal_cor_revC_cog_digsub_cor_t2_z_04_01_2022.txt")
-
-corFormat(depVar = "crp_log_z", modelName = "cor_noC", outputPrefix = "UKBB_cor_anal_crpCog_noC", filePath = "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/CorAnalyses/NoC", listOfCovars = "", files = list("UKBB_Anal_cor_noC_cog_digsub_cor_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_prospMem_timeDelay_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_fluidIntel_QsAttempted_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_reactiontime_mean_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_fluidIntel_score_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_TMT_alphanumDuration_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_matrix_cor_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_TMT_alphanumErrors_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_numMem_maxDigitRemem_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_TMT_numericDuration_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_PC_1_z_03_26_2022","UKBB_Anal_cor_noC_cog_TMT_numericErrors_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_PC_2_z_03_26_2022","UKBB_Anal_cor_noC_cog_tower_cor_t2_z_03_26_2022","UKBB_Anal_cor_noC_cog_PC_3_z_03_26_2022"))
+corFormat(depVar = "crp_log_z", modelName = "cor_noC", outputPrefix = "UKBB_cor_anal_crpCog_noC", filePath = "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/CorAnalyses/NoC", listOfCovars = "", files = list("UKBB_Anal_cor_cog_digsub_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_digsub_numAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_QsAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_score_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_numViewed_t2_z_05_05_2022","UKBB_Anal_cor_cog_numMem_maxDigitRemem_t2_z_05_05_2022","UKBB_Anal_cor_cog_prospMem_result_t2_05_05_2022","UKBB_Anal_cor_cog_prospMem_timeDelay_t2_z_05_05_2022","UKBB_Anal_cor_cog_reactiontime_mean_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_tower_cor_t2_z_05_05_2022"))
 
 ```
 
@@ -139,7 +142,7 @@ corFormat(depVar = "crp_log_z", modelName = "cor_noC", outputPrefix = "UKBB_cor_
 ```{r RMediationFunction, echo=FALSE}
 
 listOfMediators <- c("brain_vol_brainSegNoVent_t2_z","brain_vol_hippocamp_L_t2_z","brain_vol_hippocamp_R_t2_z") # list of mediator variable names
-df_covarsSpecificModel <- matrix(nrow = 5)
+df_covarForModel <- matrix(nrow = 5)
 df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
 list_covarAllModels <- list() # this will store all dataframes with covariate information
 # initialize counters
@@ -245,7 +248,7 @@ for(file in files){
     #   } else {
     #     brainVarValuesNoSigChar <- brainVarValues[2:5]
     #   }
-    #   df_covarsSpecificModel <- cbind(df_covarsSpecificModel,  brainVarValuesNoSigChar)
+    #   df_covarForModel <- cbind(df_covarForModel,  brainVarValuesNoSigChar)
     # }
     #####################################################################333
 
@@ -273,21 +276,21 @@ for(file in files){
     #   #   } else{
     #   #     covarValues <- rep("Error, missing data.", 5)
     #   #   }
-    #   #   df_covarsSpecificModel <- cbind(df_covarsSpecificModel, covarValues)
+    #   #   df_covarForModel <- cbind(df_covarForModel, covarValues)
     #   # }
     #   # name <- glue("{name}_C")
-    #   # if(sum(is.na(df_covarsSpecificModel[,1])) == nrow(df_covarsSpecificModel)){
-    #   #     df_covarsSpecificModel <-  df_covarsSpecificModel[,-1]
+    #   # if(sum(is.na(df_covarForModel[,1])) == nrow(df_covarForModel)){
+    #   #     df_covarForModel <-  df_covarForModel[,-1]
     #   # }
-    #   # dimnames(df_covarsSpecificModel) <- list(c(), listOfCovars)
-    #   # df_covarsSpecificModel_tmp <- df_covarsSpecificModel[-1,]
-    #   # df_covarsSpecificModel_tmp <- cbind("modelName" = name, "statistic" = c("parameter estimate", "SE", "t", "p"), df_covarsSpecificModel_tmp)
+    #   # dimnames(df_covarForModel) <- list(c(), listOfCovars)
+    #   # df_covarForModel_tmp <- df_covarForModel[-1,]
+    #   # df_covarForModel_tmp <- cbind("modelName" = name, "statistic" = c("parameter estimate", "SE", "t", "p"), df_covarForModel_tmp)
     #   # if(nrow(df_covarForModel) == 1){
-    #   #   df_covarForModel <- rbind(df_covarForModel[-1,], df_covarsSpecificModel_tmp)
+    #   #   df_covarForModel <- rbind(df_covarForModel[-1,], df_covarForModel_tmp)
     #   # } else {
-    #   #   df_covarForModel <- rbind(df_covarForModel, df_covarsSpecificModel_tmp)
+    #   #   df_covarForModel <- rbind(df_covarForModel, df_covarForModel_tmp)
     #   # }
-    #   # df_covarsSpecificModel <- c()
+    #   # df_covarForModel <- c()
     #   # write.csv(df_covarForModel, file = glue("{outputPrefix}_CovarWeights_{date}.csv"))
     #   }
     # } else {
