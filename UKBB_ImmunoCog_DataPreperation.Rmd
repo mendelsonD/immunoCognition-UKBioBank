@@ -376,10 +376,10 @@ if(is.null(dxVarsNoCases) == FALSE){
 # Medication - any of interest -----------
 medVars <- starts_with("med_", vars = colnames(df))
 # colnames(df[medVars])
-medVars0 <- ends_with("0", vars = colnames(df[medVars]))
+medVars0 <- ends_with("t0", vars = colnames(df[medVars]))
 medVars0 <- which(colnames(df) %in% colnames(df[medVars[medVars0]]))
 
-medVars2 <- ends_with("2", vars = colnames(df[medVars]))
+medVars2 <- ends_with("t2", vars = colnames(df[medVars]))
 medVars2 <- which(colnames(df) %in% colnames(df[medVars[medVars2]]))
 
 medVars0_excludingSSRI <- medVars0[-which(colnames(df[medVars0]) == "med_SSRI_t0")]
@@ -396,10 +396,11 @@ medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2_excludingSSRI"
 df <- df %>% 
   mutate("med_AnyOfInterest0" = factor(case_when(
     if_any(any_of(medVars0), function(x) (x == "TRUE")) ~ 1,
-    if_all(all_of(medVars0), function(x) (x == "FALSE")) ~ 0))) %>% 
+    TRUE ~ 0))) %>% 
   mutate("med_AnyOfInterest2" = factor(case_when(
     if_any(any_of(medVars2), function(x) (x == "TRUE")) ~ 1,
-    if_all(all_of(medVars2), function(x) (x == "FALSE")) ~ 0)))
+    TRUE ~ 0)))
+
 medVars0 <- c(medVars0, which(colnames(df) == "med_AnyOfInterest0"))
 medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2"))
 medVars0NoCases <- c()
@@ -555,7 +556,7 @@ df <- df %>%
 ### Save cleaned DF
 ```{r saveInterimDf, echo=FALSE}
 df_interim <- df
-save(df_interim, file = "UKBB_dfFormatted_full_05_05_2022.RData")
+save(df_interim, file = "UKBB_dfFormatted_full_05_08_2022.RData")
 rm(df_interim)
 # load("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/UKBB_dfFormatted_full_05_02_2022.RData")
 # df <- df_interim
@@ -840,6 +841,8 @@ write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[3], file = paste(
 
 # Subset and Save DF
 ```{r subsetDF, echo=FALSE}
+df <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/UKBB_dfForAnal_All_05_05_2022.csv", lazy = T)
+
 # save dataframe for analyses
 fileName <- paste("UKBB_dfForAnal_All_", date, sep = "")
 write.csv(df, file = glue("{fileName}.csv")) # exports cleaned dataframe with all variables ready for analysis
@@ -865,7 +868,6 @@ df_noDx <- df %>% filter(dx_AnyOfInterest == 0) # remove participants with diagn
 fileName <- paste("UKBB_dfForAnal_excludingDx_", date, ".csv", sep = "")
 write.csv(df_noDx, file = fileName)
 cat("Subset excluding those using medication of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noDx))
-rm(df_noDx)
 
 df_onlyDx <- df %>% filter(dx_AnyOfInterest == 1) # remove participants without diagnoses from dataframe 
 fileName <- paste("UKBB_dfForAnal_onlyDx_", date, ".csv", sep = "")
@@ -881,7 +883,7 @@ write.csv(df_noSSRI, file = fileName)
 cat("Subset excluding those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noSSRI))
 rm(df_noSSRI)
 
-df_onlySSRI <- df %>% filter(med_SSRI_t0 == 1 || med_SSRI_t2 == 1) # remove participants taking meds from dataframe 
+df_onlySSRI <- df %>% filter(med_SSRI_t0 == 1 || med_SSRI_t2 == 1) # keep participants taking SSRIs 
 write.csv(df_onlySRRI, file = paste("UKBB_dfForAnal_onlySSRIUsers", date, ".csv", sep = ""))
 rm(df_onlySRRI)
 
@@ -893,12 +895,47 @@ write.csv(df_onlyMedUsers, file = fileName)
 cat("Subset only of those using any mediucation of interest (including SSRIs) saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyMedUsers))
 rm(df_onlyMedUsers)
 
+df_noMed <- df %>% filter(med_AnyOfInterest0 == 0) %>% filter(med_AnyOfInterest2 == 0)  
+fileName <- paste("UKBB_dfForAnal_noMed_", date, ".csv", sep = "")
+write.csv(df_noMed, file = fileName)
+cat("Subset excluding those using medications of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed))
+rm(df_noMed)
+
+# Remove diagnoses and medications
+df_noMed_noDx <- df_noDx %>% filter(med_AnyOfInterest0 == 0) %>% filter(med_AnyOfInterest2 == 0) # remove participants taking meds from dataframe 
+fileName <- paste("UKBB_dfForAnal_NoMedNoDx_", date, ".csv", sep = "")
+write.csv(df_noMed_noDx, file = fileName)
+cat("Subset excluding those using medications or with a diangnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed_noDx))
+rm(df_noMed_noDx)
+
+df_noSSRI_noDx <- df_noDx %>% filter(med_SSRI_t0 == "0") %>%  filter(med_SSRI_t2 == "0") # remove participants taking SSRIs from dataframe 
+fileName <- paste("UKBB_dfForAnal_NoSSRINoDx_", date, ".csv", sep = "")
+write.csv(df_noSSRI_noDx, file = fileName)
+cat("Subset excluding those using SSRIs or with a diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noSSRI_noDx))
+rm(df_noMed_noDx)
+
+
 # table(df$med_AnyOfInterest0_excludingSSRI, df$med_AnyOfInterest2_excludingSSRI)
 # df_noMedOtherThanSSRI <- df %>% filter(med_AnyOfInterest0_excludingSSRI == "0") %>% filter(med_AnyOfInterest2_excludingSSRI == "0") # remove participants taking meds from dataframe 
 # fileName <- paste("UKBB_dfForAnal_excludingAllMed_", date, ".csv", sep = "")
 # write.csv(df_noMed, file = fileName)
 # cat("Subset excluding those using any mediucation of interest (including SSRIs) saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed))
 # rm(df_noMed)
+
+```
+## Describe Subsets
+```{r DesciurbeSubsets, echo=FALSE}
+path <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/Subsets"
+fileNames <- c("UKBB_dfForAnal_excludingDx_05_08_2022","UKBB_dfForAnal_excludingSSRI_05_04_2022","UKBB_dfForAnal_noMed_05_08_2022","UKBB_dfForAnal_NoMedNoDx_05_08_2022","UKBB_dfForAnal_NoSSRINoDx_05_08_2022","UKBB_dfForAnal_oldestTert_05_04_2022","UKBB_dfForAnal_onlyDx_05_04_2022","UKBB_dfForAnal_onlyMedUsers_05_04_2022","UKBB_dfForAnal_youngestTert_05_04_2022")
+
+for(file in fileNames){
+  fileName <- glue("{path}/{file}.csv")
+  subset_df <- read_csv(fileName, lazy = T, show_col_types = F)
+  subsetName <- unlist(strsplit(file, "_"))[3]
+  print(subsetName)
+  write.csv(psych::describe(subset_df), file = glue("Described_{subsetName}_{date}.csv")) # exports wilcoxOutput to a CSV file
+}
+
 
 ```
 

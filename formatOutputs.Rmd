@@ -26,7 +26,7 @@ catFile <- c("UKBB_Anal_cor_cog_prospMem_result_t2_05_05_2022")
 
 corFormat(depVar = "crp_log_z", modelName = "cor_C", outputPrefix = "UKBB_cor_anal_crpCog_C", filePath = "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/Correl-WithC", listOfCovars = listOfCovars, files = files)
 
-# bewlow function is broken
+# below function is broken
 corFormat <- function(modelName, filePath, files, depVar, listOfCovars, outputPrefix){  
   df_main <- matrix(ncol = 13, dimnames = list(c(), c("model Name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p")))
   df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
