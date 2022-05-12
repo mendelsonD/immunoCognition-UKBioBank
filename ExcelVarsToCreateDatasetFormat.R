@@ -34,20 +34,19 @@ library(readxl)
 library(stringr)
 library(dplyr)
 
-<<<<<<< HEAD
-df <- read_xlsx("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/VariableLists/UKBB_Variables-03_16_2022.xlsx", sheet = 1)
-=======
-df <- read_xlsx("./UKBB_Variables-03_12_2022.xlsx", sheet = 1)
->>>>>>> 37e8ed19a46a603e75d1cdbb0b37557ca3955292
+
+df <- read_xlsx("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/Variables/VariableLists/UKBB_BrainVariables-05_02_2022.xlsx", sheet = 1)
+# df <- read_xlsx("./UKBB_Variables-03_12_2022.xlsx", sheet = 1)
+
 head(df)
 dim(df)
 getwd()
 setwd("./Outputs/") # set working directory to desired output location
-outputName <- str_c("Daniel-VarList_Create-Dataset-", format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y"), ".txt")
+outputName <- str_c("Daniel-BrainVarList_Create-Dataset-", format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y"), ".txt")
 
 df <- df %>%
   mutate_all(as.character)
-df <- df[-which(df$VarName == "eid"),]
+# df <- df[-which(df$VarName == "eid"),]
 output <- ""
 
 for(i in 1:nrow(df)){

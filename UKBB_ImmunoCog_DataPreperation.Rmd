@@ -23,9 +23,10 @@ library(finalfit)
 library(Hmisc)
 library(DescTools)
 library(coin)
+library(esc)
+library(effsize)
 knitr::knit_engines$set(python = reticulate::eng_python)
 reticulate::virtualenv_create(envname = "myreticulate", python = "/usr/bin/python3.8", packages = "pandas")
-
 
 ```
 
@@ -195,47 +196,62 @@ runWilcox <- function(varsOfInterest, df, by, fileName){
 ## Data Preperation
 
 ```{r removeEIDs, echo=FALSE}
-# df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17.csv") # import df
-# eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
+# df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/RawData/Daniel_2022-05-02.csv") # import df
+# eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
 # 
 # df_all <- df_all %>% filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
-# write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17_ProperEID.csv", row.names=FALSE)
+# write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/RawData/Daniel_2022-05-02_ProperEID.csv", row.names=FALSE)
 # rm(df_all, eidToRemove) # remove dataframes not in use
 
 ```
 
 ```{r dataPrep, echo=FALSE}
-df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Data/CCData/Daniel_2022-03-17_ProperEID.csv", guess_max = 10000) # import df
+date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
+df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/RawData/Daniel_2022-05-02_ProperEID.csv", guess_max = 10000) # import df
          
-# cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
-# df_all <- df_all %>% 
-#   filter(!(is.na(df_all$date_assess2_t2))) # remove rows without timepoint 2 assessment date
+cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
+df_all <- df_all %>%
+  filter(!(is.na(df_all$date_assess2_t2))) # remove rows without timepoint 2 assessment date
 
 # df_small <- df_all[1:10000,]
 df <- df_all # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
 # rm(df_small) # remove dataframes not in use
 # sort(colnames(df))
-date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
+# View(df)
 ```
 
 ### Standardize categorical vars
 ```{r standardizeCatVars, echo=FALSE}
 # standardize categorical variable responses
+
 df <- df %>% 
+  transform(sleep_duration0_t0 = as.character(sleep_duration0_t0)) %>% 
   transform(sleep_duration2_t2 = as.character(sleep_duration2_t2))
 
 df <- df %>%
-  mutate(diet_cookedVeg_t0 = case_when(  # for field: 1289 ('diet_cookedVeg'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
-      diet_cookedVeg_t0 == "Less than one" ~ "0.5",       
-      diet_cookedVeg_t0 == "Do not know" ~ "NA",       
-      diet_cookedVeg_t0 == "Prefer not to answer" ~ "NA",
-      TRUE ~ diet_cookedVeg_t0
+  mutate(diet_cookedVeg0_t0 = case_when(  # for field: 1289 ('diet_cookedVeg'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
+      diet_cookedVeg0_t0 == "Less than one" ~ "0.5",       
+      diet_cookedVeg0_t0 == "Do not know" ~ "NA",       
+      diet_cookedVeg0_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_cookedVeg0_t0
   )) %>% 
-  mutate(diet_fruit_t0 = case_when( # for field: 1309 ('diet_fruit'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
-      diet_fruit_t0 == "Less than one" ~ "0.5",       
-      diet_fruit_t0 == "Do not know" ~ "NA",       
-      diet_fruit_t0 == "Prefer not to answer" ~ "NA",
-      TRUE ~ diet_fruit_t0
+  mutate(diet_cookedVeg2_t2 = case_when(  # for field: 1289 ('diet_cookedVeg'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
+      diet_cookedVeg2_t2 == "Less than one" ~ "0.5",       
+      diet_cookedVeg2_t2 == "Do not know" ~ "NA",       
+      diet_cookedVeg2_t2 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_cookedVeg2_t2
+  )) %>% 
+  mutate(diet_fruit0_t0 = case_when( # for field: 1309 ('diet_fruit'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
+      diet_fruit0_t0 == "Less than one" ~ "0.5",       
+      diet_fruit0_t0 == "Do not know" ~ "NA",       
+      diet_fruit0_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_fruit0_t0
+  )) %>% 
+    mutate(diet_fruit2_t2 = case_when( # for field: 1309 ('diet_fruit'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;  
+      diet_fruit2_t2 == "Less than one" ~ "0.5",       
+      diet_fruit2_t2 == "Do not know" ~ "NA",       
+      diet_fruit2_t2 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_fruit2_t2
   )) %>% 
   mutate(diet_rawVeg_t0 = case_when( # for field: 1299 ('diet_rawVeg'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;
       diet_rawVeg_t0 == "Less than one" ~ "0.5",       
@@ -243,10 +259,15 @@ df <- df %>%
       diet_rawVeg_t0 == "Prefer not to answer" ~ "NA",
       TRUE ~ diet_rawVeg_t0
   )) %>%
-  mutate(diet_processedMeat_t0 = case_when( # field 1349 ('diet_processedMeat'), -1 = Do not know; -3 = Prefer not to answer;
-      diet_processedMeat_t0 == "Do not know" ~ "NA",       
-      diet_processedMeat_t0 == "Prefer not to answer" ~ "NA",
-      TRUE ~ diet_processedMeat_t0
+  mutate(diet_processedMeat0_t0 = case_when( # field 1349 ('diet_processedMeat'), -1 = Do not know; -3 = Prefer not to answer;
+      diet_processedMeat0_t0 == "Do not know" ~ "NA",       
+      diet_processedMeat0_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_processedMeat0_t0
+  )) %>% 
+    mutate(diet_processedMeat2_t2 = case_when( # field 1349 ('diet_processedMeat'), -1 = Do not know; -3 = Prefer not to answer;
+      diet_processedMeat2_t2 == "Do not know" ~ "NA",       
+      diet_processedMeat2_t2 == "Prefer not to answer" ~ "NA",
+      TRUE ~ diet_processedMeat2_t2
   )) %>% 
   mutate(diet_water_t0 = case_when( # field 1528 ('diet_water'), -10 = Less than one; -1 = Do not know; -3 = Prefer not to answer;
       diet_water_t0 == "Less than one" ~ "0.5",       
@@ -254,13 +275,21 @@ df <- df %>%
       diet_water_t0 == "Prefer not to answer" ~ "NA",
       TRUE ~ diet_water_t0
   )) %>%
-  mutate(diet_alc_freq_t0 = case_when( # field 1558 ('cog_numMem_maxDigitRemem_t2'), -3 = Prefer not to answer;
-    cog_numMem_maxDigitRemem_t2 == "Prefer not to answer" ~ "NA",
-    TRUE ~ cog_numMem_maxDigitRemem_t2 
+  mutate(diet_alc_freq0_t0 = case_when( # field 1558 ('diet_alc_freq'), -3 = Prefer not to answer;
+    diet_alc_freq0_t0 == "Prefer not to answer" ~ "NA",
+    TRUE ~ diet_alc_freq0_t0 
     )) %>% 
-  mutate(menopause_t0 = case_when( # field 2724 ('menopause'), -3 = Prefer not to answer;
-      menopause_t0 == "Prefer not to answer" ~ "NA",
-      TRUE ~ menopause_t0
+  mutate(diet_alc_freq2_t2 = case_when( # field 1558 ('diet_alc_freq'), -3 = Prefer not to answer;
+    diet_alc_freq2_t2 == "Prefer not to answer" ~ "NA",
+    TRUE ~ diet_alc_freq2_t2 
+    )) %>%
+  mutate(menopause0_t0 = case_when( # field 2724 ('menopause'), -3 = Prefer not to answer;
+      menopause0_t0 == "Prefer not to answer" ~ "NA",
+      TRUE ~ menopause0_t0
+  )) %>%
+  mutate(menopause2_t2 = case_when( # field 2724 ('menopause'), -3 = Prefer not to answer;
+      menopause2_t2 == "Prefer not to answer" ~ "NA",
+      TRUE ~ menopause2_t2
   )) %>%
   mutate(sleep_duration0_t0 = case_when( # field 1160 ('sleep_duration'), -1 = Do not know; -3 = Prefer not to answer;
       sleep_duration0_t0 == "Prefer not to answer" ~ "NA",
@@ -272,12 +301,17 @@ df <- df %>%
       sleep_duration2_t2 == "Do not know" ~ "NA",
       TRUE ~ sleep_duration2_t2
   )) %>%
-   mutate(smoke_currently_t0 = case_when( # field 2724 ('smoke_currently'), -3 = Prefer not to answer;
-      smoke_currently_t0 == "Prefer not to answer" ~ "NA",
-      smoke_currently_t0 == "No" ~ smoke_currently_t0,
+   mutate(smoke_currently0_t0 = case_when( # field 2724 ('smoke_currently'), -3 = Prefer not to answer;
+      smoke_currently0_t0 == "Prefer not to answer" ~ "NA",
+      smoke_currently0_t0 == "No" ~ smoke_currently0_t0,
       TRUE ~ "Yes"
   )) %>%
-  mutate(smoke_packYears_t0 = case_when( # field 2724 ('smoke_currently'), -3 = Prefer not to answer;
+  mutate(smoke_currently2_t2 = case_when( # field 2724 ('smoke_currently'), -3 = Prefer not to answer;
+      smoke_currently2_t2 == "Prefer not to answer" ~ "NA",
+      smoke_currently2_t2 == "No" ~ smoke_currently2_t2,
+      TRUE ~ "Yes"
+  )) %>%
+  mutate(smoke_packYears_t0 = case_when( # field 2724 ('smoke_currently'), -3 = Prefer not to answer;which(colnames(df) == "dx_AnyOfInterest")
       smoke_ever_t0 == "No" ~ 0,
       TRUE ~ smoke_packYears_t0
   )) %>%
@@ -299,22 +333,9 @@ df <- df %>%
     demo_ethnicity_t0 == "British" ~ "White",
     demo_ethnicity_t0 == "Irish" ~ "White",
     demo_ethnicity_t0 == "Any other white background" ~ "White",
-    demo_ethnicity_t0 == "Bangladeshi" ~ "South Asian",
-    demo_ethnicity_t0 == "Indian" ~ "South Asian",
-    demo_ethnicity_t0 == "Pakistani" ~ "South Asian",
-    demo_ethnicity_t0 == "African" ~ "African/Caribbean",
-    demo_ethnicity_t0 == "Caribbean" ~ "African/Caribbean",
-    demo_ethnicity_t0 == "Chinese" ~ "East Asian",
-    demo_ethnicity_t0 == "Asian or Asian British" ~ "Other ethnic group",
-    demo_ethnicity_t0 == "Black or Black British" ~ "Other ethnic group",
-    demo_ethnicity_t0 == "Any other Asian background" ~ "Other ethnic group",
-    demo_ethnicity_t0 == "Any other Black background" ~ "Other ethnic group",
-    demo_ethnicity_t0 == "White and Black African" ~ "Mixed",
-    demo_ethnicity_t0 == "White and Black Caribbean" ~ "Mixed",
-    demo_ethnicity_t0 == "White and Asian" ~ "Mixed",
-    demo_ethnicity_t0 == "Any other mixed background" ~ "Mixed",
-    TRUE ~ demo_ethnicity_t0
-    ))
+    TRUE ~ "Non White"
+     ))
+
 ```
 
 ### Add columns
@@ -322,7 +343,8 @@ df <- df %>%
 ```{r addColumns, echo=FALSE}
 # Waist:hip ratio -----
 df <- df %>% 
-  mutate(weight_waistToHip = weight_waistCirc_t0/weight_hipCirc_t0)
+  mutate(weight_waistToHip_t0 = weight_waistCirc0_t0/weight_hipCirc0_t0) %>% 
+  mutate(weight_waistToHip_t2 = weight_waistCirc2_t2/weight_hipCirc2_t2)
 
 # CRP log transform ------
 df <- df %>% 
@@ -353,15 +375,15 @@ if(is.null(dxVarsNoCases) == FALSE){
 
 # Medication - any of interest -----------
 medVars <- starts_with("med_", vars = colnames(df))
-
-medVars0 <- ends_with("0", vars = colnames(df[medVars]))
+# colnames(df[medVars])
+medVars0 <- ends_with("t0", vars = colnames(df[medVars]))
 medVars0 <- which(colnames(df) %in% colnames(df[medVars[medVars0]]))
 
-medVars2 <- ends_with("2", vars = colnames(df[medVars]))
+medVars2 <- ends_with("t2", vars = colnames(df[medVars]))
 medVars2 <- which(colnames(df) %in% colnames(df[medVars[medVars2]]))
 
-medVars0_excludingSSRI <- medVars0[-which(colnames(df[medVars0]) == "med_SSRI0")]
-medVars2_excludingSSRI <- medVars2[-which(colnames(df[medVars2]) == "med_SSRI2")]
+medVars0_excludingSSRI <- medVars0[-which(colnames(df[medVars0]) == "med_SSRI_t0")]
+medVars2_excludingSSRI <- medVars2[-which(colnames(df[medVars2]) == "med_SSRI_t2")]
 df <- df %>% 
   mutate("med_AnyOfInterest0_excludingSSRI" = factor(case_when(
     if_any(any_of(medVars0_excludingSSRI), function(x) (x == "TRUE")) ~ 1,
@@ -374,10 +396,11 @@ medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2_excludingSSRI"
 df <- df %>% 
   mutate("med_AnyOfInterest0" = factor(case_when(
     if_any(any_of(medVars0), function(x) (x == "TRUE")) ~ 1,
-    if_all(all_of(medVars0), function(x) (x == "FALSE")) ~ 0))) %>% 
+    TRUE ~ 0))) %>% 
   mutate("med_AnyOfInterest2" = factor(case_when(
     if_any(any_of(medVars2), function(x) (x == "TRUE")) ~ 1,
-    if_all(all_of(medVars2), function(x) (x == "FALSE")) ~ 0)))
+    TRUE ~ 0)))
+
 medVars0 <- c(medVars0, which(colnames(df) == "med_AnyOfInterest0"))
 medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2"))
 medVars0NoCases <- c()
@@ -413,6 +436,7 @@ if(is.null(medVars2NoCases) == FALSE){
 df <- df %>% 
   mutate(demo_daysBtwAssess = as.numeric(df$date_assess2_t2 - df$date_assess0_t0, units = "days"))
 
+
 # Hour of day of assessments -----------
 # Goal: take variables with form: 'YYYY-MM-DDTHH:MM:SS' and return the hour
 df <- df %>% 
@@ -429,10 +453,11 @@ df <- df %>%
 
 ```{r colType, echo=FALSE}
 df <- readr::type_convert(df) # automatically detect
-factorVars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "cog_prospMem_result_t2", "hand_t0","smoke_currently_t0", "menopause_t0", "anyMedOfInterest0", "anyMedOfInterest2", "anyDxOfInterest", "med_SSRI0", "med_SSRI2", dxVars, medVars0, medVars2)) # Factors
-df[,factorVars] <- lapply(df[,factorVars], factor) # at this line the df size is read as 0 B for some reason. This does not appear to affect the data however.
+factorVars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "cog_prospMem_result_t2", "hand_t0","smoke_currently0_t0", "smoke_currently2_t2", "menopause0_t0", "menopause2_t2", "anyMedOfInterest0", "anyMedOfInterest2", "anyDxOfInterest", colnames(df[dxVars]), colnames(df[medVars0]), colnames(df[medVars2]))) # Factors
+# sort(colnames(df[factorVars]))
+df[,factorVars] <- lapply(df[,factorVars], factor)
 
-df <- df %>% 
+df <- df %>%
   mutate(crp_aliquot_fctr = cut(crp_aliquot_t0, # CRP cutoffs (see Pearson et al., 2003)
                        breaks = c(0,1,3,10),
                        labels = c("Low", "Medium", "High"),
@@ -446,17 +471,34 @@ df <- df %>%
     )) %>% mutate(cog_prospMem_result_t2  = as.numeric(cog_prospMem_result_t2))
 
 df <- df %>%
-  mutate(smoke_currently_t0 = factor(smoke_currently_t0, order = F, levels = c(
+  mutate(smoke_currently0_t0 = factor(smoke_currently0_t0, order = F, levels = c(
                                        "No",
                                        "Yes"))) %>% 
-  mutate(diet_processedMeat_t0 = factor(diet_processedMeat_t0, order = T, levels = c(
+  mutate(smoke_currently2_t2 = factor(smoke_currently2_t2, order = F, levels = c(
+                                       "No",
+                                       "Yes"))) %>% 
+  mutate(diet_processedMeat0_t0 = factor(diet_processedMeat0_t0, order = T, levels = c(
                                        "Never",
                                        "Less than once a week",
                                        "Once a week", 
                                        "2-4 times a week",
                                        "5-6 times a week",
                                        "Once or more daily"))) %>% 
-  mutate(diet_alc_freq_t0 = factor(diet_alc_freq_t0, order = T, levels = c(
+    mutate(diet_processedMeat2_t2 = factor(diet_processedMeat2_t2, order = T, levels = c(
+                                       "Never",
+                                       "Less than once a week",
+                                       "Once a week", 
+                                       "2-4 times a week",
+                                       "5-6 times a week",
+                                       "Once or more daily"))) %>% 
+  mutate(diet_alc_freq0_t0 = factor(diet_alc_freq0_t0, order = T, levels = c(
+                                       "Never",
+                                       "Special occasions only",
+                                       "One to three times a month",
+                                       "Once or twice a week",
+                                       "Three or four times a week",
+                                       "Daily or almost daily"))) %>% 
+    mutate(diet_alc_freq2_t2 = factor(diet_alc_freq2_t2, order = T, levels = c(
                                        "Never",
                                        "Special occasions only",
                                        "One to three times a month",
@@ -467,90 +509,134 @@ df <- df %>%
                                        "low", 
                                        "moderate",
                                        "high"))) %>% 
+  mutate(ses_houseIncome0_t0 = factor(ses_houseIncome0_t0, order = T, levels = c(
+                                     "Less than 18,000",
+                                     "18,000 to 30,999",
+                                     "31,000 to 51,999",
+                                     "52,000 to 100,000",
+                                     "Greater than 100,000"))) %>% 
   mutate(ses_houseIncome2_t2 = factor(ses_houseIncome2_t2, order = T, levels = c(
                                        "Less than 18,000",
                                        "18,000 to 30,999",
                                        "31,000 to 51,999",
                                        "52,000 to 100,000",
                                        "Greater than 100,000"))) %>% 
-  mutate(med_SSRI0 = factor(case_when(
-         med_SSRI0 == "FALSE" ~ 0,
-         med_SSRI0 == "TRUE" ~ 1))) %>% 
-  mutate(med_SSRI2 = factor(case_when(
-         med_SSRI2 == "FALSE" ~ 0,
-         med_SSRI2 == "TRUE" ~ 1))) %>% 
+  mutate(med_SSRI_t0 = factor(case_when(
+         med_SSRI_t0 == "FALSE" ~ 0,
+         med_SSRI_t0 == "TRUE" ~ 1))) %>% 
+  mutate(med_SSRI_t2 = factor(case_when(
+         med_SSRI_t2 == "FALSE" ~ 0,
+         med_SSRI_t2 == "TRUE" ~ 1))) %>% 
   mutate(med_AnyOfInterest0 = factor(med_AnyOfInterest0)) %>% 
   mutate(med_AnyOfInterest0_excludingSSRI = factor(med_AnyOfInterest0_excludingSSRI)) %>% 
   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2)) %>% 
   mutate(med_AnyOfInterest2_excludingSSRI = factor(med_AnyOfInterest2_excludingSSRI))
 
-df$crp_aliquotdelay <- as.duration(interval(df$crp_timeCollected_t0, df$crp_assaydate_t0)) %/% as.duration(years(1))  
+df$crp_aliquotdelay <- as.duration(interval(df$crp_timeCollected_t0, df$crp_assaydate_t0)) %/% as.duration(months(1))
 
 df <- readr::type_convert(df) # automatically detect
+```
+
+### Take mean of covariates measured at both time points
+```{r covarCols, echo=FALSE}
+df <- df %>% 
+  mutate(age_mean02 = (demo_age_assess0_t0 + demo_age_assess2_t2)/2) %>% 
+  mutate(weight_waistToHip_mean02 = (weight_waistToHip_t0 + weight_waistToHip_t2)/2) %>%
+  mutate(sleep_duration_mean02 = (sleep_duration0_t0 + sleep_duration2_t2)/2)
+
+# cat("Correlations between variables at both time points \n \t age: ",
+# cor(df$demo_age_assess0_t0, df$demo_age_assess2_t2, use = "pairwise.complete.obs", method = "spearman"), "\n\t waist-to-hip ratio: ",
+# cor(df$weight_waistToHip_t0, df$weight_waistToHip_t2, use = "pairwise.complete.obs", method = "spearman"), "\n\t sleep duration: ", 
+# cor(df$sleep_duration0_t0, df$sleep_duration2_t2, use = "pairwise.complete.obs", method = "spearman")
+# )
+# ggplot(df, aes(x = sleep_duration0_t0, y = sleep_duration2_t2)) +
+#   geom_count()
+
+```
+### Save cleaned DF
+```{r saveInterimDf, echo=FALSE}
 df_interim <- df
-save(df_interim, file = "UKBB_dfFormatted_full.RData")
+save(df_interim, file = "UKBB_dfFormatted_full_05_08_2022.RData")
+rm(df_interim)
+# load("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/UKBB_dfFormatted_full_05_02_2022.RData")
+# df <- df_interim
 ```
 
 ## Remove cases with missing variables
 ```{r variableLists, echo=FALSE}
 demoVars <- starts_with("demo_", vars = colnames(df))
 sesVars <- starts_with("ses_", vars = colnames(df))
-crpAliqVars <- starts_with("crp_aliquot", vars = colnames(df))
-brainVolVars <- starts_with("brain_vol", vars = colnames(df))
-brainVars_specific <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2", "brain_vol_hippocamp_L_t2", "brain_vol_hippocamp_R_t2"))
+crpAliqVars <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log", "crp_aliquot_fctr"))
+crpToZ <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log"))
 
-cogVars <- starts_with("cog_", vars = colnames(df))
+brainPrefix <- c("area_","gmVol_", "GWcont_","mIntensity","mThick_", "vol_", "weigted_mFA_", "weigted_mICVF_", "weigted_mISOVF_", "weigted_mL1_", "weigted_mL2_", "weigted_mL3_", "weigted_mMD_", "weigted_mMO_", "weigted_mOD_")
+brainMorphVars <- c()
+for(i in brainPrefix){
+  iVars <- starts_with(i, vars = colnames(df))
+  # cat(paste(i, ":", length(iVars), "\n"), sep = "")
+  brainMorphVars <- c(brainMorphVars, iVars)
+}
+# length(brainMorphVars)
+# sort(colnames(df[brainMorphVars]))
+# cor(df$vol_Hippocampus_L_FIRST_t2, df$vol_Hippocampus_L_t2, use = "pairwise.complete.obs")
+# colnames(df[demoVars])
 
 dietVars <- starts_with("diet_", vars = colnames(df))
-dietVarsToCor <- which(colnames(df) %in% c("diet_cookedVeg_t0","diet_rawVeg_t0","diet_fruit_t0","diet_processedMeat_t0","diet_water_t0"))
+# colnames(df[dietVars])
+dietVarsToCor <- which(colnames(df) %in% c("diet_cookedVeg0_t0", "diet_cookedVeg2_t2", "diet_rawVeg_t0", "diet_fruit0_t0", "diet_fruit2_t2", "diet_processedMeat0_t0", "diet_processedMeat2_t2", "diet_water_t0"))
 
 smokingVars <- starts_with("smoke_", vars = colnames(df))
 weightVars <- c(starts_with("weight_", vars = colnames(df)), which(colnames(df) == "waistToHip"))
+# colnames(df[weightVars])
+# cor(df$weight_BMI0_t0, df$weight_BMI2_t2, use = "pairwise.complete.obs")
+# cor(df$weight_waistToHip_t0, df$weight_waistToHip_t2, use = "pairwise.complete.obs")
+
 exerciseVars <- starts_with("exercise_", vars = colnames(df))
 
 completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
-cogPCAVars <- which(colnames(df) %in% c("cog_numMem_maxDigitRemem_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2"))
+# colnames(df[completionTimeVars])
+# cogPCAVars <- which(colnames(df) %in% c("cog_numMem_maxDigitRemem_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2"))
 
 cogVars <- starts_with("cog", vars = colnames(df))
 cogVars_t2 <- cogVars[ends_with("_t2", vars = colnames(df[cogVars]))]
 cogVarsToZ <- cogVars_t2[which(!colnames(df[c(cogVars_t2)]) %in% c("cog_prospMem_result_t2", "cog_timeCompleted_t2", "cog_hourCompleted"))]
-crp <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log"))
-covars <- which(colnames(df) %in% c("weight_waistToHip", "sleep_duration0_t0"))
-varsToZ <- c(crp, cogVarsToZ, covars)
+# colnames(df[cogVarsToZ])
 
-df_cog_z <- df[varsToZ] %>% 
+covarsToZ <- which(colnames(df) %in% c("demo_age_assess0_t0", "demo_age_assess2_t2", "age_mean02", "demo_daysBtwAssess", "ses_townsend_t0", "weight_waistToHip_t0", "weight_waistToHip_t2", "weight_waistToHip_mean02", "sleep_duration0_t0", "sleep_duration2_t2", "sleep_duration_mean02"))
+varsToZ <- c(crpToZ, cogVarsToZ, covarsToZ)
+
+df_varsToZ <- df[varsToZ] %>% 
   mutate(across(.fns = scale, .names = "{colnames(df[varsToZ])}_z"))
-cog_zVars <- which(! colnames(df_cog_z) %in% colnames(df[varsToZ]))
+# str(df_varsToZ)
+vars_Z <- which(! colnames(df_varsToZ) %in% colnames(df[varsToZ])) # matrix of z-scores made in above line to add to main df\
+df <- cbind(df, df_varsToZ[vars_Z])
 
 df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
-df <- cbind(df, df_cog_z[cog_zVars])
 
-finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0"))
-load("revisedEssentialVarsAnalysis.RData")
-
-sort(colnames(df))
+finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "exercise_IPAQActivityGroup_t0"))
+# sort(colnames(df))
 # colnames(df[sesVars])
 # View(df[1:100, c(1,cogPCAVars)])
 ```
 
 ```{r removeMissing, echo=FALSE}
-essentialVars <- c(which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_z", "sleep_duration0_t0_z", "exercise_IPAQActivityGroup_t0")), completionTimeVars, crpAliqVars, cogPCAVars, brainVars_specific) # list of variable names that must be complete in order for case to be retained
+essentialVars <- c(finalCovars, completionTimeVars, crpAliqVars, brainMorphVars) # list of variable names that must be complete in order for case to be retained
+# load("revisedEssentialVarsAnalysis.RData")
+# essentialVars <- essentialVarsAnalysis
+# colnames(df[essentialVars])
 
-essentialVars <- essentialVarsAnalysis
-sort(colnames(df[essentialVars]))
-# sort(colnames(df))
 df <- df %>% 
   mutate(missingEssentialVar = case_when(
     if_any(.cols = essentialVars, function(x)(
       is.na(x))) ~ "Remove",
       TRUE ~ "Keep" )) %>% 
   mutate(missingEssentialVar = factor(missingEssentialVar)) 
-
-table(df$missingEssentialVar)
+# sort(colnames(df))
+# table(df$missingEssentialVar)
 # table(df$missingEssentialVarsanalysis)
 
 df_removed <- df %>%
-  filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # add rows with missing values to new df
+  filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # make new df of cases with missing values
 
 # df <- df %>% 
 #   filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
@@ -570,13 +656,19 @@ numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 kable(numMissing_df, caption = paste("Number of missing cases per variable. Number of rows with at least one missing value: ", nrow(df_removed), " out of ", sum(df$missingEssentialVar == "Keep")+nrow(df_removed), " total cases (", round(nrow(df_removed)/(sum(df$missingEssentialVar == "Keep")+nrow(df_removed))*100, 2), "%).", sep = ""))
 write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", date, ".csv", sep = ""))
 ```
+```{r removeLargeCRP, echo=FALSE}
+df_properCRP <- df %>%
+  filter(crp_aliquot_t0 <= 10 | is.na(crp_aliquot_t0) == TRUE) # remove CRP > 10
+cat(nrow(df) - nrow(df_properCRP), " cases were removed as CRP > 10.", sep = "")
+df <- df_properCRP
+```
 
 ### Normality
 ```{r normalityInRetained, echo=FALSE}
 df_retained <- df %>%
   filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
 
-varsToCompare <- c("demo_sex_t0", "demo_birthYear_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_age_assess2_t2", "ses_townsend_t0", "crp_aliquot_t0", "crp_log", "med_AnyOfInterest0", "med_AnyOfInterest0_excludingSSRI", "med_SSRI0", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0", "weight_BMI0_t0", "weight_waistToHip", "diet_processedMeat_t0", "sleep_duration0_t0", "menopause_t0", "hand_t0", "crp_hourCollected", "crp_timeFasting_t0", "crp_aliquotdelay")
+varsToCompare <- c("demo_sex_t0", "demo_birthYear_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_age_assess2_t2", "age_mean02", "ses_townsend_t0", "crp_aliquot_t0", "crp_log", "med_AnyOfInterest0", "med_AnyOfInterest2", "med_AnyOfInterest0_excludingSSRI", "med_AnyOfInterest2_excludingSSRI", "med_SSRI_t0","med_SSRI_t2", "dx_AnyOfInterest", "dx_Dementia", "dx_SSD", "dx_MoodDisorder", "smoke_currently0_t0", "smoke_currently2_t2", "exercise_IPAQActivityGroup_t0", "weight_BMI0_t0","weight_BMI2_t2", "weight_waistToHip_t0","weight_waistToHip_t2","weight_waistToHip_mean02", "diet_processedMeat0_t0", "diet_processedMeat2_t2",  "sleep_duration0_t0", "sleep_duration2_t2", "sleep_duration_mean02", "menopause0_t0", "menopause2_t2", "hand_t0", "crp_hourCollected", "crp_timeFasting_t0", "crp_aliquotdelay", "diet_cookedVeg0_t0", "diet_cookedVeg2_t2", "diet_rawVeg_t0", "diet_fruit0_t0", "diet_fruit2_t2", "diet_water_t0", "diet_alc_freq0_t0", "diet_alc_freq2_t2", "diet_alcohol_yesterdayIntake0_t0", "diet_alcohol_yesterdayIntake2_t2")
 
 varsToCompare_ColNum <- which(colnames(df) %in% varsToCompare)
 
@@ -589,10 +681,10 @@ for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
   }
 }
 
-if("dx_CVD.1" %in% colnames(df[varsToCompare_ColNum])){
-  colNum <- which(colnames(df[varsToCompare_ColNum]) == "dx_CVD.1")
-  varsToCompare_ColNum <- varsToCompare_ColNum[-which(varsToCompare_ColNum == colNum)]
-}
+# if("dx_CVD.1" %in% colnames(df[varsToCompare_ColNum])){
+#   colNum <- which(colnames(df[varsToCompare_ColNum]) == "dx_CVD.1")
+#   varsToCompare_ColNum <- varsToCompare_ColNum[-which(varsToCompare_ColNum == colNum)]
+# }
 
 # create list of non-factor numeric variables for normality check ----
 numVarsToCompare <- lapply(df[varsToCompare_ColNum], numNotFactor)
@@ -600,23 +692,18 @@ df_numVarsToCompare <- as.data.frame(do.call(cbind, numVarsToCompare))
 numVarColsToCompare <- (which(colnames(df) %in% colnames(df_numVarsToCompare)))
 
 # For each variable in this list, determine if normal --------
-which(colnames(df) == "diet_alcohol_yesterdayIntake_t0")
-normalityPlots <- mapply(normalCheck, df[c(numVarColsToCompare, 74)], colName = colnames(df[c(numVarColsToCompare, 74)]), colNum = c(numVarColsToCompare, 74))
+normalityPlots <- mapply(normalCheck, df[c(numVarColsToCompare)], colName = colnames(df[c(numVarColsToCompare)]), colNum = c(numVarColsToCompare))
 # N.b. QQ plot should follow a straight line
 # nonParametricVars <- c(3,4,5,9,15,16, 17,19,36,38,41,43,49,56,57,58,66,67,69,101) # vector specifying which values of dependent to run non-parametric tests on 
-nonParametricVars <- c(3,8,9,12,38,40,41,69,74,105)
+nonParaToCompare <- c(3,10,11,14,15,18,19,20,21,22,25,47,48,49,50,713,719,720,757,763)
 ```
 
 ### Compare removed cases to retained cases
 
 ```{r compareMissing, echo=FALSE}
-nonParaDep <- which(varsToCompare %in% colnames(df[nonParametricVars]))
-
 summaryMissing <- list()
-nonPara <- c()
-nonParaToCompare <- c("demo_age_assess0_t0", "demo_age_assess2_t2", "demo_daysBtwAssess", "ses_townsend_t0", "crp_timeFasting_t0", "crp_timeCollected_t0", "crp_aliquotdelay", "crp_aliquot_t0", "weight_BMI0_t0", "weight_BMI2_t2", "diet_alcohol_yesterdayIntake_t0", "sleep_duration0_t0")
 
-runWilcox(nonParaToCompare, df = df, by = "missingEssentialVar", fileName = "UKBB_compareMissing_wilcox")
+runWilcox(colnames(df[nonParaToCompare]), df = df, by = "missingEssentialVar", fileName = "UKBB_compareMissing_wilcox")
 
 # for(i in varsToCompare){
 #   if(i %in% nonParaDep == TRUE){
@@ -630,41 +717,52 @@ runWilcox(nonParaToCompare, df = df, by = "missingEssentialVar", fileName = "UKB
 # capture.output(summaryMissing, file = paste("UKBB_compareMissingCases_", date, ".csv", sep = ""))
 # save(summaryMissing, file = paste("UKBB_compareMissingCases", date, ".csv"))
 
-sum(!is.na(df$diet_alcohol_yesterdayIntake_t0))
-median(df$diet_alcohol_yesterdayIntake_t0, na.rm = T)
-IQR(df$diet_alcohol_yesterdayIntake_t0, na.rm = T)
-median(df_retained$diet_alcohol_yesterdayIntake_t0, na.rm = T)
-IQR(df_retained$diet_alcohol_yesterdayIntake_t0, na.rm = T)
-median(df_removed$diet_alcohol_yesterdayIntake_t0, na.rm = T)
-IQR(df_removed$diet_alcohol_yesterdayIntake_t0, na.rm = T)
-
-sum(!is.na(df$demo_daysBtwAssess))
-mean(df$demo_daysBtwAssess, na.rm = T)
-sd(df$demo_daysBtwAssess, na.rm = T)
-mean(df$demo_daysBtwAssess, na.rm = T)
-sd(df_retained$demo_daysBtwAssess, na.rm = T)
-mean(df_removed$demo_daysBtwAssess, na.rm = T)
-sd(df_removed$demo_daysBtwAssess, na.rm = T)
-t.test(df$demo_daysBtwAssess, group = df$missingEssentialVar)
+# sum(!is.na(df$diet_alcohol_yesterdayIntake_t0))
+# median(df$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+# IQR(df$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+# median(df_retained$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+# IQR(df_retained$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+# median(df_removed$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+# IQR(df_removed$diet_alcohol_yesterdayIntake_t0, na.rm = T)
+# 
+# sum(!is.na(df$demo_daysBtwAssess))
+# mean(df$demo_daysBtwAssess, na.rm = T)
+# sd(df$demo_daysBtwAssess, na.rm = T)
+# mean(df$demo_daysBtwAssess, na.rm = T)
+# sd(df_retained$demo_daysBtwAssess, na.rm = T)
+# mean(df_removed$demo_daysBtwAssess, na.rm = T)
+# sd(df_removed$demo_daysBtwAssess, na.rm = T)
+# t.test(df$demo_daysBtwAssess, group = df$missingEssentialVar)
 
 comparisonDroppedCases <- TOne(df[varsToCompare], grp = df$missingEssentialVar, add.length = T, total = T, 
           FUN = function(x) gettextf("%s (%s); %s (%s)",
-            Format(mean(x, na.rm = T), digits = 3),
-            Format(sd(x, na.rm = T), digits = 3),
-            Format(median(x, na.rm = T), digits = 3),
-            Format(IQR(x, na.rm = T), digits = 3)),
+            Format(mean(x, na.rm = T), digits = 2, big.mark = ","),
+            Format(sd(x, na.rm = T), digits = 2, big.mark = ","),
+            Format(median(x, na.rm = T), digits = 2, big.mark = ","),
+            Format(IQR(x, na.rm = T), digits = 2, big.mark = ",")),
           TEST = list(
-            num  = list(fun = function(x, g){paste("F(", summary(aov(x ~ g))[[1]][1, "Df"],",", summary(aov(x ~ g))[[1]][2, "Df"], ") = ", formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5), " p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "g", digits = 3), sep = "")},
+            num  = list(fun = function(x, g){paste(
+                                                  "F(", 
+                                                    summary(aov(x ~ g))[[1]][1, "Df"], ",",
+                                                    summary(aov(x ~ g))[[1]][2, "Df"], ") = ", 
+                                                  formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5), 
+                                                  ", p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "g", digits = 3), 
+                                                  ", g = ", formatC(effsize::cohen.d(x ~ g, data = df, pooled = T, hedges.correction = T)$estimate, format = "g", digits = 3), # calculate g. See Durlak 2009, J. Ped. Psyc.
+                                                  sep = "")},
                         lbl = "ANOVA"),
             cat  = list(fun = function(x, g){paste(
-                                                  "chisq(", chisq.test(table(x, g))$parameter, ") =", 
-                                                   formatC(chisq.test(table(x, g))$statistic, digits = 5), 
-                                                   "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
+                                                  "χ²(", chisq.test(table(x, g))$parameter, ") = ", 
+                                                  formatC(chisq.test(table(x, g))$statistic, digits = 5), 
+                                                  ", p = ", formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3),
+                                                  ", v = ", formatC(sqrt(chisq.test(table(x, g))$statistic)/(length(x)*chisq.test(table(x, g))$parameter), format = "g", digits = 2), 
+                                                  sep = "")},
                         lbl = "Chi-Square test"),
             dich = list(fun = function(x, g){paste(
-                                                  "chisq(", chisq.test(table(x, g))$parameter, ") =", 
-                                                   formatC(chisq.test(table(x, g))$statistic, digits = 5), 
-                                                   "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
+                                                  "χ²(", chisq.test(table(x, g))$parameter, ") =", 
+                                                  formatC(chisq.test(table(x, g))$statistic, digits = 2), 
+                                                  ", p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), 
+                                                  ", v = ", formatC(sqrt(chisq.test(table(x, g))$statistic)/(length(x)*chisq.test(table(x, g))$parameter), format = "g", digits = 2), 
+                                                  sep = "")},
                         lbl = "Chi-Square test")), 
           fmt = list(abs  = Fmt("abs"), 
              num  = Fmt("num"), 
@@ -704,89 +802,146 @@ write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[1], file = paste(
 write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[2], file = paste("UKBB_dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[2]), "_", date, ".csv", sep = "")) # save counts of categorical variables
 write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[3], file = paste("UKBB_dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[3]), "_", date, ".csv", sep = "")) # save counts of categorical variables
 
-capture.output(Hmisc::describe(df[-numVars]), file = paste("UKBB_dfRetained_Summary_fctrVars", date, ".tex", sep = "")) # save counts of categorical variables to latex file
+# capture.output(Hmisc::describe(df[-numVars]), file = paste("UKBB_dfRetained_Summary_fctrVars", date, ".tex", sep = "")) # save counts of categorical variables to latex file
 
-TOne(df[varsToSummarise], grp = df$crp_aliquot_fctr, add.length = T, colnames = colnames(df[varsToSummarise]), total = T, # need to find which categorical variable is causing an error here. colnames(df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])])
-     FUN = function(x) gettextf("%s (%s); %s (%s)",
-            Format(mean(x, na.rm = T), digits = 3),
-            Format(sd(x, na.rm = T), digits = 3),
-            Format(median(x, na.rm = T), digits = 3),
-            Format(IQR(x, na.rm = T), digits = 3)),
-     TEST = list(
-            num  = list(fun = function(x, g){paste(
-                                                    "F(", summary(aov(x ~ g))[[1]][1, "Df"],",", summary(aov(x ~ g))[[1]][2, "Df"], ") = ", formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5), 
-                                                    " p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "g", digits = 3), sep = "")},
-                        lbl = "ANOVA"),
-            cat  = list(fun = function(x, g){paste(
-                                                  "chisq(", chisq.test(table(x, g))$parameter, ") =", 
-                                                   formatC(chisq.test(table(x, g))$statistic, digits = 5), 
-                                                   "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
-                        lbl = "Chi-Square test"),
-            dich = list(fun = function(x, g){paste(
-                                                  "chisq(", chisq.test(table(x, g))$parameter, ") =", 
-                                                   formatC(chisq.test(table(x, g))$statistic, digits = 5), 
-                                                   "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
-                        lbl = "Chi-Square test")), 
-          fmt = list(abs  = Fmt("abs"), 
-             num  = Fmt("num"), 
-             per  = Fmt("per"),
-             pval = as.fmt(fmt = "p*")))
-
-# possibleErrorVars <- df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])]
-# possibleErrorVarsNum <- lapply(possibleErrorVars, numNotFactor)
-# df_possibleErrorVars <- as.data.frame(do.call(cbind, possibleErrorVars))
-# possibleErrorVarsCols <- (which(colnames(df) %in% colnames(df_possibleErrorVars)))
-# df_possibleErrorVarsfctr <- df[varsToSummarise][-possibleErrorVarsCols]
-# df_possibleErrorVarsfctr <- cbind(possibleErrorVarsfctr_df, df$crp_aliquot_fctr)
-# TOne(df_possibleErrorVarsfctr, grp = df$crp_aliquot_fctr, add.length = T, total = T, # need to find which categorical variable is causing an error here. colnames(df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])])
+## Error in below description: !!!!
+# comparisonCRPFctr <- TOne(df[varsToSummarise], grp = df$crp_aliquot_fctr, add.length = T, colnames = colnames(df[varsToSummarise]), total = T, # need to find which categorical variable is causing an error here. colnames(df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])])
 #      FUN = function(x) gettextf("%s (%s); %s (%s)",
 #             Format(mean(x, na.rm = T), digits = 3),
 #             Format(sd(x, na.rm = T), digits = 3),
 #             Format(median(x, na.rm = T), digits = 3),
 #             Format(IQR(x, na.rm = T), digits = 3)),
 #      TEST = list(
-#             num  = list(fun = function(x, g){summary(aov(x ~ g))[[1]][1, "Pr(>F)"]},
+#             num  = list(fun = function(x, g){paste(
+#                                                     "F(", summary(aov(x ~ g))[[1]][1, "Df"],",", summary(aov(x ~ g))[[1]][2, "Df"], ") = ", formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5), 
+#                                                     " p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "g", digits = 3), sep = "")},
 #                         lbl = "ANOVA"),
-#             cat  = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+#             cat  = list(fun = function(x, g){paste(
+#                                                   "chisq(", chisq.test(table(x, g))$parameter, ") =", 
+#                                                    formatC(chisq.test(table(x, g))$statistic, digits = 5), 
+#                                                    "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
 #                         lbl = "Chi-Square test"),
-#             dich = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
+#             dich = list(fun = function(x, g){paste(
+#                                                   "chisq(", chisq.test(table(x, g))$parameter, ") =", 
+#                                                    formatC(chisq.test(table(x, g))$statistic, digits = 5), 
+#                                                    "p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3), sep = " ")},
 #                         lbl = "Chi-Square test")), 
-#            fmt = list(abs  = Fmt("abs"), 
-#                    num  = Fmt("num"), 
-#                    per  = Fmt("per"),
-#                    pval = as.fmt(fmt = "p*")))
-# 
-# TOne(df[df_possibleErrorVars], grp = df$crp_aliquot_fctr, add.length = T, total = T, # need to find which categorical variable is causing an error here. colnames(df[! colnames(df[varsToSummarise]) %in% colnames(df[varsToCompare])])
-#      FUN = function(x) gettextf("%s (%s); %s (%s)",
-#             Format(mean(x, na.rm = T), digits = 3),
-#             Format(sd(x, na.rm = T), digits = 3),
-#             Format(median(x, na.rm = T), digits = 3),
-#             Format(IQR(x, na.rm = T), digits = 3)),
-#      TEST = list(
-#             num  = list(fun = function(x, g){summary(aov(x ~ g))[[1]][1, "Pr(>F)"]},
-#                         lbl = "ANOVA"),
-#             cat  = list(fun = function(x, g){chisq.test(table(x, g))$p.val},
-#                         lbl = "Chi-Square test"),
-#             dich = list(fun = function(x, g){fisher.test(table(x, g))$p.val},
-#                         lbl = "fisher exact test")), 
-#            fmt = list(abs  = Fmt("abs"), 
-#                    num  = Fmt("num"), 
-#                    per  = Fmt("per"),
-#                    pval = as.fmt(fmt = "p*")))
+#           fmt = list(abs  = Fmt("abs"), 
+#              num  = Fmt("num"), 
+#              per  = Fmt("per"),
+#              pval = as.fmt(fmt = "p*")))
+# !!!!!
+# write.csv(comparisonCRPFctr, file = paste("UKBB_compareCRPLevels_TOne", date, ".csv", sep = ""))
+# kable(comparisonCRPFctr)
 
-numVars <- c((which(colnames(df) %in% colnames(df_numVars))), which(colnames(df) == "date_assess0_t0"), which(colnames(df) == "date_assess2_t2"), which(colnames(df) == "cog_timeCompleted_t2"), which(colnames(df) == "brain_timeCompleted_t2"), which(colnames(df) == "crp_timeCollected_t0"), which(colnames(df) == "crp_assaydate_t0"))
+# numVars <- c((which(colnames(df) %in% colnames(df_numVars))), which(colnames(df) == "date_assess0_t0"), which(colnames(df) == "date_assess2_t2"), which(colnames(df) == "cog_timeCompleted_t2"), which(colnames(df) == "brain_timeCompleted_t2"), which(colnames(df) == "crp_timeCollected_t0"), which(colnames(df) == "crp_assaydate_t0"))
 # df_retained <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition/UKBB_dfRetained_03_21_2022.csv", guess_max = 10000) # import df
 # df <- df_retained
 ```
-# finalize vars for analysis
-```{r varsforAnal, echo=FALSE}
-df_properCRP <- df %>%
-  filter(crp_aliquot_t0 <= 10 | is.na(crp_aliquot_t0) == TRUE) # remove CRP > 10
-cat(nrow(df) - nrow(df_properCRP), " cases were removed as CRP > 10.", sep = "")
-df <- df_properCRP
+
+# Subset and Save DF
+```{r subsetDF, echo=FALSE}
+df <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/UKBB_dfForAnal_All_05_05_2022.csv", lazy = T)
+
+# save dataframe for analyses
+fileName <- paste("UKBB_dfForAnal_All_", date, sep = "")
+write.csv(df, file = glue("{fileName}.csv")) # exports cleaned dataframe with all variables ready for analysis
+save(df, file = glue("{fileName}.RData"))
+
+# Make different data subsets:
+# Demographics
+df_oldest <- df %>% filter(df$demo_age_assess0_t0 >= quantile(df$demo_age_assess0_t0, c(.66))) # keeps only oldest participants (in top tertile of age)
+fileName <- paste("UKBB_dfForAnal_oldestTert_", date, ".csv", sep = "")
+write.csv(df_oldest, file = fileName)
+cat("Subset with oldest tertile of participants saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_oldest), "\n\t age range: ", range(df_oldest$demo_age_assess0_t0))
+rm(df_oldest)
+
+df_youngest <- df %>% filter(df$demo_age_assess0_t0 <= quantile(df$demo_age_assess0_t0, c(.33))) # keeps only youngest participants (in bottom tertile of age)
+fileName <- paste("UKBB_dfForAnal_youngestTert_", date, ".csv", sep = "")
+write.csv(df_youngest, file = fileName)
+cat("Subset with youngest tertile of participants saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_youngest), "\n\t age range: ", range(df_youngest$demo_age_assess0_t0))
+rm(df_youngest)
+
+# Diagnoses
+# summary(df$dx_AnyOfInterest)
+df_noDx <- df %>% filter(dx_AnyOfInterest == 0) # remove participants with diagnoses from dataframe 
+fileName <- paste("UKBB_dfForAnal_excludingDx_", date, ".csv", sep = "")
+write.csv(df_noDx, file = fileName)
+cat("Subset excluding those using medication of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noDx))
+
+df_onlyDx <- df %>% filter(dx_AnyOfInterest == 1) # remove participants without diagnoses from dataframe 
+fileName <- paste("UKBB_dfForAnal_onlyDx_", date, ".csv", sep = "")
+write.csv(df_onlyDx, file = fileName)
+cat("Subset of only those using medication of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyDx))
+rm(df_onlyDx)
+
+# Medications
+table(df$med_SSRI_t0, df$med_SSRI_t2)
+df_noSSRI <- df %>% filter(med_SSRI_t0 == "0") %>%  filter(med_SSRI_t2 == "0") # remove participants taking meds from dataframe 
+fileName <- paste("UKBB_dfForAnal_excludingSSRI_", date, ".csv", sep = "")
+write.csv(df_noSSRI, file = fileName)
+cat("Subset excluding those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noSSRI))
+rm(df_noSSRI)
+
+df_onlySSRI <- df %>% filter(med_SSRI_t0 == 1 || med_SSRI_t2 == 1) # keep participants taking SSRIs 
+write.csv(df_onlySRRI, file = paste("UKBB_dfForAnal_onlySSRIUsers", date, ".csv", sep = ""))
+rm(df_onlySRRI)
+
+df_onlyMedUsers_a <- df %>% filter(med_AnyOfInterest0 == 1) # remove participants not taking meds from dataframe 
+df_onlyMedUsers_b <- df %>% filter(med_AnyOfInterest2 == 1) # remove participants not taking meds from dataframe 
+df_onlyMedUsers <- distinct(rbind(df_onlyMedUsers_a, df_onlyMedUsers_b))
+fileName <- paste("UKBB_dfForAnal_onlyMedUsers_", date, ".csv", sep = "")
+write.csv(df_onlyMedUsers, file = fileName)
+cat("Subset only of those using any mediucation of interest (including SSRIs) saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyMedUsers))
+rm(df_onlyMedUsers)
+
+df_noMed <- df %>% filter(med_AnyOfInterest0 == 0) %>% filter(med_AnyOfInterest2 == 0)  
+fileName <- paste("UKBB_dfForAnal_noMed_", date, ".csv", sep = "")
+write.csv(df_noMed, file = fileName)
+cat("Subset excluding those using medications of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed))
+rm(df_noMed)
+
+# Remove diagnoses and medications
+df_noMed_noDx <- df_noDx %>% filter(med_AnyOfInterest0 == 0) %>% filter(med_AnyOfInterest2 == 0) # remove participants taking meds from dataframe 
+fileName <- paste("UKBB_dfForAnal_NoMedNoDx_", date, ".csv", sep = "")
+write.csv(df_noMed_noDx, file = fileName)
+cat("Subset excluding those using medications or with a diangnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed_noDx))
+rm(df_noMed_noDx)
+
+df_noSSRI_noDx <- df_noDx %>% filter(med_SSRI_t0 == "0") %>%  filter(med_SSRI_t2 == "0") # remove participants taking SSRIs from dataframe 
+fileName <- paste("UKBB_dfForAnal_NoSSRINoDx_", date, ".csv", sep = "")
+write.csv(df_noSSRI_noDx, file = fileName)
+cat("Subset excluding those using SSRIs or with a diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noSSRI_noDx))
+rm(df_noMed_noDx)
+
+
+# table(df$med_AnyOfInterest0_excludingSSRI, df$med_AnyOfInterest2_excludingSSRI)
+# df_noMedOtherThanSSRI <- df %>% filter(med_AnyOfInterest0_excludingSSRI == "0") %>% filter(med_AnyOfInterest2_excludingSSRI == "0") # remove participants taking meds from dataframe 
+# fileName <- paste("UKBB_dfForAnal_excludingAllMed_", date, ".csv", sep = "")
+# write.csv(df_noMed, file = fileName)
+# cat("Subset excluding those using any mediucation of interest (including SSRIs) saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed))
+# rm(df_noMed)
+
 ```
+## Describe Subsets
+```{r DesciurbeSubsets, echo=FALSE}
+path <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/Subsets"
+fileNames <- c("UKBB_dfForAnal_excludingDx_05_08_2022","UKBB_dfForAnal_excludingSSRI_05_04_2022","UKBB_dfForAnal_noMed_05_08_2022","UKBB_dfForAnal_NoMedNoDx_05_08_2022","UKBB_dfForAnal_NoSSRINoDx_05_08_2022","UKBB_dfForAnal_oldestTert_05_04_2022","UKBB_dfForAnal_onlyDx_05_04_2022","UKBB_dfForAnal_onlyMedUsers_05_04_2022","UKBB_dfForAnal_youngestTert_05_04_2022")
+
+for(file in fileNames){
+  fileName <- glue("{path}/{file}.csv")
+  subset_df <- read_csv(fileName, lazy = T, show_col_types = F)
+  subsetName <- unlist(strsplit(file, "_"))[3]
+  print(subsetName)
+  write.csv(psych::describe(subset_df), file = glue("Described_{subsetName}_{date}.csv")) # exports wilcoxOutput to a CSV file
+}
+
+
+```
+
+# Varia correlations
 ## Correl of CRP vars 
-```{r correlDietVars, echo=FALSE}
+```{r correlCRPVars, echo=FALSE}
 print("Hour collected")
 median(hour(df$crp_timeCollected_t0), na.rm = T)
 iqr(hour(df$crp_timeCollected_t0), na.rm = T)
@@ -806,6 +961,7 @@ cat("the mean time between blood sample and CRP measurement was (in years): \n\t
 
 cor.test(rank(df$crp_aliquotdelay), rank(df$crp_aliquot_t0))
 ```
+
 ## Correlations between diet variables
 
 ```{r correlDietVars, echo=FALSE}
@@ -863,126 +1019,6 @@ cor.test(rank(df$crp_aliquotdelay), rank(df$crp_aliquot_t0))
 # out <- out[-(seq(2,to=nrow(out),by=2)),]
 # kable(out, caption = "Spearman correlation between diet variables")
 
-```
-
-```{r correlCRPVars, echo=FALSE}
-# cor(df$crp_timeFasting_t0, log(df$crp_aliquot_t0))
-# # plot(, log(df$crp_hourCollected))
-# ggplot(data = df, aes(x = df$crp_timeFasting_t0, y = log(df$crp_hourCollected)))+ geom_count()
-# cor(df$crp_hourCollected, df$crp_aliquot_t0)
-# plot(df$crp_aliquot_fctr, df$crp_hourCollected)
-```
-
-## Data reduction
-
--PCA assumptions: --linear relationship between components
-
-```{r cognitionPCA, echo=FALSE}
-cogPCAVars <- which(colnames(df) %in% c("cog_numMem_maxDigitRemem_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2"))
-
-cogPCAOut <- PCACompute(df = df, vars = cogPCAVars)
-# capture.output(unlist(cogPCAOut$rotation), fileName = paste("cognitionPCA_prelim", date, ".csv", sep = ""))
-# write.table(cogPCAOut$rotation, fileName = paste("cognitionPCA_prelim", date, ".csv", sep = ""))
-# lapply(cogPCAOut$rotation, function(x) write.table(data.frame(x), paste("cognitionPCA_prelim", date, ".csv", sep = "")))
-# PCASave(cogPCAOut, fileName = "")
-cogPCAOut
-summary(cogPCAOut)
-PCAPlot(PCAOut = cogPCAOut, name = "Cognition Principal Component Analysis")
-
-```
-
-The principal component analysis for the cognitive variables returns: `` {r} cogPCAOut` `` ```{r} summary(cogPCAOut)`
-
-```{r applyCognitionPCA, echo=FALSE}
-df <- PCAApply(df = df,PCAOut = cogPCAOut,componentsToRetain = 3,prefix = "cog")
-df <- df %>% 
-    rename(cog_PC_1 = "\"cog_PC_1\"") %>% 
-    rename(cog_PC_2 = "\"cog_PC_2\"") %>% 
-    rename(cog_PC_3 = "\"cog_PC_3\"")
-
-df <- df %>%   
-  mutate(cog_PC_1 = as.numeric(unlist(cog_PC_1))) %>% 
-  mutate(cog_PC_2 = as.numeric(unlist(cog_PC_2))) %>% 
-  mutate(cog_PC_3 = as.numeric(unlist(cog_PC_3)))
-
-
-# df <- rename(df, cog_PCA_1 = `"cog_PC_1"`)
-PCASave(PCAOut = cogPCAOut, fileName = "UKBB_CogPCA")
-```
-
-## Assumption checks
-### Normality
-```{r checkNormalityMain, echo=FALSE}
-crp_fctrCol <- which(colnames(df) == "crp_aliquot_fctr")
-brainVarsOfInt <- which(colnames(df) %in% c("brain_vol_brainSegNoVent_t2", "brain_vol_hippocamp_L_t2", "brain_vol_hippocamp_R_t2"))
-cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
-numMemCol <- which(colnames(df) == "cog_numMem_maxDigitRemem_t2")
-looseCovars <- c("demo_sex_t0", "demo_ethnicity_t0",  "demo_age_assess0_t0", "demo_daysBtwAssess", "ses_townsend_t0", "med_SSRI0", "waistToHip", "diet_processedMeat_t0", "sleep_duration0_t0", "sleep_duration2_t2", "smoke_currently_t0", "exercise_IPAQActivityGroup_t0")
-covars <- unlist(lapply(looseCovars, FUN = function(x) (which(colnames(df) == x))))
-
-varsOfInterest <- c(crp_fctrCol, brainVarsOfInt, cogPCOutputs, covars) # list of variables used in correlation/mediation analyses
-# length(colnames(df[varsOfInterest]))
-
-# create list of non-factor numeric variables for normality check ----
-numVarsOfInterest <- lapply(df[varsOfInterest], numNotFactor)
-df_numVarsOfInt <- as.data.frame(do.call(cbind, numVarsOfInterest))
-numVarsOfInterest <- (which(colnames(df) %in% colnames(df_numVarsOfInt)))
-# numVarsOfInterest <- numVarsOfInterest[-which(numVarsOfInterest == 86)]
-
-normalityPlotsCorrel <- mapply(normalCheck, df[numVarsOfInterest], colName = colnames(df[numVarsOfInterest]), colNum = numVarsOfInterest)
-
-nonNormalVarsOfInt <- c(9,12,13,40,126,127,128)
-# normalityPlotsCorrel_nonNorm <- mapply(normalCheck, df[nonNormalVarsOfInt], colName = colnames(df[nonNormalVarsOfInt]), colNum = nonNormalVarsOfInt)
-
-## apply normality correction
-### Split non-normal variables into tertiles
-# df <- df %>% 
-#   mutate(ses_townsend_t0_z = scale(df$ses_townsend_t0)) %>% # scale townsend score
-#   mutate(cog_PC_1_z = scale(df$cog_PC_1)) %>% # scale PC1 score
-#   mutate(cog_PC_2_z = scale(df$cog_PC_2)) %>% # scale PC2 score
-#   mutate(cog_PC_3_z = scale(df$cog_PC_3)) # scale PC3 score
-
-# df <- df %>% 
-#   mutate(demo_age_assess0_t0_tert = factor(cut2(df$demo_age_assess0_t0, g = 3), order = T)) %>% # split into tertiles
-#   mutate(sleep_duration0_t0_tert = factor(cut2(df$sleep_duration0_t0, g = 3), order = T)) %>%  # sleep duration 0, split into tertiles
-#   mutate(sleep_duration2_t2_tert = factor(cut2(df$sleep_duration2_t2, g = 3), order = T)) %>%  # sleep duration 2, split into tertiles
-#   mutate(ses_townsend_t0_tert = factor(cut2(df$ses_townsend_t0_z, g = 3), order = T)) %>%  # townsend, split into tertiles
-#   mutate(cog_PC_1_tert = factor(cut2(df$cog_PC_1_z, g = 3), order = T)) %>% # cognition principle component 1, split into tertiles
-#   mutate(cog_PC_2_tert = factor(cut2(df$cog_PC_2_z, g = 3), order = T)) %>% # cognition principle component 2, split into tertiles
-#   mutate(cog_PC_3_tert = factor(cut2(df$cog_PC_3_z, g = 3), order = T)) # cognition principle component 3, split into tertiles
-
-normCorrected <- which(colnames(df) %in% c("demo_age_assess0_t0_tert", "ses_townsend_t0_tert", "sleep_duration0_t0_tert", "sleep_duration2_t2_tert", "cog_PC_1_tert", "cog_PC_2_tert", "cog_PC_3_tert"))
-
-revisedvarsOfInterest <- c(varsOfInterest,normCorrected)
-# revisedvarsOfInterest <- c(varsOfInterest[! varsOfInterest %in% nonNormalVarsOfInt],normCorrected)
-
-# standardize numeric variables of interest
-numRevisedVarsOfInt <- lapply(df[revisedvarsOfInterest], numNotFactor) # I want this to return a list of names that are not null
-df_numRevisedVarsOfInt <- as.data.frame(do.call(cbind, numRevisedVarsOfInt))
-revisedvarsOfInterest <- c()
-for(i in colnames(df_numRevisedVarsOfInt)){
- revisedvarsOfInterest <- c(revisedvarsOfInterest, i)
-}
-revisedVarsColnums <- which(colnames(df) %in% revisedvarsOfInterest)
-  
-df_z <- df %>% mutate("{colnames(df[revisedVarsColnums])}_z" = across(.cols = all_of(revisedVarsColnums), .fns = scale))
-
-df_numRevisedVarsOfInt <- as.data.frame(do.call(cbind, numRevisedVarsOfInt))
-df_numVarsInt_z <- c()
-df_numVarsInt_z <- df_numRevisedVarsOfInt %>% 
-  mutate(across(colnames(df_numRevisedVarsOfInt), scale, .names = "{colnames(df_numRevisedVarsOfInt)}_z"))
-
-scaledVarNames <- ends_with("_z", vars = colnames(df_numVarsInt_z))
-
-df <- as.data.frame(cbind(df, df_numVarsInt_z[scaledVarNames]))
-# sort(colnames(df))
-```
-
-# Save DF
-```{r saveDfFinal, echo=FALSE}
-write.csv(df, file = paste("UKBB_dfForAnal_", date, ".csv", sep = "")) # exports cleaned dataframe with all variables ready for analysis
-save(df, file = paste("UKBB_dfForAnal_", date, ".Rdata", sep = ""))
-getwd()
 ```
 
 ```{r printRSessionInfo, echo=FALSE}
