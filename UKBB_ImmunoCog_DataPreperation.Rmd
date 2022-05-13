@@ -909,7 +909,7 @@ cat("Subset excluding those using medications or with a diangnosis of interest s
 rm(df_noMed_noDx)
 
 df_noSSRI_noDx <- df_noDx %>% filter(med_SSRI_t0 == "0") %>%  filter(med_SSRI_t2 == "0") # remove participants taking SSRIs from dataframe 
-fileName <- paste("UKBB_dfForAnal_NoSSRINoDx_", date, ".csv", sep = "")
+fileName <- paste("UKBB_dfForAnal_NoDxNoSSRI_", date, ".csv", sep = "")
 write.csv(df_noSSRI_noDx, file = fileName)
 cat("Subset excluding those using SSRIs or with a diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noSSRI_noDx))
 rm(df_noMed_noDx)

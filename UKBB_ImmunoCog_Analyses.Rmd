@@ -57,6 +57,72 @@ runCor <- function(df, X, Y, M, covars, contrasts, YisFactor, name){
   return(model)
 }
 ```
+### Format cor outputs
+```{r formatCorAnals, echo = FALSE}
+corFormat <- function(filePath, files, X, listOfCovars, logReg){  
+  require(stringr)
+  
+  df_main <- matrix(ncol = 13, dimnames = list(c(), c("subset", "Y", "X", "b", "SE", "t", "p_predictor", "F", "df1", "df2", "p_model", "R^2", "R^2adj")))
+  
+  df_covarForModel_tmp <- c()
+  
+  for(file in files){
+    specificFilePath <- glue("{filePath}/{file}.txt")
+    fileObj <- readLines(specificFilePath)
+    
+    date <- str_match(file, "t2_z_(.*2)")[2]
+    subsetName <- gsub("_","",str_match(file, "cor_*(.*?)_cog"))[2]
+    Y <- str_match(file, "cog_*(.*?)_t2_z")[,2]
+    modelDetails <- c(subsetName, Y)
+    
+    cat(glue("{subsetName}: {Y}"))
+    
+    # Results of interest for model
+    effectSizes <- grep("Multiple R-squared",fileObj, value = TRUE)
+    effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
+    R2 <- substr(effectSizes[3], 1, nchar(effectSizes[3])-1)
+    R2adj <- effectSizes[6]
+      
+    FTest <- grep("F-statistic",fileObj, value = TRUE)
+    FTest <- unlist(strsplit(FTest, "\\s+"))
+    FStat <- FTest[2]
+    df1 <- FTest[4]
+    df2 <- FTest[6]
+
+    p_model <- FTest[which(FTest == grep("p-value",FTest, value = TRUE)):length(FTest)]
+    # print(p_model)
+    if(TRUE %in% grepl("<", p_model) && nchar(p_model[grep("<",p_model)]) == 1){
+      p_model <- glue("{p_model[[2]]}{p_model[[3]]}")
+    } else {
+      p_model <- p_model[2]
+    }
+    
+    modelResults <- c(FStat, df1, df2, p_model, R2, R2adj)
+    
+    for(predictor in c(X,listOfCovars)){
+      result <- grep(predictor, fileObj, value = T)
+      results_seperated <- unlist(strsplit(result, "\\s+"))
+      # print(results_seperated)
+      # results of interest for each predictor
+      b <- results_seperated[2]
+      SE <-results_seperated[3] 
+      t <- results_seperated[4]
+      if("<" %in% results_seperated == TRUE){
+        p_predictor <- glue("{results_seperated[[5]]}{results_seperated[[6]]}")
+      } else {
+         p_predictor <- results_seperated[5]
+      }
+     
+      df_main <- rbind(df_main, c(modelDetails, predictor, b, SE, t, p_predictor, modelResults))
+      # cat(paste(name, depVarValuesNoSigChar, sep = "\n\t"))
+    } 
+  }
+
+  df_main <- df_main[-1,]
+  write.csv(df_main, file = glue("{subsetName}_correlSummary_{date}.csv"))
+} # 'filePath' - path to folder housing files, 'files' - name of files (without extensions), 'x' - independent variable (usually 'CRP_log_z'), 'listOfCovars' - list of covariate variable names as listed in LM output (include level of contrast for categorical variables). If no covars, define as '""'. 'logReg': logical specifying if file is logistic regression. N.B. takes subset name and dependent variable from file name.
+```
+
 ## Mediation Analyses
 ### Using package: mediation
 
@@ -137,7 +203,7 @@ runRMediation <- function(df, X, Y, M, covars, contrasts, YisFactor, name, alpha
 } # input: 'df' - dataframe containing all relevant variables; 'X' - name of the predictor variable; 'Y' - name of the outcome variable; 'M' - name of the mediator variable; 'C' - list of names of covariate variables; 'contrasts' - a list of ordinal variables specifying their contrasts; 'YisFactor' - if outcome is a factor, logical. If yes, logistic regression will be performed.; 'name' - name of analysis to be used for output filename; 'alpha' - critical p-value. Used for calculating confidence interval.
 ```
 
-## Format RMediation function Outputs
+### Format RMediation function Outputs
 ```{r formatMedOutputFx, echo=FALSE}
 formatMedOutput <- function(outputDF, filePath, fileName, analysisName, logReg){
   specificFilePath <- glue("{filePath}/{fileName}")
@@ -338,89 +404,12 @@ formatMedOutput <- function(outputDF, filePath, fileName, analysisName, logReg){
 ## Import data
 ```{r importData, echo=FALSE}
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
-df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/UKBB_dfForAnal_All_05_05_2022.csv") # import df
-
+df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/Subsets/dfForAnal_All_05_11_2022.csv")
 # write.csv(describe(df), file = glue("UKBB_allVarSummary_{date}.csv"))
 # df
 # sort(colnames(df))
 
 ```
-
-````{r makeOrdinal, echo=FALSE}
-# Change var type -------------
-# df <- df %>%
-#   mutate(crp_aliquot_log = log(crp_aliquot_t0)) %>% 
-#   mutate(crp_log_z = scale(crp_aliquot_log)) %>% 
-#   mutate(cog_PC_1_z = scale(cog_PC_1)) %>% 
-#   mutate(cog_PC_2_z = scale(cog_PC_2)) %>%   
-#   mutate(cog_PC_3_z = scale(cog_PC_3)) %>%  
-#   mutate(crp_aliquot_fctr = factor(crp_aliquot_fctr, order = T, levels = c("Low",
-#                                                                            "Medium",
-#                                                                            "High"))) %>%
-#   mutate(demo_age_assess0_t0_tert = factor(demo_age_assess0_t0_tert, order = T, levels = c("[40,51)",
-#                                                                                            "[51,59)",
-#                                                                                            "[59,70]"))) %>%       
-#   mutate(sleep_duration0_t0_tert = factor(sleep_duration0_t0_tert, order = T, levels = c("[2, 8)",
-#                                                                                          "8",
-#                                                                                          "[9,14]"))) %>%       
-#   mutate(sleep_duration2_t2_tert = factor(sleep_duration2_t2_tert, order = T, levels = c("[2, 8)",
-#                                                                                          "8",
-#                                                                                          "[9,14]"))) %>%       
-#   mutate(cog_PC_1_tert = factor(cog_PC_1_tert, order = T, levels = c("[-0.268, 0.481)",
-#                                                                      "[-8.841,-0.268)",
-#                                                                      "[ 0.481, 2.682]"))) %>%       
-#   mutate(cog_PC_2_tert = factor(cog_PC_2_tert, order = T, levels = c("[-8.8376,-0.3044)",
-#                                                                      "[-0.3044, 0.0337)",
-#                                                                      "[ 0.0337,11.9452]"))) %>%       
-#   mutate(cog_PC_3_tert = factor(cog_PC_3_tert, order = T, levels = c("[-16.914,-0.255)",
-#                                                                      "[ -0.255, 0.384)",
-#                                                                      "[  0.384, 4.766]"))) %>%       
-#   mutate(smoke_currently_t0 = factor(smoke_currently_t0, order = F, levels = 
-#                                        c("No",
-#                                         "Yes"))) %>% 
-#   mutate(diet_processedMeat_t0 = factor(diet_processedMeat_t0, order = T, levels = 
-#                                           c("Never",
-#                                           "Less than once a week",
-#                                           "Once a week", 
-#                                           "2-4 times a week",
-#                                           "5-6 times a week",
-#                                           "Once or more daily"))) %>% 
-#   mutate(diet_alc_freq_t0 = factor(diet_alc_freq_t0, order = T,
-#                                      levels = c("Never",
-#                                                "Special occasions only",
-#                                                "One to three times a month",
-#                                                "Once or twice a week",
-#                                                "Three or four times a week",
-#                                                "Daily or almost daily"))) %>% 
-#   mutate(exercise_IPAQActivityGroup_t0 = factor(exercise_IPAQActivityGroup_t0, order = T,
-#                                      levels = c("low", 
-#                                                 "moderate",
-#                                                 "high"))) %>% 
-#   mutate(ses_houseIncome2_t2 = factor(ses_houseIncome2_t2, order = T, levels = c("Less than 18,000",
-#                                                                                  "18,000 to 30,999",
-#                                                                                  "31,000 to 51,999",
-#                                                                                  "52,000 to 100,000",
-#                                                                                  "Greater than 100,000"))) %>% 
-#   mutate(ses_houseIncome0_t0 = factor(ses_houseIncome0_t0, order = T, levels = c("Less than 18,000",
-#                                                                                  "18,000 to 30,999",
-#                                                                                  "31,000 to 51,999",
-#                                                                                  "52,000 to 100,000",
-#                                                                                  "Greater than 100,000"))) %>% 
-#   mutate(demo_sex_t0 = factor(demo_sex_t0)) %>% 
-#   mutate(hand_t0 = factor(hand_t0)) %>% 
-#   mutate(menopause_t0 = factor(menopause_t0)) %>% 
-#   mutate(smoke_ever_t0 = factor(smoke_ever_t0)) %>% 
-#   mutate(demo_ethnicity_t0 = factor(demo_ethnicity_t0)) %>%            
-#   mutate(missingEssentialVar = factor(missingEssentialVar)) %>% 
-#   mutate(med_SSRI0 = factor(med_SSRI0)) %>% 
-#   mutate(med_SSRI2 = factor(med_SSRI2)) %>% 
-#   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2)) %>% 
-#   mutate(med_AnyOfInterest0 = factor(med_AnyOfInterest0))
-
-# Scale cog vars --------
-# cogPCOutputs <- starts_with("cog_PC", vars = colnames(df))
-
-````
 
 ## Vars of interest
 ```{r varsOfIntDefine, echo=FALSE}
@@ -430,7 +419,7 @@ crp_log <-  which(colnames(df) == "crp_log")
 crp_log_z <- which(colnames(df) == "crp_log_z")
 crp <- c(which(colnames(df) == "crp_aliquot_t0"), crp_fctrCol, crp_log, crp_log_z)
 
-brainPrefix <- c("area_","gmVol_", "GWcont_","mIntensity","mThick_", "vol_", "weigted_mFA_", "weigted_mICVF_", "weigted_mISOVF_", "weigted_mL1_", "weigted_mL2_", "weigted_mL3_", "weigted_mMD_", "weigted_mMO_", "weigted_mOD_")
+brainPrefix <- c("area_","mThick_", "vol_", "weigted_mFA_")
 brainMorphVars <- c()
 for(i in brainPrefix){
   iVars <- starts_with(i, vars = colnames(df))
@@ -445,12 +434,40 @@ brainMorphVars_Z_colNames <- colnames(df_brainMorphVarsZ)
 df <- cbind(df, df_brainMorphVarsZ[brainMorphVars_Z_colNames])
 rm(df_brainMorphVarsZ)
 brainMorphVars_Z_colNum <- which(colnames(df) %in% brainMorphVars_Z_colNames)
-mediators <- brainMorphVars_Z_colNames
+
+lobularBrainMetrics <- c("area_insula_WB_t2", "vol_insula_WB_t2", "mThick_insula_WB_t2")
+for(i in c("area", "mThick", "vol")){
+  for(j in c("frontal", "parietal", "occipital", "temporal")){
+    for(k in c("L", "R", "WB")){ 
+      lobularBrainMetrics <- c(lobularBrainMetrics, glue("{i}_{j}_{k}_t2"))
+      # print(glue("{i}_{j}_{k}"))
+    }
+  }
+}
+
+generalMetrics <- c("vol_BrainSeg_WB_t2","vol_BrainSegNotVent_WB_t2","vol_BrainSegNotVentSurf_WB_t2","vol_SubCortGray_WB_t2","vol_TotalGray_WB_t2","vol_SupraTentorial_WB_t2","vol_SupraTentorialNotVent_WB_t2","vol_EstimatedTotalIntraCranial_WB_t2","vol_BrainStem_WB_t2","vol_CSF_WB_t2","vol_wmHyperintensities_WB_t2","vol_WMhypointensities_WB_t2","vol_Hippocampus_L_t2","vol_Hippocampus_R_t2","vol_CerebellumCortex_R_t2","vol_CerebellumCortex_L_t2","vol_CerebellumWhiteMatter_L_t2","vol_CerebellumWhiteMatter_R_t2")
+
+aseg_brainVars <- c("vol_VentricleChoroid_WB_t2","vol_3rdVentricle_WB_t2","vol_4thVentricle_WB_t2","vol_5thVentricle_WB_t2","vol_nonWMhypointensities_WB_t2","vol_OpticChiasm_WB_t2","vol_CCPosterior_WB_t2","vol_CCMidPosterior_WB_t2","vol_CCCentral_WB_t2","vol_CCMidAnterior_WB_t2","vol_CCAnterior_WB_t2","area_Accumbensarea_L_t2","vol_Cortex_L_t2","vol_CerebralWhiteMatter_L_t2","vol_LateralVentricle_L_t2","vol_InfLatVent_L_t2","vol_thalamusProper_L_t2","vol_Caudate_L_t2","vol_Putamen_L_t2","vol_Pallidum_L_t2","vol_Amygdala_L_t2","vol_Accumbensarea_L_t2","vol_VentralDC_L_t2","vol_choroidplexus_L_t2","area_Accumbensarea_R_t2","vol_Cortex_R_t2","vol_CerebralWhiteMatter_R_t2","vol_LateralVentricle_R_t2","vol_InfLatVent_R_t2","vol_thalamusProper_R_t2","vol_Caudate_R_t2","vol_Putamen_R_t2","vol_Pallidum_R_t2","vol_Amygdala_R_t2","vol_Accumbensarea_R_t2","vol_VentralDC_R_t2","vol_vessel_L_t2","vol_vessel_R_t2","vol_choroidplexus_R_t2") # all Freesurfer ASEG variables in UKBB
+
+dkt_brainVars_area <- c("area_Caudalanteriorcingulate_L_t2","area_Caudalmiddlefrontal_L_t2","area_Cuneus_L_t2","area_Entorhinal_L_t2","area_Fusiform_L_t2","area_Inferiorparietal_L_t2","area_Inferiortemporal_L_t2","area_Isthmuscingulate_L_t2","area_Lateraloccipital_L_t2","area_Lateralorbitofrontal_L_t2","area_Lingual_L_t2","area_Medialorbitofrontal_L_t2","area_Middletemporal_L_t2","area_Parahippocampal_L_t2","area_Paracentral_L_t2","area_Parsopercularis_L_t2","area_Parsorbitalis_L_t2","area_Parstriangularis_L_t2","area_Pericalcarine_L_t2","area_Postcentral_L_t2","area_Posteriorcingulate_L_t2","area_Precentral_L_t2","area_Precuneus_L_t2","area_Rostralanteriorcingulate_L_t2","area_Rostralmiddlefrontal_L_t2","area_Superiorfrontal_L_t2","area_Superiorparietal_L_t2","area_Superiortemporal_L_t2","area_Supramarginal_L_t2","area_Transversetemporal_L_t2","area_Insula_L_t2", "area_Caudalanteriorcingulate_R_t2","area_Caudalmiddlefrontal_R_t2","area_Cuneus_R_t2","area_Entorhinal_R_t2","area_Fusiform_R_t2","area_Inferiorparietal_R_t2","area_Inferiortemporal_R_t2","area_Isthmuscingulate_R_t2","area_Lateraloccipital_R_t2","area_Lateralorbitofrontal_R_t2","area_Lingual_R_t2","area_Medialorbitofrontal_R_t2","area_Middletemporal_R_t2","area_Parahippocampal_R_t2","area_Paracentral_R_t2","area_Parsopercularis_R_t2","area_Parsorbitalis_R_t2","area_Parstriangularis_R_t2","area_Pericalcarine_R_t2","area_Postcentral_R_t2","area_Posteriorcingulate_R_t2","area_Precentral_R_t2","area_Precuneus_R_t2","area_Rostralanteriorcingulate_R_t2","area_Rostralmiddlefrontal_R_t2","area_Superiorfrontal_R_t2","area_Superiorparietal_R_t2","area_Superiortemporal_R_t2","area_Supramarginal_R_t2","area_Transversetemporal_R_t2","area_Insula_R_t2")
+
+dkt_brainVars_vol <- c("vol_Caudalanteriorcingulate_R_t2","vol_Caudalmiddlefrontal_R_t2","vol_Cuneus_R_t2","vol_Entorhinal_R_t2","vol_Fusiform_R_t2","vol_Inferiorparietal_R_t2","vol_Inferiortemporal_R_t2","vol_Isthmuscingulate_R_t2","vol_Lateraloccipital_R_t2","vol_Lateralorbitofrontal_R_t2","vol_Lingual_R_t2","vol_Medialorbitofrontal_R_t2","vol_Middletemporal_R_t2","vol_Parahippocampal_R_t2","vol_Paracentral_R_t2","vol_Parsopercularis_R_t2","vol_Parsorbitalis_R_t2","vol_Parstriangularis_R_t2","vol_Pericalcarine_R_t2","vol_Postcentral_R_t2","vol_Posteriorcingulate_R_t2","vol_Precentral_R_t2","vol_Precuneus_R_t2","vol_Rostralanteriorcingulate_R_t2","vol_Rostralmiddlefrontal_R_t2","vol_Superiorfrontal_R_t2","vol_Superiorparietal_R_t2","vol_Superiortemporal_R_t2","vol_Supramarginal_R_t2","vol_Transversetemporal_R_t2","vol_Insula_R_t2", "vol_Caudalanteriorcingulate_L_t2","vol_Caudalmiddlefrontal_L_t2","vol_Cuneus_L_t2","vol_Entorhinal_L_t2","vol_Fusiform_L_t2","vol_Inferiorparietal_L_t2","vol_Inferiortemporal_L_t2","vol_Isthmuscingulate_L_t2","vol_Lateraloccipital_L_t2","vol_Lateralorbitofrontal_L_t2","vol_Lingual_L_t2","vol_Medialorbitofrontal_L_t2","vol_Middletemporal_L_t2","vol_Parahippocampal_L_t2","vol_Paracentral_L_t2","vol_Parsopercularis_L_t2","vol_Parsorbitalis_L_t2","vol_Parstriangularis_L_t2","vol_Pericalcarine_L_t2","vol_Postcentral_L_t2","vol_Posteriorcingulate_L_t2","vol_Precentral_L_t2","vol_Precuneus_L_t2","vol_Rostralanteriorcingulate_L_t2","vol_Rostralmiddlefrontal_L_t2","vol_Superiorfrontal_L_t2","vol_Superiorparietal_L_t2","vol_Superiortemporal_L_t2","vol_Supramarginal_L_t2","vol_Transversetemporal_L_t2","vol_Insula_L_t2")
+
+dkt_brainVars_mThick <- c("mThick_Caudalanteriorcingulate_L_t2","mThick_Caudalmiddlefrontal_L_t2","mThick_Cuneus_L_t2","mThick_Entorhinal_L_t2","mThick_Fusiform_L_t2","mThick_Inferiorparietal_L_t2","mThick_Inferiortemporal_L_t2","mThick_Isthmuscingulate_L_t2","mThick_Lateraloccipital_L_t2","mThick_Lateralorbitofrontal_L_t2","mThick_Lingual_L_t2","mThick_Medialorbitofrontal_L_t2","mThick_Middletemporal_L_t2","mThick_Parahippocampal_L_t2","mThick_Paracentral_L_t2","mThick_Parsopercularis_L_t2","mThick_Parsorbitalis_L_t2","mThick_Parstriangularis_L_t2","mThick_Pericalcarine_L_t2","mThick_Postcentral_L_t2","mThick_Posteriorcingulate_L_t2","mThick_Precentral_L_t2","mThick_Precuneus_L_t2","mThick_Rostralanteriorcingulate_L_t2","mThick_Rostralmiddlefrontal_L_t2","mThick_Superiorfrontal_L_t2","mThick_Superiorparietal_L_t2","mThick_Superiortemporal_L_t2","mThick_Supramarginal_L_t2","mThick_Transversetemporal_L_t2","mThick_Insula_L_t2","mThick_Caudalanteriorcingulate_R_t2","mThick_Caudalmiddlefrontal_R_t2","mThick_Cuneus_R_t2","mThick_Entorhinal_R_t2","mThick_Fusiform_R_t2","mThick_Inferiorparietal_R_t2","mThick_Inferiortemporal_R_t2","mThick_Isthmuscingulate_R_t2","mThick_Lateraloccipital_R_t2","mThick_Lateralorbitofrontal_R_t2","mThick_Lingual_R_t2","mThick_Medialorbitofrontal_R_t2","mThick_Middletemporal_R_t2","mThick_Parahippocampal_R_t2","mThick_Paracentral_R_t2","mThick_Parsopercularis_R_t2","mThick_Parsorbitalis_R_t2","mThick_Parstriangularis_R_t2","mThick_Pericalcarine_R_t2","mThick_Postcentral_R_t2","mThick_Posteriorcingulate_R_t2","mThick_Precentral_R_t2","mThick_Precuneus_R_t2","mThick_Rostralanteriorcingulate_R_t2","mThick_Rostralmiddlefrontal_R_t2","mThick_Superiorfrontal_R_t2","mThick_Superiorparietal_R_t2","mThick_Superiortemporal_R_t2","mThick_Supramarginal_R_t2","mThick_Transversetemporal_R_t2","mThick_Insula_R_t2") 
+
+# all Freesurfer DKT volumes, area, mThickness variables in UKBB
+
+round1Mediators <- c(lobularBrainMetrics, generalMetrics)
+round2Mediators <- c(aseg_brainVars, dkt_brainVars_area, dkt_brainVars_vol, dkt_brainVars_mThick)
+
+mediators <- c(round1Mediators, round2Mediators)
 
 cogVars <- starts_with("cog", vars = colnames(df))
 cogVars_t2_z <- cogVars[ends_with("_t2_z", vars = colnames(df[cogVars]))]
 cogOutcomes_colNum <- c(cogVars_t2_z)
 cogOutcomes_colNames <- colnames(df[cogOutcomes_colNum]) # list of all numeric cognitive variables to assess
+proceduralCogVarsToRemoveFromAnal <- c("cog_fluidIntel_QsAttempted_t2_z", "cog_matrix_numViewed_t2_z", "cog_digsub_numAttempted_t2_z", "cog_prospMem_timeDelay_t2_z")
+cogOutcomes_colNames <- cogOutcomes_colNames[!cogOutcomes_colNames %in% proceduralCogVarsToRemoveFromAnal]
 prospMemCol <- which(colnames(df) == "cog_prospMem_result_t2")
 cogOutcomes_fctr <- c(prospMemCol)
 cogOutcomes_fctr_names <- colnames(df[cogOutcomes_fctr])
@@ -469,17 +486,14 @@ essentialVarsAnalysis_colNames <- colnames(df[essentialVarsAnalysis_colNum])
 eid <- which(colnames(df) == "eid")
 missingEssVar <- which(colnames(df) == "missingEssentialVar")
 
-df_small <- df[c(eid, essentialVarsAnalysis_colNum, missingEssVar)]
+df <- df[c(eid, essentialVarsAnalysis_colNum, missingEssVar)]
 # colnames(df_small)
+
+ordinalFactorContrasts <- list(exercise_IPAQActivityGroup_t0 = "contr.treatment")
+
 ```
 
-````{r missingVars, echo=FALSE}
-df_complete <- df_small[complete.cases(df_small[c("ses_townsend_t0_z", "sleep_duration_mean02_z", "exercise_IPAQActivityGroup_t0")]),]
-save(df_complete, file = paste("UKBB_data_corAnalyses_", date, ".csv", sep = ""))
-
-````
 ## correlational analyses
-
 ### No covariates
 Indep var: 'crp_log_z'; 
 Outcomes: `r colnames(df[c(cogOutcomes_colNum, cogOutcomes_fctr)])`
@@ -510,34 +524,50 @@ Indep var: 'crp_log_z';
 Outcomes: `r colnames(df[c(cogOutcomes_colNum, cogOutcomes_fctr)])`
 Covariates = `r colnames(df[covars_colNames])`
 ```{r corAnalyses_C, echo=FALSE}
-ordinalFactorContrasts <- list(diet_processedMeat_t0 = "contr.treatment",
-                               exercise_IPAQActivityGroup_t0 = "contr.treatment",
-                               sleep_duration0_t0_tert = "contr.treatment",
-                               ses_townsend_t0_tert = "contr.treatment",
-                               demo_age_assess0_t0_tert = "contr.treatment")
 
-individualAnalysis <- list()
-mainCor_C <- list()
-analysisName <- "UKBB_Anal_cor"
-outputDF <- 
-# for numeric variables
-for(i in cogOutcomes_colNames){
-  analysisName <- glue("{analysisName}_{i}")
-  individualAnalysis <- runCor(df = df_small, X = "crp_log_z", Y = i, covars = colnames(df[covars_colNames]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
-  mainCor_allC <- c(mainCor_C, individualAnalysis)
-  capture.output(summary(individualAnalysis), file = glue("{analysisName}_{date}.txt"))
-  # print(summary(listAnalyses_cor_noC))
-  analysisName <- "UKBB_Anal_cor"
-}
+subsetDF_path <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/Subsets"
+subsetDF_files <- c("dfForAnal_oldestTert_05_11_2022","dfForAnal_All_05_11_2022","dfForAnal_onlyDx_05_11_2022","dfForAnal_noDx_05_11_2022","dfForAnal_onlyMed_05_11_2022","dfForAnal_noMed_05_11_2022","dfForAnal_onlySSRI_05_11_2022","dfForAnal_NoMedNoDx_05_11_2022","dfForAnal_youngestTert_05_11_2022","dfForAnal_noDxNoSSRI_05_11_2022","dfForAnal_noSSRI_05_11_2022")
+subsetDF_files <- c("dfForAnal_NoMedNoDx_05_11_2022") # for testing
 
-# for factor variables
-for(i in cogOutcomes_fctr_names){
-  analysisName <- glue("{analysisName}_{i}")
-  individualAnalysis <- runCor(df = df_small, X = "crp_log_z", Y = i, covars = colnames(df[covars_colNames]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
-  mainCor_allC <- c(mainCor_C, individualAnalysis)
-  capture.output(summary(individualAnalysis), file = glue("{analysisName}_{date}.txt"))
-  # print(summary(listAnalyses_cor_noC))
-  analysisName <- "UKBB_Anal_cor"
+covars <- c(covars_colNames, covars_brain_colNames)
+listOfCovarLevels <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z", "hand_t0LH","hand_t0Not","hand_t0RH", "brain_headScale_t2")
+
+for(subset in subsetDF_files){
+  X <- "crp_log_z"
+  outputFileNames <- c()
+  varsOfInterest <- c(X, covars, cogOutcomes_colNames,cogOutcomes_fctr_names) 
+  dfSubset <- read.csv(glue("{subsetDF_path}/{subset}.csv"))
+  dfSubset <- dfSubset[varsOfInterest]
+  subsetName <- gsub("_","",str_match(subset, "dfForAnal_*(.*?)_"))[2]
+  analysisName <- glue("cor_{subsetName}")
+  
+  # for numeric variables
+  for(i in cogOutcomes_colNames){
+    analysisName <- glue("{analysisName}_{i}")
+    individualAnalysis <- runCor(df = dfSubset, X = X, Y = i, covars = covars, M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
+    fileName <- glue("{analysisName}_{date}")
+    capture.output(summary(individualAnalysis), file = glue("{fileName}.txt"))
+    outputFileNames <- c(outputFileNames, fileName)
+    analysisName <- glue("cor_{subsetName}")
+  }
+
+   for(outputFile in outputFileNames){
+    path <- getwd()
+    corFormat(filePath = path, files = outputFileNames, X = X, listOfCovars = listOfCovarLevels)
+  } # summarise outputs
+  
+  for factor variables
+  for(i in cogOutcomes_fctr_names){
+    analysisName <- glue("{analysisName}_{i}")
+    individualAnalysis <- runCor(df = dfSubset, X = X, Y = i, covars = colnames(df[covars]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
+    fileName <- glue("{analysisName}_{date}")
+    capture.output(summary(individualAnalysis), file = glue("{fileName}.txt"))
+    outputFileNames <- c(outputFileNames, fileName)
+    analysisName <- glue("cor_c_{subsetName}")
+  }
+  
+  outputFileNames <- c()
+  
 }
 
 ```
@@ -619,7 +649,6 @@ covarsMed <- c(covars_colNames, covars_brain_colNames) # Add  cognition only cov
 individualAnalysis <- list()
 listAnalyses_med_C <- list()
 mainMed_C <- list()
-
 
 # mediators <- c("area_Caudalanteriorcingulate_L_t2") # for testing purposes
 ordinalFactorContrasts <- c()

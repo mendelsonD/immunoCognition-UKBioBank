@@ -20,13 +20,14 @@ listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t
 
 list_covarAllModels <- list() # this will store all dataframes with covariate information
 
+listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z")
+
 filePath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/Correl-WithC"
 files <- c("UKBB_Anal_cor_cog_digsub_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_digsub_numAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_QsAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_score_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_numViewed_t2_z_05_05_2022","UKBB_Anal_cor_cog_numMem_maxDigitRemem_t2_z_05_05_2022","UKBB_Anal_cor_cog_prospMem_timeDelay_t2_z_05_05_2022","UKBB_Anal_cor_cog_reactiontime_mean_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_tower_cor_t2_z_05_05_2022")
-catFile <- c("UKBB_Anal_cor_cog_prospMem_result_t2_05_05_2022")
+file <- c("UKBB_Anal_cor_cog_prospMem_result_t2_05_05_2022")
 
 corFormat(depVar = "crp_log_z", modelName = "cor_C", outputPrefix = "UKBB_cor_anal_crpCog_C", filePath = "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/Correl-WithC", listOfCovars = listOfCovars, files = files)
 
-# below function is broken
 corFormat <- function(modelName, filePath, files, depVar, listOfCovars, outputPrefix){  
   df_main <- matrix(ncol = 13, dimnames = list(c(), c("model Name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p")))
   df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
