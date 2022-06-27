@@ -2,6 +2,7 @@ library(readr)
 library(glue)
 library(stats)
 library(dplyr)
+library(stringr)
 
 # Define files ----
 path <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/Summary/Med_C/Raw" # path to raw mediation output summary files
@@ -36,6 +37,55 @@ for(file in fileNames){
 ## a) compute p-values for indirect effects
 ## b) FDR correction for indirect effects oof cognition variables that are retained
 
+
+# !!! NOTE !!! Main summary files have incorrect 'IndEff_est' and	'IndEff_SE' columns. upper and lower bounds of 95% confidence intervals appear correct. They will be used to compute the correct 'IndEff_est' and	'IndEff_SE'
+# N.b. an error with the indirect effects occured in the above outputs. The following code fixes this.
+
+# File paths and names 
+date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
+
+originalFilePath <- "OutputFiles/AnalysisSummary"
+prefix <- "UKBB_"
+subsets <- c("All", "noMed", "NoMedNoDx", "noDxNoSSRI", "noDx", "noSSRI", "oldestTert",  "onlyDx", "onlyMed","onlySSRI", "youngestTert")
+# subsets <- c("All") # for testing purposes
+infix <- "_med_C_results_05_11_2022"
+subset <- "All"
+
+for(subset in subsets){
+  # load original file for that subset
+  fileNameOriginal <- glue("{prefix}{subset}{infix}")
+  orDF <- read_csv(glue("./{originalFilePath}/{fileNameOriginal}.csv"), show_col_types = F)
+  cat("Loaded: ", glue("{fileNameOriginal}.csv"), ", ", dim(orDF))
+  
+  # create corrected indirect effect estimate
+  orDF <- orDF %>% 
+    mutate(IndEff_est_correct = (`IndEff_95%CI-Lo` + `IndEff_95%CI-Hi`)/2, .after = IndEff_SE)
+  
+  difference <- matrix(orDF$IndEff_est_correct -  orDF$IndEff_est)
+  for(i in difference){
+    if(i > .000000001){
+      cat("Ind Eff difference > 1e-09: ", i)
+    }
+  }
+  
+  orDF <- orDF %>% 
+    mutate(IndEff_SE_correct = (`IndEff_95%CI-Lo` - IndEff_est_correct)/qnorm(.025), .after = IndEff_est_correct)    # equivalent to: (orDF$'IndEff_95%CI-Hi' - IndEff_est)/-qnorm(.025)
+  
+  difference <- matrix(orDF$IndEff_SE_correct -  orDF$IndEff_SE)
+  for(i in difference){
+    if(i > .000000001){
+      cat("SE difference > 1e-09: ", i)
+    }
+  }
+  
+  # Remove scientific notation from all columns
+  orDF_rev <- as.data.frame(sapply(orDF, function(.)format(., scientific = FALSE)))
+  
+  # Save DF
+  saveName <- glue("{fileNameOriginal}_corrected_{date}.csv")
+  write.csv(orDF_rev, file = saveName)
+}
+
 getPMed <- function(path, fileNames, keyCognition, keyMediators, pCor, sigOnly, alpha, outputAffix) {
   outputDf_p_cor <- c()
 
@@ -45,14 +95,14 @@ getPMed <- function(path, fileNames, keyCognition, keyMediators, pCor, sigOnly, 
 
     # defines columns of interest
     variableNameCols <- c("modelName", "X", "Y", "M")
-    colOfInt_names <- c("IndEff_est", "IndEff_SE", "IndEff_p", "IndEff_95%CI-Lo", "IndEff_95%CI-Hi", "bPath_model_R^2adj", "bPath_model_df1", "dirEff_df2", "bPath_model_p")
+    colOfInt_names <- c("IndEff_est_correct", "IndEff_SE_correct", "IndEff_p", "IndEff_95%CI-Lo", "IndEff_95%CI-Hi", "bPath_model_R^2adj", "bPath_model_df1", "dirEff_df2", "bPath_model_p")
     colOfInt_nums <- which(colnames(outputDF) %in% c(colOfInt_names, variableNameCols))
     outputDF <- outputDF[colOfInt_nums]
 
-    z <- outputDF$IndEff_est / outputDF$IndEff_SE
+    z <- outputDF$IndEff_est_correct / outputDF$IndEff_SE_correct
     p <- pnorm(z) # compute p-value
     outputDF <- outputDF %>%
-      mutate("IndEff_p" = p, .after = "IndEff_SE")
+      mutate("IndEff_p" = p, .after = "IndEff_SE_correct")
     
     fileNameAffix <- "_p"
 
@@ -92,18 +142,22 @@ getPMed <- function(path, fileNames, keyCognition, keyMediators, pCor, sigOnly, 
         outputDf_p_cor <- rbind(outputDf_p_cor, outputDF_keyYM)
       }
     }
-
-    saveName <- glue("{file}_{fileNameAffix}_{outputAffix}.csv")
+    
+    outputDf_p_cor <- as.data.frame(sapply(outputDf_p_cor, function(.)format(., scientific = FALSE)))
+    
+    saveName <- glue("{file}{fileNameAffix}_{outputAffix}.csv")
     write.csv(outputDf_p_cor, file = saveName)
     outputDf_p_cor <- c()
   }
 } # path: path to raw mediation output summary files; fileNames: name of summary mediation outcome files; pCor: logical specifying if p-vqlues qre to be corrected. If TRUE, then will correct considering all mediators listed in 'keyMediators' ; sigOnly: logicql specifying if output file should return only significant mediation models (uses alpha given by 'alpha'); outputAffix: string to append to end of output file name.
 
 ### UPDATE BELOW AS NEEDED ###
-path <- "./AnalysisSummary" # Path for file containing anaylisis summary csv files.
+path <- "./CorrectedSummaryFiles" # Path for file containing anaylisis summary csv files.
 ##############################
 
-fileNames <- c("UKBB_All_med_C_results_05_11_2022", "UKBB_noDx_med_C_results_05_11_2022", "UKBB_noDxNoSSRI_med_C_results_05_11_2022", "UKBB_noMed_med_C_results_05_11_2022", "UKBB_NoMedNoDx_med_C_results_05_11_2022", "UKBB_noSSRI_med_C_results_05_11_2022", "UKBB_oldestTert_med_C_results_05_11_2022", "UKBB_onlyDx_med_C_results_05_11_2022", "UKBB_onlyMed_med_C_results_05_11_2022", "UKBB_onlySSRI_med_C_results_05_11_2022", "UKBB_youngestTert_med_C_results_05_11_2022") # name of summary mediation outcome files
+fileNameRoots <- c("UKBB_All_med_C_results_05_11_2022", "UKBB_noDx_med_C_results_05_11_2022", "UKBB_noDxNoSSRI_med_C_results_05_11_2022", "UKBB_noMed_med_C_results_05_11_2022", "UKBB_NoMedNoDx_med_C_results_05_11_2022", "UKBB_noSSRI_med_C_results_05_11_2022", "UKBB_oldestTert_med_C_results_05_11_2022", "UKBB_onlyDx_med_C_results_05_11_2022", "UKBB_onlyMed_med_C_results_05_11_2022", "UKBB_onlySSRI_med_C_results_05_11_2022", "UKBB_youngestTert_med_C_results_05_11_2022") # name of summary mediation outcome files
+suffix <- "_corrected_06_27_2022"
+fileNames <- unlist(lapply(fileNameRoots, function(.)glue("{.}{suffix}")))
 
 keyCognition <- c("cog_fluidIntel_score_t2_z", "cog_numMem_maxDigitRemem_t2_z") # name of cognition variables of interest for mediation analyses
 
@@ -130,10 +184,13 @@ for (i in c("area", "mThick", "vol")) {
   }
 }
 
+# Correct p-values for general brain metrics
 keyMediators_1 <- c(lobularBrainMetrics, generalMetrics)
 keyMediators_1_z <- unlist(lapply(keyMediators_1, function(.)paste(., "_z", sep = "")))
 getPMed(path = path, fileNames = fileNames, keyMediators = keyMediators_1_z, keyCognition = keyCognition, pCor = T, sigOnly = F, alpha = .1, outputAffix = "round1") # for round 1, general brain metrics
 
+
+# Correct p-values for specific brain metrics
 keyMediators_2 <- c(aseg_brainVars, dkt_brainVars_area, dkt_brainVars_vol, dkt_brainVars_mThick) # list of mediators to correct p-values for round 2
 keyMediators_2_z <- unlist(lapply(keyMediators_2, function(.)paste(., "_z", sep = "")))
 getPMed(path = path, fileNames, keyMediators = keyMediators_2_z, keyCognition = keyCognition, pCor = T, sigOnly = F, alpha = .1, outputAffix = "round2") # for round 2, specific brain regions
