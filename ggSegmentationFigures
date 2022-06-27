@@ -1,0 +1,155 @@
+library(ggsegDKT)
+library(ggseg)
+library(ggplot2)
+library(tidyverse)
+library(ggthemes)
+library(readxl)
+library(dplyr)
+
+formatData <- function(file){
+  df <- read_csv(file) # Import data
+  df_split <- split(df, df$Y)
+  df_formatted <- list()
+  
+  for(i in 1:length(df_split)){
+    # cat("\n", i, "\t ")
+    df_i <- as.data.frame(df_split[i])
+    dfName <- names(df_split)[i]
+    colOfInt <- glue("{dfName}.M") # By splitting, columns get renamed.
+    df_i <- df_i %>%
+      # tidyr::separate(col = colOfInt, sep = "_", into = c(glue("{dfName}.Metric"), glue("{dfName}.Region"), glue("{dfName}.Hand"), glue("{dfName}.discard1"), glue("{dfName}.discard2"))) %>% 
+      tidyr::separate(col = colOfInt, sep = "_", into = c("Metric", "Region", "Hand", glue("{dfName}.discard1"), glue("{dfName}.discard2"))) %>% 
+      mutate(Metric = case_when(
+        Metric == "vol" ~ "volume",
+        Metric == "mThick" ~ "thickness",
+        Metric == "area" ~ "area",
+        TRUE ~ "other"
+      )) %>% 
+      mutate(Region = case_when(
+        Hand == "L" ~ glue("lh_{Region}"),
+        Hand == "R" ~ glue("rh_{Region}"),
+        Hand == "WB" ~ glue("wb_{Region}"),
+        TRUE ~ Region
+      )) %>%
+      select(-glue("{dfName}.discard1"), -glue("{dfName}.discard2"), -Hand)
+    df_formatted[[i]] <- df_i
+    # cat(dfName, "\t completed")
+  } # Iterate through unique cognitive outcomes
+  names(df_formatted) <- names(df_split)
+  return(df_formatted)
+} # Format mediation summary file to appropriate format for 'createBrainFigure' function. I.e., one row per ROI, metric column, proper names for regions
+
+createBrainFigure <- function(file, figureValue, savePath, Y){
+  date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
+  
+  cortical_pos <- c("left lateral", "left medial", "right medial", "right lateral")
+  DKTRegions <- c("caudalanteriorcingulate" ,"caudalmiddlefrontal" ,"cuneus" ,"entorhinal" ,"fusiform" ,"inferiorparietal" ,"inferiortemporal" ,"isthmuscingulate" ,"lateraloccipital" ,"lateralorbitofrontal" ,"lingual" ,"medialorbitofrontal" ,"middletemporal" ,"parahippocampal" ,"paracentral" ,"parsopercularis" ,"parsorbitalis" ,"parstriangularis" ,"pericalcarine" ,"postcentral" ,"posteriorcingulate" ,"precentral" ,"precuneus" ,"rostralanteriorcingulate" ,"rostralmiddlefrontal" ,"superiorfrontal" ,"superiorparietal" ,"superiortemporal" ,"supramarginal" ,"transversetemporal" ,"insula" ,"caudalanteriorcingulate" ,"caudalmiddlefrontal" ,"cuneus" ,"entorhinal" ,"fusiform" ,"inferiorparietal" ,"inferiortemporal" ,"isthmuscingulate" ,"lateraloccipital" ,"lateralorbitofrontal" ,"lingual" ,"medialorbitofrontal" ,"middletemporal" ,"parahippocampal" ,"paracentral" ,"parsopercularis" ,"parsorbitalis" ,"parstriangularis" ,"pericalcarine" ,"postcentral" ,"posteriorcingulate" ,"precentral" ,"precuneus" ,"rostralanteriorcingulate" ,"rostralmiddlefrontal" ,"superiorfrontal" ,"superiorparietal" ,"superiortemporal" ,"supramarginal" ,"transversetemporal" ,"insula") # Regions to be included in figure
+  
+  regionColNum <- which(colnames(file) == glue("{Y}.Region"))
+  # metricColNum <- which(colnames(file) == glue("{Y}.Metric"))
+  
+  matches <- c()
+  for(roi in DKTRegions){
+    new_matches <- file[[regionColNum]][grepl(roi, file[[regionColNum]], ignore.case = TRUE, fixed = FALSE) == TRUE]
+    matches <- c(matches, unique(new_matches))
+  } # makes a list of all ROIs to keep for figures. Remaining cannot be included by the figure as they are subcortical or WB.
+  matches <- unique(matches)
+  
+  # print("Matches occured")
+  
+  file_short <- file %>% 
+    subset(glue("{Y}.Region") %in% matches)
+  
+  if(figureValue == "p"){
+    
+    value <- glue("{Y}.p")
+    figureName <- glue("{Y}_p")
+    title <- "p-value"
+    
+    lowBound <- 0
+    hiBound <- 1
+    breakValues <- c(.001, .01, .05, .1, .2, .5, .9)
+    
+  } else  if(figureValue == "pCor"){
+    
+    value <- glue("{Y}.pCor")
+    figureName <- glue("{Y}_pCor")
+    title <- "p-value (corrected)"
+    
+    lowBound <- 0
+    hiBound <- 1
+    breakValues <- c(.001, .01, .05, .1, .2, .5, .9)
+    
+  } else if(figureValue == "indEff"){
+    
+    value <- glue("{Y}.indEff_corrected")
+    figureName <- glue("{Y}_indEff")
+    title <- "Indirect effect"
+    
+    lowBound <- 0 # !!! PROPER BOUNDS TO BE DETERMINED
+    hiBound <- 1 # !!! PROPER BOUNDS TO BE DETERMINED
+    breakValues <- c(.001, .01, .05, .1, .2, .5, .9) # !!! PROPER BOUNDS TO BE DETERMINED
+    
+  } else {
+    
+    return(cat("Error: ", figureValue, " is invalid. \n Options are 'p', 'pCor', or 'indEff'"))
+    
+  }
+  
+  # valueColNum <- which(colnames(file) == value)
+  
+  file %>%
+    group_by(glue("{Y}.Metric")) %>% 
+    ggplot() +
+    ggtitle(title) +
+    theme_tufte() +
+    geom_brain(
+      atlas = dkt, aes(fill = glue("{value}")), 
+      position = position_brain(cortical_pos), 
+      show.legend = TRUE) +
+    scale_fill_gradientn(
+      name = glue("{value}"),
+      colours = c("#CFE8F3", "#A2D4EC", "#73BFE2","#46ABDB", 
+                  "#1696D2", "#12719E", "#0A4C6A", "#062635")) +
+    scale_x_continuous(breaks = c(.05, .2, .5, .8), # can replace list with breakValues so long as it has same length as 'labels'
+                       labels = str_to_title(cortical_pos)) +
+    theme(
+      legend.position = 'bottom',
+      plot.title = element_text(hjust = 0.5),
+      legend.title = element_text(vjust = .75),
+      axis.title.y=element_blank(), 
+      axis.text.y=element_blank(), 
+      axis.ticks.y=element_blank(),
+      strip.text.y = element_text(angle = 0, hjust = 0)) +
+    facet_grid(glue("{Y}.Metric") ~ .)
+  
+  ggsave(glue("{savePath}/{figureName}_{date}.jpg"), dpi=300)
+} # Creates ggSegmentation for DSK atlas. Takes: 'file' a data file formatted appropriately (see ROIS.csv for reference); 'figureValue' string specifying the values the figure is to represent (either 'p' or 'indEff'); 'savePath' path where figure should be saved; 'Y' dependent variable name
+
+# input files of interest
+PCorFilePath <- "OutputFiles/round2Output"
+prefix <- "UKBB_"
+subsets <- c("All", "noMed", "NoMedNoDx", "noDxNoSSRI", "noDx", "noSSRI", "oldestTert",  "onlyDx", "onlyMed","onlySSRI", "youngestTert")
+infix <- "_med_C_results_05_11_2022_corrected_06_27_2022_pCor_round2" # round 2 has the specific brain regions
+subset <- c("All") # for testing purposes
+
+for(subset in subsets){
+  # load original file for that subset
+  summaryFileName <- glue("./{PCorFilePath}/{prefix}{subset}{infix}.csv")
+  formattedFile <- formatData(file = summaryFileName)
+  # str(formattedFile)
+  
+  for(i in 1:length(formattedFile)){
+    cogVar <- names(formattedFile[i])
+    createBrainFigure(file = as.data.frame(formattedFile[i]), figureValue = "pCor", savePath = "./OutputFiles/Figures", Y = cogVar)
+  }
+}
+
+
+df_josh = read_excel("./sampleData/rois.xlsx") %>%
+  pivot_longer(cols = c("Area", "Thickness", "Volume"), names_to = "measure")
+View(df_josh)
+
+file <- glue("./{PCorFilePath}/{prefix}{subset}{infix}.csv") # For testing purposes
+
+createBrainFigure(file = as.data.frame(formattedFile[i]), figureValue = "p", savePath = "./OutputFiles/Figures", Y = cogVar)
