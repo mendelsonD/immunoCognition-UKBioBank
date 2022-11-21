@@ -553,6 +553,46 @@ df <- df %>%
 #   geom_count()
 
 ```
+
+### Compute and add lobular brain volumes
+```{r computeBrainLobes, echo=FALSE}
+vars_BrainRegion <- read_csv("./data/Variables/VariableLists/brainVarsbyLobe.csv")
+vars_BrainRegion$varNameDf <- glue("{vars_BrainRegion$VariableName}_t2")
+
+for(lobe in unique(vars_BrainRegion$AssociatedLobe)){
+  for(metric_counter in unique(vars_BrainRegion$metric)){
+    
+    vars_lobe_metric_L <- vars_BrainRegion %>% 
+      filter(AssociatedLobe == lobe) %>% 
+      filter(metric == metric_counter) %>% 
+      filter(hemisphere == "L")
+    vars_lobe_metric_R <- vars_BrainRegion %>% 
+      filter(AssociatedLobe == lobe) %>% 
+      filter(metric == metric_counter) %>% 
+      filter(hemisphere == "R")
+    
+    if(metric_counter == "area"){
+      metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+      metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+      metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+    } else if (metric_counter == "mThick"){
+      metric_lobe_L <- rowMeans(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+      metric_lobe_R <- rowMeans(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+      metric_lobe_WB <- rowMeans(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+    } else if (metric_counter == "vol"){
+      metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+      metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+      metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+    } else {
+      cat("Error. The metric `", metric_counter, "` defined in the brain variables by brain lobe dataframe is undefined. \n Skipping computation of variables of this metric.")
+    }
+    tempMatrix <- as.matrix(cbind(metric_lobe_L,metric_lobe_R, metric_lobe_WB))
+    colnames(tempMatrix) <- c(glue("{metric_counter}_{lobe}_L_t2"),glue("{metric_counter}_{lobe}_R_t2"),glue("{metric_counter}_{lobe}_WB_t2"))
+    df <- cbind(df, as.data.frame(tempMatrix))
+  }
+}
+```
+
 ### Save cleaned DF
 ```{r saveInterimDf, echo=FALSE}
 df_interim <- df

@@ -149,7 +149,9 @@ runMediation <- function(df, X, Y, M, covars, mediatorModelExpression, outcomeMo
 ### Using package: RMediation
 
 ```{r RMediationFunction, echo=FALSE}
+# This is the function used in analyses run on 05_11_2022
 # see psyc 536 lecture 5 notes
+
 runRMediation <- function(df, X, Y, M, covars, contrasts, YisFactor, name, alpha){
   require(RMediation)
   relevantVars <- c()
