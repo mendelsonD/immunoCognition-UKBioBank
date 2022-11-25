@@ -9,4 +9,4 @@ Flow of scripts:
 4 - Interpret results: perform FDR-correction
 
 Additional tools:
-ExcelVarsToCreateDatasetFormat: takes list of UK Biobank variables and their details, prepares a text file for use as a library in the 'createDataset' program file to access UKBiobank data. The createDataset program was prepared by Mr. Joshua Unrau (see https://github.com/dmen99/CognitiveSubtypes/tree/main/src/create_dataset).
+ExcelVarsToCreateDatasetFormat: takes list of UK Biobank variables and their details, prepares a text file for use as a library in the 'createDataset' program file to access UKBiobank data. The createDataset program was prepared by Mr. Joshua Unrau (see https://github.com/mendelsonD/CognitiveSubtypes/tree/main/src/create_dataset).
