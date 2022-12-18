@@ -1,6 +1,7 @@
 # 0. Preamble ----
 ###
 # This file contains is the analysis script for the immunology, cognition and brain mediation analysis of the UKBB.
+# The following script was computed on a system running Ubuntu 22.04.1 LTS with an x86 platform.
 # Prepared by Daniel Mendelson with help from Katie M. Lavigne and Joshua Unrau.
 # Work performed under the supervision of Dr. Martin Lepage.
 # 14 December, 2022
