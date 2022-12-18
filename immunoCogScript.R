@@ -7,10 +7,26 @@
 ###
 
 ## Load packages ----
-require(readr)
-require(glue)
-require(lubridate)
-require(dplyr)
+
+library(DescTools)
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(dplyr)
+library(factoextra)
+library(ggplot2)
+library(ggseg)
+library(ggthemes)
+library(glue)
+library(lubridate) 
+library(psych)
+library(rcompanion)
+library(readr)
+library(RMediation)
+library(rsvg)
+library(stats)
+library(stringr)
+library(tidyr)
+
 # 1. Data preperation -----------
 ## 1.A Functions ----
 getDate <- function(){
@@ -665,8 +681,6 @@ for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
 # write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[1], file = paste("dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[1]), "_", getDate(), ".csv", sep = "")) # save counts of categorical variables
 # write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[2], file = paste("dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[2]), "_", getDate(), ".csv", sep = "")) # save counts of categorical variables
 # write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[3], file = paste("dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[3]), "_", getDate(), ".csv", sep = "")) # save counts of categorical variables
-# 
-# capture.output(Hmisc::describe(df[-numVars]), file = paste("dfRetained_Summary_fctrVars", getDate(), ".tex", sep = "")) # save counts of categorical variables to latex file
 
 rm(numVars)
 
@@ -845,11 +859,6 @@ for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
   }
 }
 
-# if("dx_CVD.1" %in% colnames(df[varsToCompare_ColNum])){
-#   colNum <- which(colnames(df[varsToCompare_ColNum]) == "dx_CVD.1")
-#   varsToCompare_ColNum <- varsToCompare_ColNum[-which(varsToCompare_ColNum == colNum)]
-# }
-
 #### Define non-factor numeric variables for normality check ----
 numVarsToCompare <- lapply(df[varsToCompare_ColNum], numNotFactor)
 df_numVarsToCompare <- as.data.frame(do.call(cbind, numVarsToCompare))
@@ -859,7 +868,6 @@ numVarColsToCompare <- (which(colnames(df) %in% colnames(df_numVarsToCompare)))
 normalityPlots <- mapply(normalCheck, df[c(numVarColsToCompare)], colName = colnames(df[c(numVarColsToCompare)]), colNum = c(numVarColsToCompare))
 cat("Scroll through the plots to determine normality of variables. \n List non-normal variables on line 863.")
 # N.b. QQ plot should follow a straight line
-# nonParametricVars <- c(3,4,5,9,15,16, 17,19,36,38,41,43,49,56,57,58,66,67,69,101) # vector specifying which values of dependent to run non-parametric tests on
 nonParaToCompare <- c(3,10,11,14,15,18,19,20,21,22,25,47,48,49,50,713,719,720,757,763)
 
 #### Make Table 1 for those excluded based on missing variables
@@ -899,7 +907,6 @@ comparisonDroppedCases <- TOne(complete_df[varsToCompare], grp = complete_df$mis
                                           pval = as.fmt(fmt = "p*")))
 
 write.csv(comparisonDroppedCases, file = paste("compareMissingCases_TOne", getDate(), ".csv", sep = ""))
-# kable(comparisonDroppedCases)
 
 ## 1.M Preliminary correlation analyses ----
 ### CRP and blood draw characteristics  ----
@@ -916,73 +923,6 @@ df$crp_assaydate_t0 <- as.POSIXct(df$crp_assaydate_t0)
 
 cat("the mean time between blood sample and CRP measurement was (in years): \n\t", "mean:", mean(df$crp_aliquotdelay, na.rm = T), "SD: ", sd(df$crp_aliquotdelay, na.rm = T), "\n\t Median: ", median(df$crp_aliquotdelay, na.rm = T), "IQR: ", IQR(df$crp_aliquotdelay))
 cor.test(rank(df$crp_aliquotdelay), rank(df$crp_aliquot_t0))
-
-### Covariates at instances 0 and 2 ----
-# cat("Correlations between variables at both time points \n \t age: ",
-# cor(df$demo_age_assess0_t0, df$demo_age_assess2_t2, use = "pairwise.complete.obs", method = "spearman"), "\n\t waist-to-hip ratio: ",
-# cor(df$weight_waistToHip_t0, df$weight_waistToHip_t2, use = "pairwise.complete.obs", method = "spearman"), "\n\t sleep duration: ",
-# cor(df$sleep_duration0_t0, df$sleep_duration2_t2, use = "pairwise.complete.obs", method = "spearman")
-# cor(df$vol_Hippocampus_L_FIRST_t2, df$vol_Hippocampus_L_t2, use = "pairwise.complete.obs")
-# cor(df$weight_BMI0_t0, df$weight_BMI2_t2, use = "pairwise.complete.obs")
-# cor(df$weight_waistToHip_t0, df$weight_waistToHip_t2, use = "pairwise.complete.obs")
-# )
-# ggplot(df, aes(x = sleep_duration0_t0, y = sleep_duration2_t2)) +
-#   geom_count()
-
-### Diet variables ----
-# diet_numeric <- c()
-# for(i in dietVarsToCor){
-#   if(is.numeric(df[[i]]) == T){
-#     diet_numeric <- append(diet_numeric,i)
-#   }
-# }
-#
-# out <- matrix(ncol = 6, dimnames = list(c(),c("x,y","rho","p","stat", "nx", "ny"))) # initilaize output matrix
-# VarsDone <- c()
-# for(i in diet_numeric){
-#   VarsDone <- append(VarsDone, i)
-#   for(j in diet_numeric){
-#     if(i != j){
-#         test <- cor.test(df[[i]], df[[j]], method = 'spearman')
-#         corName <- paste(colnames(df[i]), ", ", colnames(df[j]), sep = "")
-#         nx <- length(df[[i]]) - sum(is.na(df[[i]]))
-#         ny <- length(df[[j]]) - sum(is.na(df[[j]]))
-#         newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2),scientific = T), nx, ny)
-#         out <- rbind(out, {newRow})
-#       }
-#   }
-#   test <- cor.test(rank(df$diet_processedMeat_t0), rank(df[[i]]), method = 'pearson')
-#   corName <- paste("diet_processedMeat_t0,", colnames(df[i]), sep = "")
-#   nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
-#   ny <- length(df[[i]]) - sum(is.na(df[[i]]))
-#   newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
-#   out <- rbind(out, {newRow})
-# }
-#   test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_cookedVeg_t0), method = 'pearson')
-#   corName <- paste("diet_processedMeat_t0, diet_cookedVeg_t0")
-#   nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
-#   ny <- length(df$diet_cookedVeg_t0) - sum(is.na(df$diet_cookedVeg_t0))
-#   newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
-#   out <- rbind(out, {newRow})
-#   
-#   test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_rawVeg_t0), method = 'pearson')
-#   corName <- paste("diet_processedMeat_t0, diet_rawVeg_t0")
-#   nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
-#   ny <- length(df$diet_rawVeg_t0) - sum(is.na(df$diet_rawVeg_t0))
-#   newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
-#   out <- rbind(out, {newRow})
-#   
-#   test <- cor.test(rank(df$diet_processedMeat_t0), rank(df$diet_water_t0), method = 'pearson')
-#   corName <- paste("diet_processedMeat_t0, diet_water_t0")
-#   nx <- length(df$diet_processedMeat_t0) - sum(is.na(df$diet_processedMeat_t0))
-#   ny <- length(df$diet_water_t0) - sum(is.na(df$diet_water_t0))
-#   newRow <- c(corName,format(round(test$estimate, 5), nsmall = 5), format(round(test$p.value, 2), scientific = T), format(round(test$statistic, 2), scientific = T), nx, ny)
-#   out <- rbind(out, {newRow})
-#
-# out <- out[-1,] # removes first column which is "NA"
-# out <- out[order(out[,2], decreasing = T),]
-# out <- out[-(seq(2,to=nrow(out),by=2)),]
-# kable(out, caption = "Spearman correlation between diet variables")
 
 # 2. Statistical Analyses -----
 ## 2.A Correlation ----
@@ -1023,7 +963,7 @@ runCor <- function(df, X, Y, M, covars, contrasts, YisFactor, name){
 corTxtFormat <- function(filePath, files, X, listOfCovars, logReg){  
   require(stringr)
   
-  df_main <- matrix(ncol = 13, dimnames = list(c(), c("subset", "Y", "X", "b", "SE", "t", "p_predictor", "F", "df1", "df2", "p_model", "R^2", "R^2adj")))
+  df_main <- matrix(ncol = 13, dimnames = list(c(), c("subset", "Y", "X", "b", "SE", "t", "p_predictor", "F", "df1", "df2", "p_model", "R2", "R2adj")))
   
   df_covarForModel_tmp <- c()
   
@@ -1084,7 +1024,7 @@ corTxtFormat <- function(filePath, files, X, listOfCovars, logReg){
 } # 'filePath' - path to folder housing files, 'files' - name of files (without extensions), 'x' - independent variable (usually 'CRP_log_z'), 'listOfCovars' - list of covariate variable names as listed in LM output (include level of contrast for categorical variables). If no covars, define as '""'. 'logReg': logical specifying if file is logistic regression. N.B. takes subset name and dependent variable from file name.
 
 corCSVFormat <- function(modelName, corResultPath, dataFilePrefix, subsets, cogVars, dataDate, depVar, listOfCovars, outputPrefix, outputPath){  
-  df_main <- matrix(ncol = 15, dimnames = list(c(), c("subset",  "X","Y", "b", "b_SE", "b_95%CI-Lo", "b_95%CI_hi", "b_t", "b_p", "R^2", "R^2adj", "F", "df1", "df2", "p")))
+  df_main <- matrix(ncol = 15, dimnames = list(c(), c("subset",  "X","Y", "b", "b_SE", "b_95CI_Lo", "b_95CI_hi", "b_t", "b_p", "R2", "R2adj", "F", "df1", "df2", "p")))
   df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
   df_covarForModel_tmp <- c()
   
@@ -1130,51 +1070,7 @@ corCSVFormat <- function(modelName, corResultPath, dataFilePrefix, subsets, cogV
           p <- FTest[which(FTest == grep("p-value",FTest, value = TRUE))+1]
         }
         
-        # if(listOfCovars[1] != ""){
-        #   for(covar in listOfCovars){
-        #     
-        #     covarValues <- grep(covar, fileObj, value = TRUE)
-        #     if(is.null(covarValues) == F){
-        #       if(length(covarValues) == 2){
-        #         covarValues <- covarValues[2]
-        #       }
-        #       indexNumBegin <- length(unlist(strsplit(covar, "\\s+")))
-        #       covarValues <- unlist(strsplit(covarValues, "\\s+"))
-        #   
-        #       indexOfFirstNum <- indexNumBegin + 1
-        #       indexOfLastNum <- indexNumBegin + 4
-        #       
-        #       if(TRUE %in% grepl("<", covarValues)){
-        #         indexPreP <- indexOfLastNum - 1
-        #         covarValues <- c(covar, covarValues[indexOfFirstNum : indexPreP], glue("{covarValues[[indexOfLastNum]]}{covarValues[[indexOfLastNum+1]]}"))
-        #       # p <- paste(FTest[[9]], FTest[[10]], sep = "")
-        #       } else {
-        #         covarValues <- c(covar, covarValues[indexOfFirstNum:indexOfLastNum])
-        #       }
-        #     } else{
-        #       covarValues <- rep("Error, missing data for covariates.", 5)
-        #     }
-        #     df_covarForModel_tmp <- cbind(df_covarForModel, covarValues)
-        #   }
-        #   name <- glue("{name}_C")
-        #   if(sum(is.na(df_covarForModel_tmp[,1])) == nrow(df_covarForModel_tmp)){
-        #      df_covarForModel_tmp <-  df_covarForModel_tmp[,-1]
-        #   }
-        #   dimnames(df_covarForModel) <- list(c(), listOfCovars)
-        #   df_covarForModel <- df_covarForModel_tmp
-        #   df_covarForModel <- cbind("modelName" = name, "statistic" = c("parameter estimate", "SE", "t", "p"), df_covarForModel_tmp)
-        #   if(nrow(df_covarForModel) == 1){
-        #     df_covarForModel <- rbind(df_covarForModel[-1,], df_covarForModel_tmp)
-        #   } else {
-        #     df_covarForModel <- rbind(df_covarForModel, df_covarForModel_tmp)
-        #   }
-        #   df_covarForModel <- c()
-        #   write.csv(df_covarForModel, file = glue("{outputPrefix}_CovarWeights_{getDate()}.csv"))
-        # } else {
-        #   name <- glue("{name}_noC")
-        # }
-        
-        df_mainRow <- c(subset, depVarValuesNoSigChar[1], cogVar, depVarValuesNoSigChar[2:3], CI_lo, CI_hi, depVarValuesNoSigChar[4:length(depVarValuesNoSigChar)], R2, R2adj, FStat, df1, df2, p)  # "Model name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R^2", "R^2adj", "F", "df1", "df2", "p"
+        df_mainRow <- c(subset, depVarValuesNoSigChar[1], cogVar, depVarValuesNoSigChar[2:3], CI_lo, CI_hi, depVarValuesNoSigChar[4:length(depVarValuesNoSigChar)], R2, R2adj, FStat, df1, df2, p)  # "Model name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R2", "R2adj", "F", "df1", "df2", "p"
         df_main <- rbind(df_main, " " = df_mainRow)
         
       } else {
@@ -1528,11 +1424,6 @@ getPMed <- function(dataPath, subsetNames, dataFileInfix, dataDate, keyCognition
     
     cat("\t File: ", file, "\n")
     
-    # variableNameCols <- c("modelName", "X", "Y", "M")
-    # colOfInt_names <- c("IndEff_est_correct", "IndEff_SE_correct", "IndEff_p", "IndEff_95%CI-Lo", "IndEff_95%CI-Hi", "bPath_model_R^2adj", "bPath_model_df1", "dirEff_df2", "bPath_model_p")
-    # colOfInt_nums <- which(colnames(outputDF) %in% c(colOfInt_names, variableNameCols))
-    # outputDF <- outputDF[colOfInt_nums] # defines columns of interest
-    
     # Sobel's test for computing mediation effect's p-value
     z <- outputDF$IndEff_est / outputDF$IndEff_SE 
     p <- pnorm(z) # compute p-value
@@ -1547,9 +1438,16 @@ getPMed <- function(dataPath, subsetNames, dataFileInfix, dataDate, keyCognition
           filter(Y %in% cog) %>%
           filter(M %in% keyMediators)
         
-        p_cor <- p.adjust(outputDF_keyYM$IndEff_p, method = "fdr") # correct p-value
+        indEff_p_cor <- p.adjust(outputDF_keyYM$IndEff_p, method = "fdr")
+        dirEff_p_cor <- p.adjust(outputDF_keyYM$dirEff_X_p, method = "fdr")
+        a_p_cor <- p.adjust(outputDF_keyYM$aPath_X_p, method = "fdr")
+        b_p_cor <- p.adjust(outputDF_keyYM$bPath_X_p, method = "fdr")
+        
         outputDF_keyYM <- outputDF_keyYM %>%
-          mutate("IndEff_p_cor" = p_cor, .after = "IndEff_p")
+          mutate("IndEff_p_cor" = indEff_p_cor, .after = "IndEff_p") %>% 
+          mutate("dirEff_X_p_cor" = dirEff_p_cor, .after = "dirEff_X_p") %>%
+          mutate("aPath_X_p_cor" = a_p_cor, .after = "aPath_X_p") %>%
+          mutate("bPath_X_p_cor" = b_p_cor, .after = "bPath_X_p")
         
         outputDF_keyYM <- outputDF_keyYM[order(outputDF_keyYM$IndEff_p_cor), ] # order by corrected p-value
         
@@ -1593,24 +1491,6 @@ getPMed <- function(dataPath, subsetNames, dataFileInfix, dataDate, keyCognition
     outputDf_p_cor <- c()
   }
 } # 'dataPath': path to mediation output summary files; 'subsetNames': list of subset names of interest; 'dataFileInfix': infix in summary mediation file name; 'dataDate': date of summary mediation files as shown in file name; 'pCor': logical specifying if p-values are to be corrected. If TRUE, then will correct considering all mediators listed in 'keyMediators'; 'sigOnly': logical specifying if output file should return only significant mediation models (uses alpha given by 'alpha'); 'round': number indicating the round of the mediation analysis; 'outputPath': string of path defining desired output directory.
-
-#### Other mediation functions, not used for analyses 11 May 2022
-runMediation <- function(df, X, Y, M, covars, mediatorModelExpression, outcomeModelExpression, control){
-  require(mediation)
-  
-  # mediatorModelExpression <- createLMExpression(varNames = colnames(df), X = X, Y = M, M = NULL, C = C) # mediator model: predict M from X and C
-  # outcomeModelExpression <-  createLMExpression(varNames = colnames(df), X = X, Y = Y, M = M, C = C) # outcome model: predict Y from X, M and C
-  # print(mediatorModelExpression)
-  # print(outcomeModelExpression)
-  
-  if(is.factor(X) != TRUE){
-    control <- NULL
-  }
-  mediatorModel <- lm(eval(parse(text = mediatorModelExpression)), data = df) 
-  outcomeModel <- lm(eval(parse(text = outcomeModelExpression)), data = df)
-  mediation_out <- mediation::mediate(mediatorModel, outcomeModel, treat = X, control = control, mediator = M, covariates = C, boot = T)
-  return(mediation_out)
-} # This function runs the mediation analyses and returns the mediation model. Input: 'df' - dataframe; 'X' - name of independent variable; 'Y' - name of dependent variable; 'C' - a list of covariate variable names in string form;  'mediatorModelExpression' - the model predicting M from X and C; 'outcomeModelExpression' - the model predicting Y from X, M and C; 'treat' - the level of X to be used as the reference group, leave NULL if X is continous
 
 ### 2.B.ii. Define variables of interest -----
 # df <- readRDS("Data/Processed/Subsets/All_12_14_2022.rds")
@@ -1686,7 +1566,7 @@ for(subset in subsetNames){
   df <- cbind(df, df_brainMorphVarsZ[brainMorphVars_Z_colNames])
   mediators <- brainMorphVars_Z_colNames
   
-  outputDF <- matrix(ncol = 46, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95%CI-Lo","IndEff_95%CI-Hi","dirEff_b", "dirEff_SE", "dirEff_95%CI-Lo","dirEff_95%CI-Hi", "dirEff_X_t", "dirEff_X_p", "dirEff_R^2", "dirEff_R^2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_95%CI-Lo", "aPath_95%CI-Hi", "aPath_X_t", "aPath_X_p", "aPath_model_R^2", "aPath_model_R^2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_95%CI-Lo", "bPath_95%CI-Hi","bPath_X_t", "bPath_X_p", "bPath_model_R^2", "bPath_model_R^2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
+  outputDF <- matrix(ncol = 46, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95CI_Lo","IndEff_95CI_Hi","dirEff_b", "dirEff_SE", "dirEff_95CI_Lo","dirEff_95CI_Hi", "dirEff_X_t", "dirEff_X_p", "dirEff_R2", "dirEff_R2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_model_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_95CI_Lo", "aPath_95CI_Hi", "aPath_X_t", "aPath_X_p", "aPath_model_R2", "aPath_model_R2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_95CI_Lo", "bPath_95CI_Hi","bPath_X_t", "bPath_X_p", "bPath_model_R2", "bPath_model_R2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
   
   analysisName <- glue("{subset}_med")
    cat("\n Mediation analyses for ", subset)
@@ -1743,7 +1623,7 @@ for(subset in subsetNames){
 dataPath <- "./outputs/med/subsets" # Path for file containing analysis summary csv files. Update as necessary
 infix <- "med_C"
 dataDate <- getDate() # by default will take today's date
-# dataDate <- "12_14_2022" # specify date of prior analysis if desired. Form: MM_DD_YYYY
+# dataDate <- "12_15_2022" # specify date of prior analysis if desired. Form: MM_DD_YYYY
 outputPath <- "./outputs/med/pCor"
 
 keyCognition <- c("cog_fluidIntel_score_t2_z", "cog_numMem_maxDigitRemem_t2_z") # name of cognition variables of interest for mediation analyses
@@ -1859,7 +1739,7 @@ med_diagram <- function(mediation_data, save, outputName){
   }
 } # Creates mediation diagram. 'mediation_data' matrix with strings to be added to med diagram; 'save' logical indicating if the diagram should be saved; 'outputName' name for file to be saved.
 
-round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, subsets, rounds, rois, hemispheres, metrics, IndEffpCor, outputPath){
+round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, subsets, rounds, rois, hemispheres, metrics, pCor, outputPath){
   require(glue)
   require(dplyr)
   require(stringr)
@@ -1883,19 +1763,24 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
   colNum_Y <- which(colnames(df) == "Y")
   colNum_M <- which(colnames(df) == "M")
   colNum_aPath_b <- which(colnames(df) == "aPath_b")
-  colNum_aPath_p <- which(colnames(df) == "aPath_X_p")
   colNum_bPath_b <- which(colnames(df) == "bPath_b")
-  colNum_bPath_p <- which(colnames(df) == "bPath_X_p")
   colNum_dirEff_b <- which(colnames(df) == "dirEff_b")
-  colNum_dirEff_p <- which(colnames(df) == "dirEff_p")
   colNum_indEff_b <- which(colnames(df) == "IndEff_est")
-  if(IndEffpCor == T){
+  
+  if(pCor == T){
     colNum_indEff_p <- which(colnames(df) == "IndEff_p_cor")
-  } else if(IndEffpCor == F){
+    colNum_dirEff_p <- which(colnames(df) == "dirEff_X_p_cor")
+    colNum_aPath_p <- which(colnames(df) == "aPath_X_p_cor")
+    colNum_bPath_p <- which(colnames(df) == "bPath_X_p_cor")
+  } else if(pCor == F){
     colNum_indEff_p <- which(colnames(df) == "IndEff_p")
+    colNum_aPath_p <- which(colnames(df) == "aPath_X_p")
+    colNum_dirEff_p <- which(colnames(df) == "dirEff_X_p")
+    colNum_bPath_p <- which(colnames(df) == "bPath_X_p")
   } else {
-    return(car("Invalid value for 'IndEffpCor'. Possible values are: \`T\` (corrected p is desired) or \`F\` (non-corrected p is desired)"))
+    return(car("Invalid value for 'pCor'. Possible values are: \`T\` (corrected p is desired) or \`F\` (non-corrected p is desired)"))
   }
+  
 
   for(subset_i in subsets){
     cat("Making mediation figures for: ", subset_i, "\n")
@@ -1919,6 +1804,7 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
                 Y <- unlist(df_relevant[row, colNum_Y]) # Extract value in column Y
                 
                 # format of parameter estimates: 0.###
+                # cat("p-values: \n\tindEff: ", unlist(df_relevant[row, colNum_indEff_p]), "\n\t dirEff: ", unlist(df_relevant[row, colNum_dirEff_p]), "\n\t aPath: ", unlist(df_relevant[row, colNum_aPath_p]), "\n\t bPath: ", unlist(df_relevant[row, colNum_bPath_p]))
                 
                 a_eff <- format(round(unlist(df_relevant[row, colNum_aPath_b]), 3), nsmall = 3) # 'aPath_b'
                 a_p <- pToStar(df_relevant[row, colNum_aPath_p]) # 'aPath_model_p'
@@ -1959,6 +1845,12 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
                   medLabel = glue("Hippocampal {metricLabel} ({hemi})")
                 } else if(roi == "BrainSegNotVent"){
                   medLabel = glue("Total brain {metricLabel}")
+                } else if(roi == "insula"){
+                  medLabel = glue("Insula {metricLabel} ({hemi})")
+                } else if(roi == "CerebellumCortex"){
+                  medLabel = glue("Cerebellum Crtx. {metricLabel} ({hemi})")
+                } else if(roi == "wmHyperintensities"){
+                  medLabel = glue("WM Hyperintensities {metricLabel} ({hemi})")
                 } else {
                   medLabel = medName
                 }
@@ -1989,26 +1881,26 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
                 cat("\t File \`", outputName, "\` saved. \n")
               }
           } else {
-            cat("Error. \`", medName, "\` is an invalid combination; it is not a mediator in at least one of the provided files. \n This combination will be skipped without making a mediation diagram. \n")
+            cat("Warning. \`", medName, "\` is an invalid combination; it is not a mediator in at least one of the provided files. \n This combination will be skipped without making a mediation diagram. \n")
           }
         }
         }
       }
     }    
   }
-} # Automatically make and save diagrams for specifies brain regions and metrics. 'dataPath' string of path to folder containing output of mediation analyses !!with corrected p-values and ideally the combined MASTER document; 'dataFileName' string of name of df for specific data subset containing mediation analyses with corrected p-value for indirect effect. Df must contain the column names: 'M', 'Y', 'IndEff_est', ('IndEff_p_cor' or 'IndEff_p'), 'aPath_b', 'aPath_X_p' 'bPath_b', 'bPath_X_p'; 'dataFileInfix': infix of data file name, include any seperators between the file name and the infix; 'dataDate': date of data file; 'rois' list of brain regions to make mediation models for; 'hemispheres' hemispheres of interest. Can be 'L', 'R' or 'WB'; 'metrics' list of metrics of interest. Can be 'area', 'mThick', and/or 'vol'; 'IndEffpCor' boolean specifying if corrected p-value of ind effect is to be used; 'outputPath' string specifying where to save output diagrams
+} # Automatically make and save diagrams for specifies brain regions and metrics. 'dataPath' string of path to folder containing output of mediation analyses !!with corrected p-values and ideally the combined MASTER document; 'dataFileName' string of name of df for specific data subset containing mediation analyses with corrected p-value for indirect effect. Df must contain the column names: 'M', 'Y', 'IndEff_est', ('IndEff_p_cor' or 'IndEff_p'), 'aPath_b', 'aPath_X_p' 'bPath_b', 'bPath_X_p'; 'dataFileInfix': infix of data file name, include any seperators between the file name and the infix; 'dataDate': date of data file; 'rois' list of brain regions to make mediation models for; 'hemispheres' hemispheres of interest. Can be 'L', 'R' or 'WB'; 'metrics' list of metrics of interest. Can be 'area', 'mThick', and/or 'vol'; 'pCor' boolean specifying if corrected p-value of ind effect is to be used; 'outputPath' string specifying where to save output diagrams
 
 ### 4.A.ii. Make diagrams -----
 dataPath <- "./outputs/med" # Path for file containing analysis summary csv files. Update as necessary
 dataFileName <- "MASTER"
 infix <- "_med_C_pCor" # incllude any seperators
 dataDate <- getDate() # by default will take today's date
-# dataDate <- "12_14_2022" # specify date of prior analysis if desired. Form: MM_DD_YYYY
+# dataDate <- "12_15_2022" # specify date of prior analysis if desired. Form: MM_DD_YYYY
 
 subsetsToDiagram <- c("noDxNoSSRI") # list of subset names to make diagrams for
 roundsToDiagram <- c(1) # list of rounds to diagram
 
-mediatorsToDiagram <- c("BrainSegNotVent", "frontal", "parietal", "occipital", "temporal", "hippocampus")
+mediatorsToDiagram <- c("wmHyperintensities") # "occipital"
 hemispheresTodiagram <- c("WB")  # possibilities: "WB", "L", "R"
 metricsToDiagram <- c("vol") # possibilities: "vol", "area", "mThick"
 
@@ -2023,7 +1915,7 @@ round1_MedDiagrams(dataPath = dataPath,
                    rois = mediatorsToDiagram,
                    hemispheres = hemispheresTodiagram,
                    metrics = metricsToDiagram,
-                   IndEffpCor = T, 
+                   pCor = T, 
                    outputPath = outputPath)
 
 ### Manual diagrams
@@ -2081,7 +1973,7 @@ createBrainFigure <- function(file, figureValue, savePath, Y, subset){
   require(ggseg)
   require(ggthemes)
   require(tidyr)
-
+  
   # Extract name of cognitive performance variable ----
   Yname <- unlist(strsplit(Y, split = "_"))
   Yname <- Yname[c(-which(Yname == "cog"),-(which(Yname == "t2"):length(Yname)))]
@@ -2262,3 +2154,4 @@ for(subset in subsetNames){
 ## Print session information ----
 sessionInfo()
 capture.output(sessionInfo(), file = paste("rSessionInfo_DataPrep_", getDate(), ".csv", sep = ""))
+      
