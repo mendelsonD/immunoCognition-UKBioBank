@@ -1292,11 +1292,11 @@ formatMedOutput <- function(outputDF, dataPath, fileName, analysisName, logReg){
   split2 <- splits[3]-2
   medOutput <- grep("Mediated Effect", fileObj)
   
-  text_directEffect <- fileObj[2:split1]
+  text_totEffect <- fileObj[2:split1]
   text_aPath <- fileObj[(split1+1):split2]
   text_bPath <- fileObj[(split2+1):(medOutput-1)]
   text_mediatedEffect <- fileObj[medOutput:length(fileObj)]
-  models <- list(text_directEffect, text_aPath, text_bPath)
+  models <- list(text_totEffect, text_aPath, text_bPath)
   
   variables <- c()
   values <- c()
@@ -1440,13 +1440,13 @@ getPMed <- function(dataPath, subsetNames, dataFileInfix, dataDate, keyCognition
           filter(M %in% keyMediators)
         
         indEff_p_cor <- p.adjust(outputDF_keyYM$IndEff_p, method = "fdr")
-        dirEff_p_cor <- p.adjust(outputDF_keyYM$dirEff_X_p, method = "fdr")
+        totEff_p_cor <- p.adjust(outputDF_keyYM$totEff_X_p, method = "fdr")
         a_p_cor <- p.adjust(outputDF_keyYM$aPath_X_p, method = "fdr")
         b_p_cor <- p.adjust(outputDF_keyYM$bPath_X_p, method = "fdr")
         
         outputDF_keyYM <- outputDF_keyYM %>%
           mutate("IndEff_p_cor" = indEff_p_cor, .after = "IndEff_p") %>% 
-          mutate("dirEff_X_p_cor" = dirEff_p_cor, .after = "dirEff_X_p") %>%
+          mutate("totEff_X_p_cor" = totEff_p_cor, .after = "totEff_X_p") %>%
           mutate("aPath_X_p_cor" = a_p_cor, .after = "aPath_X_p") %>%
           mutate("bPath_X_p_cor" = b_p_cor, .after = "bPath_X_p")
         
@@ -1567,7 +1567,7 @@ for(subset in subsetNames){
   df <- cbind(df, df_brainMorphVarsZ[brainMorphVars_Z_colNames])
   mediators <- brainMorphVars_Z_colNames
   
-  outputDF <- matrix(ncol = 46, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95CI_Lo","IndEff_95CI_Hi","dirEff_b", "dirEff_SE", "dirEff_95CI_Lo","dirEff_95CI_Hi", "dirEff_X_t", "dirEff_X_p", "dirEff_R2", "dirEff_R2adj", "dirEff_F", "dirEff_df1", "dirEff_df2", "dirEff_model_p", "dirEff_AIC", "aPath_b", "aPath_SE", "aPath_95CI_Lo", "aPath_95CI_Hi", "aPath_X_t", "aPath_X_p", "aPath_model_R2", "aPath_model_R2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_95CI_Lo", "bPath_95CI_Hi","bPath_X_t", "bPath_X_p", "bPath_model_R2", "bPath_model_R2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
+  outputDF <- matrix(ncol = 46, dimnames = list(c(), c("modelName", "X", "M", "Y", "IndEff_est", "IndEff_SE", "IndEff_95CI_Lo","IndEff_95CI_Hi","totEff_b", "totEff_SE", "totEff_95CI_Lo","totEff_95CI_Hi", "totEff_X_t", "totEff_X_p", "totEff_R2", "totEff_R2adj", "totEff_F", "totEff_df1", "totEff_df2", "totEff_model_p", "totEff_AIC", "aPath_b", "aPath_SE", "aPath_95CI_Lo", "aPath_95CI_Hi", "aPath_X_t", "aPath_X_p", "aPath_model_R2", "aPath_model_R2adj", "aPath_model_F", "aPath_model_df1", "aPath_model_df2", "aPath_model_p", "bPath_b", "bPath_SE", "bPath_95CI_Lo", "bPath_95CI_Hi","bPath_X_t", "bPath_X_p", "bPath_model_R2", "bPath_model_R2adj", "bPath_model_F", "bPath_model_df1", "bPath_model_df2", "bPath_model_p", "bPath_AIC")))
   
   analysisName <- glue("{subset}_med")
    cat("\n Mediation analyses for ", subset)
@@ -1765,18 +1765,18 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
   colNum_M <- which(colnames(df) == "M")
   colNum_aPath_b <- which(colnames(df) == "aPath_b")
   colNum_bPath_b <- which(colnames(df) == "bPath_b")
-  colNum_dirEff_b <- which(colnames(df) == "dirEff_b")
+  colNum_totEff_b <- which(colnames(df) == "totEff_b")
   colNum_indEff_b <- which(colnames(df) == "IndEff_est")
   
   if(pCor == T){
     colNum_indEff_p <- which(colnames(df) == "IndEff_p_cor")
-    colNum_dirEff_p <- which(colnames(df) == "dirEff_X_p_cor")
+    colNum_totEff_p <- which(colnames(df) == "totEff_X_p_cor")
     colNum_aPath_p <- which(colnames(df) == "aPath_X_p_cor")
     colNum_bPath_p <- which(colnames(df) == "bPath_X_p_cor")
   } else if(pCor == F){
     colNum_indEff_p <- which(colnames(df) == "IndEff_p")
     colNum_aPath_p <- which(colnames(df) == "aPath_X_p")
-    colNum_dirEff_p <- which(colnames(df) == "dirEff_X_p")
+    colNum_totEff_p <- which(colnames(df) == "totEff_X_p")
     colNum_bPath_p <- which(colnames(df) == "bPath_X_p")
   } else {
     return(car("Invalid value for 'pCor'. Possible values are: \`T\` (corrected p is desired) or \`F\` (non-corrected p is desired)"))
@@ -1805,7 +1805,7 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
                 Y <- unlist(df_relevant[row, colNum_Y]) # Extract value in column Y
                 
                 # format of parameter estimates: 0.###
-                # cat("p-values: \n\tindEff: ", unlist(df_relevant[row, colNum_indEff_p]), "\n\t dirEff: ", unlist(df_relevant[row, colNum_dirEff_p]), "\n\t aPath: ", unlist(df_relevant[row, colNum_aPath_p]), "\n\t bPath: ", unlist(df_relevant[row, colNum_bPath_p]))
+                # cat("p-values: \n\tindEff: ", unlist(df_relevant[row, colNum_indEff_p]), "\n\t totEff: ", unlist(df_relevant[row, colNum_totEff_p]), "\n\t aPath: ", unlist(df_relevant[row, colNum_aPath_p]), "\n\t bPath: ", unlist(df_relevant[row, colNum_bPath_p]))
                 
                 a_eff <- format(round(unlist(df_relevant[row, colNum_aPath_b]), 3), nsmall = 3) # 'aPath_b'
                 a_p <- pToStar(df_relevant[row, colNum_aPath_p]) # 'aPath_model_p'
@@ -1813,8 +1813,8 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
                 b_eff <- format(round(unlist(df_relevant[row, colNum_bPath_b]), 3), nsmall = 3) # 'bPath_b'
                 b_p <- pToStar(df_relevant[row, colNum_bPath_p]) # 'bPath_model_p'
                 
-                c_eff <- format(round(unlist( df_relevant[row, colNum_dirEff_b]), 3), nsmall = 3) # 'dirEff_b'
-                c_p <- pToStar(df_relevant[row, colNum_dirEff_p]) # 'dirEff_p'
+                c_eff <- format(round(unlist( df_relevant[row, colNum_totEff_b]), 3), nsmall = 3) # 'totEff_b'
+                c_p <- pToStar(df_relevant[row, colNum_totEff_p]) # 'totEff_p'
                 
                 ab_indEff <- format(round(unlist(df_relevant[row, colNum_indEff_b]), 3), nsmall = 3) # colName: "IndEff_est_correct"
                 ab_p <- pToStar(df_relevant[row, colNum_indEff_p]) # colname: "IndEff_p_cor" or "IndEff_p" (defined above) 
