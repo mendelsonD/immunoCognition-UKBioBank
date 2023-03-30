@@ -1813,8 +1813,16 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
                 b_eff <- format(round(unlist(df_relevant[row, colNum_bPath_b]), 3), nsmall = 3) # 'bPath_b'
                 b_p <- pToStar(df_relevant[row, colNum_bPath_p]) # 'bPath_model_p'
                 
-                c_eff <- format(round(unlist( df_relevant[row, colNum_totEff_b]), 3), nsmall = 3) # 'totEff_b'
+                c_eff <- format(
+                  round(
+                    unlist(
+                      df_relevant[row, colNum_totEff_b]
+                    ), 3
+                  ), nsmall = 3
+                ) # 'totEff_b'
                 c_p <- pToStar(df_relevant[row, colNum_totEff_p]) # 'totEff_p'
+                
+                c_prime_eff <- format(round(unlist(df_relevant[row, colNum_totEff_b]) - unlist(df_relevant[row, colNum_indEff_b]), nsmall = 3) # direct effect computed by taking difference between totEff and indEff.
                 
                 ab_indEff <- format(round(unlist(df_relevant[row, colNum_indEff_b]), 3), nsmall = 3) # colName: "IndEff_est_correct"
                 ab_p <- pToStar(df_relevant[row, colNum_indEff_p]) # colname: "IndEff_p_cor" or "IndEff_p" (defined above) 
@@ -1823,7 +1831,7 @@ round1_MedDiagrams <- function(dataPath, dataFileName, dataFileInfix, dataDate, 
                 ##### Line labels -----
                 a <- glue("a = {a_eff}{a_p}") # Text for A path in form: "{ind eff estimate (0.###)} {significance ('*', '**', '***' or '')}"
                 b <- glue("b = {b_eff}{b_p}") # Text for B path in form: "{ind eff estimate (0.###)} {significance ('*', '**', '***' or '')}"
-                c <- glue("c = {c_eff}{c_p} \n ab = {ab_indEff}{ab_p}") # Text for C and indirect effect (ab) in form: "c = {ind eff estimate (0.###)} {significance ('*', '**', '***' or '')} \n ab = {ind eff estimate (0.###)} {significance ('*', '**', '***' or '')}"
+                c <- glue("c = {c_eff}{c_p} \n ab = {ab_indEff}{ab_p} \n c\' = {c_prime_eff}") # Text for C, indirect effect (ab), and c prime in form: "c = {ind eff estimate (0.###)} {significance ('*', '**', '***' or '')} \n ab = {ind eff estimate (0.###)} {significance ('*', '**', '***' or '')} \n c\' = {dir eff estimate (0.###)}"
                 
                 ##### Mediator box labels -----
                 if(metric == "vol"){
