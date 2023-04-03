@@ -537,6 +537,18 @@ df <- df %>%
   mutate(med_SSRI_t2 = factor(case_when(
     med_SSRI_t2 == "FALSE" ~ 0,
     med_SSRI_t2 == "TRUE" ~ 1))) %>%
+  mutate(med_Statin_t0 = factor(case_when(
+    med_Statin_t0 == "FALSE" ~ 0,
+    med_Statin_t0 == "TRUE" ~ 1))) %>%
+  mutate(med_Statin_t2 = factor(case_when(
+    med_Statin_t2 == "FALSE" ~ 0,
+    med_Statin_t2 == "TRUE" ~ 1))) %>%
+  mutate(med_Antihypertensive_t0 = factor(case_when(
+    med_Antihypertensive_t0 == "FALSE" ~ 0,
+    med_Antihypertensive_t0 == "TRUE" ~ 1))) %>%
+  mutate(med_Antihypertensive_t2 = factor(case_when(
+    med_Antihypertensive_t2 == "FALSE" ~ 0,
+    med_Antihypertensive_t2 == "TRUE" ~ 1))) %>%
   mutate(med_AnyOfInterest0 = factor(med_AnyOfInterest0)) %>%
   mutate(med_AnyOfInterest0_excludingSSRI = factor(med_AnyOfInterest0_excludingSSRI)) %>%
   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2)) %>%
@@ -609,7 +621,7 @@ df <- cbind(df, df_varsToZ[vars_Z])
 
 df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
 
-finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "exercise_IPAQActivityGroup_t0"))
+finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "exercise_IPAQActivityGroup_t0", "med_Antihypertensive_t02", "med_Statin_t02"))
 # sort(colnames(df))
 # colnames(df[sesVars])
 # View(df[1:100, c(1,cogPCAVars)])
@@ -1100,7 +1112,7 @@ cogOutcomes_fctr <- c(prospMemCol)
 cogOutcomes_fctr_names <- colnames(df[cogOutcomes_fctr])
 
 df$cog_hourCompleted_z <- scale(df$cog_hourCompleted)
-covars_colNames <- c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "smoke_currently0_t0", "smoke_currently2_t2","exercise_IPAQActivityGroup_t0")
+covars_colNames <- c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "smoke_currently0_t0", "smoke_currently2_t2","exercise_IPAQActivityGroup_t0", "med_Antihypertensive_t02", "med_Statin_t02")
 covars_colNum <-  which(colnames(df) %in% covars_colNames)
 
 covars_brain_colNames <- c("hand_t0", "brain_headScale_t2")
@@ -1126,7 +1138,7 @@ subsetDF_path <- "./Data/Processed/Subsets"
 # subsetNames <- c("NoMedNoDx") # for testing
 
 covars <- c(covars_colNames, covars_brain_colNames)
-listOfCovarLevels <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z", "hand_t0LH","hand_t0Not","hand_t0RH", "brain_headScale_t2")
+listOfCovarLevels <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z", "hand_t0LH","hand_t0Not","hand_t0RH", "brain_headScale_t2", "med_Antihypertensive_t021", "med_Statin_t021")
 
 outputPath <- "./outputs/cor"
 
@@ -1146,6 +1158,7 @@ for(subset in subsetNames){
     analysisName <- glue("{analysisName}_{i}")
     individualAnalysis <- runCor(df = dfSubset, X = X, Y = i, covars = covars, M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
     fileName <- glue("{analysisName}_{getDate()}")
+    (saveRDS(individualAnalysis, file = glue("./outputs/cor/model/{fileName}")) + cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}")))
     capture.output(summary(individualAnalysis), file = glue("{outputPath}/{fileName}.txt"))
     outputFileNames <- c(outputFileNames, fileName)
     analysisName <- glue("cor_{subset}")
