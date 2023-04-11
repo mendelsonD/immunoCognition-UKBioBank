@@ -543,12 +543,20 @@ df <- df %>%
   mutate(med_Statin_t2 = factor(case_when(
     med_Statin_t2 == "FALSE" ~ 0,
     med_Statin_t2 == "TRUE" ~ 1))) %>%
+  mutate(med_Statin_t02 = factor(case_when(
+    med_Statin_t0 == 1 ~ 1,
+    med_Statin_t2 == 1 ~ 1, 
+    TRUE ~ 0))) %>% # if using statin at either time point, will code as 1, else 0  
   mutate(med_Antihypertensive_t0 = factor(case_when(
     med_Antihypertensive_t0 == "FALSE" ~ 0,
     med_Antihypertensive_t0 == "TRUE" ~ 1))) %>%
   mutate(med_Antihypertensive_t2 = factor(case_when(
     med_Antihypertensive_t2 == "FALSE" ~ 0,
     med_Antihypertensive_t2 == "TRUE" ~ 1))) %>%
+  mutate(med_Antihypertensive_t02 = factor(case_when(
+    med_Antihypertensive_t0 == 1 ~ 1,
+    med_Antihypertensive_t2 == 1 ~ 1, 
+    TRUE ~ 0))) %>% # if using Antihypertensive at either time point, will code as 1, else 0
   mutate(med_AnyOfInterest0 = factor(med_AnyOfInterest0)) %>%
   mutate(med_AnyOfInterest0_excludingSSRI = factor(med_AnyOfInterest0_excludingSSRI)) %>%
   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2)) %>%
