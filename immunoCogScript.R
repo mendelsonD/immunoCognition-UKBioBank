@@ -90,8 +90,8 @@ runWilcox <- function(varsOfInterest, df, by, outputDir, outputName){
   i <- integer(0)
   for(i in varsOfInterest){ # iterate through the variables of interest. Run wilcoxon-paired rank test. Put results into a dataframe
     
-    n1 <- length(complete_df[[i]][df$subset == T]) - sum(is.na(df[[i]][df$subset == T]))
-    n2 <- length(complete_df[[i]][df$subset == F]) - sum(is.na(df[[i]][df$subset == F]))
+    n1 <- length(df[[i]][df$subset == T]) - sum(is.na(df[[i]][df$subset == T]))
+    n2 <- length(df[[i]][df$subset == F]) - sum(is.na(df[[i]][df$subset == F]))
     
     x <- as.numeric(unlist(df[i])) # put variable {i} for completers into a temporary vector, make numeric.
     
@@ -415,41 +415,56 @@ df <- df %>%
 df <- df %>%
   mutate(demo_daysBtwAssess = as.numeric(df$date_assess2_t2 - df$date_assess0_t0, units = "days"))
 
+# saveRDS(df, file = glue("./Data/Processed/df_preLobes_{getDate()}.rds"))
+# rm(df)
 
 ### Lobar brain variables
-vars_BrainRegion <- read_csv("./Variables/brainVarsbyLobe.csv")
+# dataDate <- "04_15_2023"
+# df <- readRDS(glue("./Data/Processed/df_preLobes_{dataDate}.rds"))
+
+vars_BrainRegion <- read_csv("  ./Variables/brainVarsbyLobe.csv")
 vars_BrainRegion$varNameDf <- glue("{vars_BrainRegion$VariableName}_t2")
 
-for(lobe in unique(vars_BrainRegion$AssociatedLobe)){
-  for(metric_counter in unique(vars_BrainRegion$metric)){
+cat("\n Create lobar brain variable columns.")
+
+for(metric_counter in unique(vars_BrainRegion$metric)){
+  # cat("\n\t Metric: ", metric_counter)
+  if(metric_counter %in% c("area", "mThick", "vol")){
+    for(lobe in unique(vars_BrainRegion$AssociatedLobe)){
+      # cat("\n\t\t Lobe: ", lobe)
+      
+        vars_lobe_metric_L <- vars_BrainRegion %>%
+          filter(AssociatedLobe == lobe) %>%
+          filter(metric == metric_counter) %>%
+          filter(hemisphere == "L")
+        vars_lobe_metric_R <- vars_BrainRegion %>%
+          filter(AssociatedLobe == lobe) %>%
+          filter(metric == metric_counter) %>%
+          filter(hemisphere == "R")
+        
+        if(metric_counter == "area"){
+          metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+          metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+          metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+        } else if (metric_counter == "mThick"){
+          metric_lobe_L <- rowMeans(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+          metric_lobe_R <- rowMeans(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+          metric_lobe_WB <- rowMeans(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+        } else if (metric_counter == "vol"){
+          metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+          metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+          metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+        }
+        
+        tempMatrix <- as.matrix(cbind(metric_lobe_L,metric_lobe_R, metric_lobe_WB))
+        colnames(tempMatrix) <- c(glue("{metric_counter}_{lobe}_L_t2"),glue("{metric_counter}_{lobe}_R_t2"),glue("{metric_counter}_{lobe}_WB_t2"))
+        df <- cbind(df, as.data.frame(tempMatrix)) # creates columns in df for later computation of lobar brain metrics
+        rm(vars_lobe_metric_L,vars_lobe_metric_R, metric_lobe_L, metric_lobe_R, metric_lobe_WB, tempMatrix)
+      
+      } 
     
-    vars_lobe_metric_L <- vars_BrainRegion %>%
-      filter(AssociatedLobe == lobe) %>%
-      filter(metric == metric_counter) %>%
-      filter(hemisphere == "L")
-    vars_lobe_metric_R <- vars_BrainRegion %>%
-      filter(AssociatedLobe == lobe) %>%
-      filter(metric == metric_counter) %>%
-      filter(hemisphere == "R")
-    
-    if(metric_counter == "area"){
-      metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
-      metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
-      metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
-    } else if (metric_counter == "mThick"){
-      metric_lobe_L <- rowMeans(df[vars_lobe_metric_L$varNameDf], na.rm = F)
-      metric_lobe_R <- rowMeans(df[vars_lobe_metric_R$varNameDf], na.rm = F)
-      metric_lobe_WB <- rowMeans(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
-    } else if (metric_counter == "vol"){
-      metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
-      metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
-      metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
     } else {
-      cat("Error. The metric `", metric_counter, "` defined in the brain variables by brain lobe dataframe is undefined. \n Skipping computation of variables of this metric.")
-    }
-    tempMatrix <- as.matrix(cbind(metric_lobe_L,metric_lobe_R, metric_lobe_WB))
-    colnames(tempMatrix) <- c(glue("{metric_counter}_{lobe}_L_t2"),glue("{metric_counter}_{lobe}_R_t2"),glue("{metric_counter}_{lobe}_WB_t2"))
-    df <- cbind(df, as.data.frame(tempMatrix))
+      cat("\n\t\t Error. The metric `", metric_counter, "` defined in the brain variables by brain lobe dataframe is not one of \'area\', \'vol\' or \'mthick\'. \n Skipping computation of variables of this metric.")
   }
 }
 
@@ -641,19 +656,19 @@ essentialVars <- c(finalCovars, completionTimeVars, crpAliqVars, brainMorphVars)
 ### Remove cases missing data in essential variables ---- 
 df <- df %>%
   mutate(missingEssentialVar = case_when(
-    if_any(.cols = essentialVars, function(x)(is.na(x))) ~ "Remove",
-    TRUE ~ "Keep" )) %>%
+    if_any(.cols = essentialVars, function(x)(is.na(x))) ~ TRUE,
+    TRUE ~ FALSE)) %>%
   mutate(missingEssentialVar = factor(missingEssentialVar))
 # sort(colnames(df))
 # table(df$missingEssentialVar)
 # table(df$missingEssentialVarsanalysis)
 
 cat("df_removed: ")
-df_removed <- filter_rows(df, missingEssentialVar == "Remove")
+df_removed <- filter_rows(df, missingEssentialVar == TRUE)
 # df_removed <- df %>%
 #   filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # make new df of cases with missing values
 
-df_retained <- filter_rows(df, missingEssentialVar == "Keep") # remove rows of those with missing values
+df_retained <- filter_rows(df, missingEssentialVar == FALSE) # remove rows of those with missing values
 # df_retained <- df %>%
 #   filter(!(eid %in% df_removed$eid)) # remove rows of those with missing values
 
@@ -666,7 +681,7 @@ for(i in 1:length(essentialVars)){
 
 numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 
-# kable(numMissing_df, caption = paste("Number of missing cases per variable. Number of rows with at least one missing value: ", nrow(df_removed), " out of ", sum(df$missingEssentialVar == "Keep")+nrow(df_removed), " total cases (", round(nrow(df_removed)/(sum(df$missingEssentialVar == "Keep")+nrow(df_removed))*100, 2), "%).", sep = ""))
+# kable(numMissing_df, caption = paste("Number of missing cases per variable. Number of rows with at least one missing value: ", nrow(df_removed), " out of ", sum(df$missingEssentialVar == FALSE)+nrow(df_removed), " total cases (", round(nrow(df_removed)/(sum(df$missingEssentialVar == FALSE)+nrow(df_removed))*100, 2), "%).", sep = ""))
 write.csv(numMissing_df, file = glue("./outputs/descriptive/sourceOfNAValues_{getDate()}.csv"))
 
 ### Remove cases with CRP > 10 ----
@@ -676,16 +691,9 @@ write.csv(numMissing_df, file = glue("./outputs/descriptive/sourceOfNAValues_{ge
 df_retained <- filter_rows(df_retained, crp_aliquot_t0 <= 10) # remove CRP > 10
 
 ### Save and describe retained cases ----
-df <- df_retained
 saveRDS(df_retained, file = glue("./Data/Processed/dfRetained_{getDate()}.rds"))
 write.csv(df_retained, file = glue("./Data/Processed/dfRetained_{getDate()}.csv"))
 write.csv(psych::describe(df), file = glue("./outputs/descriptive/describedRetainedCases_{getDate()}.csv"))
-
-varsToSummarise <- c(1:ncol(df))
-numVars<- lapply(df, numNotFactor)
-df_numVars <- as.data.frame(do.call(cbind, numVars))
-numVarCols <- (which(colnames(df) %in% colnames(df_numVars)))
-numVars <- c((which(colnames(df) %in% colnames(df_numVars))), which(colnames(df) == "date_assess0_t0"), which(colnames(df) == "date_assess2_t2"), which(colnames(df) == "cog_timeCompleted_t2"), which(colnames(df) == "brain_timeCompleted_t2"), which(colnames(df) == "crp_timeCollected_t0"), which(colnames(df) == "crp_assaydate_t0"))
 
 for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
   if(is.null(i) == FALSE){
@@ -696,6 +704,12 @@ for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
   }
 }
 
+varsToSummarise <- c(1:ncol(df_retained))
+numVars<- lapply(df_retained, numNotFactor)
+df_numVars <- as.data.frame(do.call(cbind, numVars))
+numVarCols <- (which(colnames(df_retained) %in% colnames(df_numVars)))
+numVars <- c((which(colnames(df_retained) %in% colnames(df_numVars))), which(colnames(df_retained) == "date_assess0_t0"), which(colnames(df_retained) == "date_assess2_t2"), which(colnames(df_retained) == "cog_timeCompleted_t2"), which(colnames(df_retained) == "brain_timeCompleted_t2"), which(colnames(df_retained) == "crp_timeCollected_t0"), which(colnames(df_retained) == "crp_assaydate_t0"))
+
 # write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[1], file = paste("dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[1]), "_", getDate(), ".csv", sep = "")) # save counts of categorical variables
 # write.csv(summary(df[-numVars]), file = paste("dfRetained_Summary_fctrVars", getDate(), ".csv", sep = "")) # save counts of categorical variables
 # 
@@ -703,10 +717,8 @@ for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
 # write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[2], file = paste("dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[2]), "_", getDate(), ".csv", sep = "")) # save counts of categorical variables
 # write.csv(describeBy(df[numVars], group = df$crp_aliquot_fctr)[3], file = paste("dfRetained_Summary_byCRP_numVars_", names(describeBy(df, group = df$crp_aliquot_fctr)[3]), "_", getDate(), ".csv", sep = "")) # save counts of categorical variables
 
-rm(numVars)
-
 ## 1.I Clean environment to avoid crashes -----
-itemsToKeep <- c("df", "getDate", "filter_rows", "numNotFactor", "runWilcox", "medVars0NoCases", "medVars2NoCases", "dxVarsNoCases", "normalCheck")
+itemsToKeep <- c("df", "df_retained", "getDate", "filter_rows", "numNotFactor", "runWilcox", "medVars0NoCases", "medVars2NoCases", "dxVarsNoCases", "normalCheck")
 itemstoRemove <- ls()[c(ls() %in% itemsToKeep) == FALSE]
 rm(list = itemstoRemove)
 
@@ -717,109 +729,84 @@ dataDate <- getDate()
 df_retained <- readRDS(glue("./Data/Processed/dfRetained_{dataDate}.rds"))
 
 subsetData_outputPath <- "./Data/Processed/Subsets"
-subsetNames <- c()
+subsetNames <- c("noMedNoDx", "All", "oldest","onlyDx","noDx","onlyMed","noMed","onlySSRI","youngest","noDxNoSSRI","noSSRI")
 
-### All 
-subsetName <- "All"
-subsetNames <- c(subsetNames, subsetName)
-write.csv(df, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) # exports cleaned dataframe with all variables ready for analysis
-saveRDS(df, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-# df <- read_csv("./Data/Processed/Subsets/dfForAnal_All_05_11_2022.csv", lazy = T)
+df <- df %>%
+  mutate(subset_all = factor(case_when(
+    missingEssentialVar == TRUE ~ FALSE,
+    TRUE ~ TRUE))) %>% 
+  mutate(subset_oldest = factor(case_when(
+    missingEssentialVar == TRUE ~ FALSE,
+    demo_age_assess0_t0 >= quantile(df_retained$demo_age_assess0_t0, c(.66))  ~ TRUE,
+    TRUE ~ FALSE))) %>% 
+  mutate(subset_youngest = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     demo_age_assess0_t0 <= quantile(df_retained$demo_age_assess0_t0, c(.33))  ~ TRUE,
+     TRUE ~ FALSE)))` %>% 
+  mutate(subset_noMed = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     med_AnyOfInterest0 == "1" ~ FALSE,
+     med_AnyOfInterest2 == "1" ~ FALSE,
+     TRUE ~ TRUE))) %>%
+  mutate(subset_onlyMed = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     med_AnyOfInterest0 == "1" ~ TRUE,
+     med_AnyOfInterest2 == "1" ~ TRUE,
+     TRUE ~ FALSE))) %>%
+  mutate(subset_noSSRI = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     med_SSRI_t0 == "1" ~ FALSE, 
+     med_SSRI_t2 == "1" ~ FALSE,
+     TRUE ~ TRUE))) %>% 
+  mutate(subset_onlySSRI = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     med_SSRI_t0 == "1" ~ TRUE,
+     med_SSRI_t2 == "1" ~ TRUE,
+     TRUE ~ FALSE))) %>% 
+  mutate(subset_noDx = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     dx_AnyOfInterest == "0" ~ TRUE,
+     TRUE ~ FALSE))) %>% 
+  mutate(subset_onlyDx = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     dx_AnyOfInterest == "1" ~ TRUE,
+     TRUE ~ FALSE))) %>% 
+  mutate(subset_noMedNoDx = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     dx_AnyOfInterest == "1" ~ FALSE, 
+     med_AnyOfInterest0 == "1" ~ FALSE,
+     med_AnyOfInterest2 == "1" ~ FALSE,
+     TRUE ~ TRUE))) %>%
+  mutate(subset_noDxNoSSRI = factor(case_when(
+     missingEssentialVar == TRUE ~ FALSE,
+     dx_AnyOfInterest == "1" ~ FALSE,
+     med_SSRI_t0 == "1" ~ FALSE,
+     med_SSRI_t2 == "1" ~ FALSE,
+     TRUE ~ TRUE))) # create one variable per subset to identify case's belonging to each subset
 
-#### Oldest tertile
-df_oldest <- filter_rows(df, df$demo_age_assess0_t0 >= quantile(df$demo_age_assess0_t0, c(.66))) # keeps only oldest participants (in top tertile of age)
-subsetName <- glue("oldest")
-subsetNames <- c(subsetNames, subsetName)
-(write.csv(df_oldest, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) + cat("Subset with oldest tertile of participants saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_oldest), "\n\t age range: ", range(df_oldest$demo_age_assess0_t0)))
-saveRDS(df_oldest, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_oldest)
+# table(df$subset_all)
+# table(df$subset_oldest)
+# table(df$subset_youngest)
+# table(df$subset_noMed)
+# table(df$subset_onlyMed)
+# table(df$subset_noSSRI)
+# table(df$subset_onlySSRI)
+# table(df$subset_noDx)
+# table(df$subset_onlyDx)
+# table(df$subset_noMedNoDx)
+# table(df$subset_noDxNoSSRI)
 
-#### Youngest tertile
-df_youngest <- filter_rows(df, df$demo_age_assess0_t0 <= quantile(df$demo_age_assess0_t0, c(.33))) # keeps only youngest participants (in bottom tertile of age)
-subsetName <- "youngest"
-subsetNames <- c(subsetNames, subsetName)
-(write.csv(df_youngest, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) + cat("Subset with youngest tertile of participants saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_youngest), "\n\t age range: ", range(df_youngest$demo_age_assess0_t0)))
-saveRDS(df_youngest, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_youngest)
+# Save
+# subsetNames <- c("noMedNoDx")
 
-cat("Med use by instance: \n")
-table(df$med_AnyOfInterest0, df$med_AnyOfInterest2)
-#### No med of interest
-df_noMed <- filter_rows(df, med_AnyOfInterest0 == 0, med_AnyOfInterest2 == 0)  
-subsetName <- "noMed"
-subsetNames <- c(subsetNames, subsetName)
-(write.csv(df_noMed, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) + cat("Subset excluding those using medications of interest saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_noMed)))
-saveRDS(df_noMed, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_noMed)
-
-#### Any med of interest
-df_onlyMedUsers_0 <- df %>% filter(med_AnyOfInterest0 == 1) # keep participants taking any med at instance 0
-df_onlyMedUsers_2 <- df %>% filter(med_AnyOfInterest2 == 1) # keep participants taking any med at instance 2
-df_onlyMedUsers <- distinct(rbind(df_onlyMedUsers_0, df_onlyMedUsers_2))
-subsetName <- "onlyMed"
-subsetNames <- c(subsetNames, subsetName)
-(write.csv(df_onlyMedUsers, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) + cat("Subset only of those using any mediucation of interest (including SSRIs) saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_onlyMedUsers)))
-saveRDS(df_onlyMedUsers, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_onlyMedUsers, df_onlyMedUsers_0, df_onlyMedUsers_2)
-
-cat("SSRI use by instance: \n")
-table(df$med_SSRI_t0, df$med_SSRI_t2)
-
-#### No SSRI
-df_noSSRI <- filter_rows(df, med_SSRI_t0 == "0", med_SSRI_t2 == "0") # remove participants taking meds from dataframe
-subsetName <- "noSSRI"
-subsetNames <- c(subsetNames, subsetName)
-(write.csv(df_noSSRI, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) + cat("Subset excluding those using SSRIs saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_noSSRI)))
-saveRDS(df_noSSRI, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_noSSRI)
-
-#### Only SSRI
-df_onlySSRI_0 <- filter(df, med_SSRI_t0 == 1) # keep participants taking SSRIs at 0
-df_onlySSRI_2 <- filter(df, med_SSRI_t2 == 1) # keep participants taking SSRIs at 2
-df_onlySSRI <- distinct(rbind(df_onlySSRI_0, df_onlySSRI_2)) # remove repeated rows
-num_nonSSRI <- dim(df) - dim(df_onlySSRI)
-cat(glue("Filtered out {num_nonSSRI} rows using: SSRI_t0 == 1 or SSRI_t2 == 1"))
-subsetName <- "onlySSRI"
-subsetNames <- c(subsetNames, subsetName)
-(write.csv(df_onlySSRI, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) + cat("Subset excluding those using SSRIs saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_onlySSRI)))
-saveRDS(df_onlySSRI, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_onlySSRI, df_onlySSRI_0, df_onlySSRI_2)
-
-#### No diagnosis of interest
-df_noDx <- filter_rows(df, dx_AnyOfInterest == 0) # remove participants with diagnoses from dataframe
-subsetName <- "noDx"
-subsetNames <- c(subsetNames, subsetName)
-(write.csv(df_noDx, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) + cat("Subset excluding those using medication of interest saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_noDx)))
-saveRDS(df_noDx, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_noDx)
-
-#### Only diagnosis of interest
-df_onlyDx <- filter_rows(df, dx_AnyOfInterest == 1) # remove participants without diagnoses from dataframe
-subsetName <- "onlyDx"
-subsetNames <- c(subsetNames, subsetName)
-(write.csv(df_onlyDx, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv")) + cat("Subset of only those using medication of interest saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_onlyDx)))
-saveRDS(df_onlyDx, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_onlyDx)
-
-#### No med no diagnosis
-df_noMed_noDx <- filter_rows(df, dx_AnyOfInterest == 0, med_AnyOfInterest0 == 0, med_AnyOfInterest2 == 0) # remove participants with a diagnosis and those taking any med of interest
-subsetName <- "noMedNoDx"
-subsetNames <- c(subsetNames, subsetName)
-write.csv(df_noMed_noDx, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"))
-cat("Subset excluding those using medications or with a diangnosis of interest saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_noMed_noDx))
-saveRDS(df_noMed_noDx, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_noMed_noDx)
-
-#### No SSRI, no diagnosis
-df_noSSRI_noDx <- filter_rows(df, dx_AnyOfInterest == 0, med_SSRI_t0 == 0, med_SSRI_t2 == 0) # remove participants with a diagnosis and those taking SSRIs
-subsetName <- "noDxNoSSRI"
-subsetNames <- c(subsetNames, subsetName)
-write.csv(df_noSSRI_noDx, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"))
-cat("Subset excluding those using SSRIs or with a diagnosis of interest saved as: `", glue("{subsetData_outputPath}/{subsetName}_{getDate()}.csv"), "`. \n\t complete cases: ", nrow(df_noSSRI_noDx))
-saveRDS(df_noSSRI_noDx, file = glue("{subsetData_outputPath}/{subsetName}_{getDate()}.rds"))
-rm(df_noSSRI_noDx)
-
-# subsetNames <- c("noMedNoDx", "oldest","All","onlyDx","noDx","onlyMed","noMed","onlySSRI","noMedNoDx","youngest","noDxNoSSRI","noSSRI")
+for(subset in subsetNames){
+  cat("Saving subset: ", subset, " \n\t")
+  subsetColName <- glue("subset_{subset}")
+  subsetCol <- ends_with(subsetColName, vars = colnames(df))
+  df_subset <- filter_rows(df, df[subsetCol] == "TRUE") # filter by column identifying subset belonging
+  write.csv(df_subset, file = glue("{subsetData_outputPath}/{subset}_{getDate()}.csv")) # exports cleaned dataframe with all variables ready for analysis
+  saveRDS(df_subset, file = glue("{subsetData_outputPath}/{subset}_{getDate()}.rds"))
+}
 
 ## 1.K Summarise variables ----
 dataDate <- getDate()
@@ -905,7 +892,7 @@ comparisonDroppedCases <- TOne(complete_df[varsToCompare], grp = complete_df$mis
                                    summary(aov(x ~ g))[[1]][2, "Df"], ") = ",
                                    formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5),
                                    ", p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "g", digits = 3),
-                                   ", g = ", formatC(effsize::cohen.d(x ~ g, data = complete_df, pooled = T, hedges.correction = T)$estimate, format = "g", digits = 3), # calculate g. See Durlak 2009, J. Ped. Psyc.
+                                   ", g = ", formatC(::cohen.d(x ~ g, data = complete_df, pooled = T, hedges.correction = T)$estimate, format = "g", digits = 3), # calculate g. See Durlak 2009, J. Ped. Psyc.
                                    sep = "")},
                                    lbl = "ANOVA"),
                                  cat  = list(fun = function(x, g){paste(
