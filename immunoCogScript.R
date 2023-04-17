@@ -659,6 +659,8 @@ df <- df %>%
     if_any(.cols = essentialVars, function(x)(is.na(x))) ~ TRUE,
     TRUE ~ FALSE)) %>%
   mutate(missingEssentialVar = factor(missingEssentialVar))
+
+saveRDS(df, file = glue("./Data/Processed/df_PreSubset_{getDate()}.rds"))
 # sort(colnames(df))
 # table(df$missingEssentialVar)
 # table(df$missingEssentialVarsanalysis)
@@ -726,6 +728,7 @@ rm(list = itemstoRemove)
 dataDate <- getDate()
 # dataDate <- "12_14_2022"
 
+df <- readRDS(glue("./Data/Processed/df_PreSubset_{dataDate}.rds"))
 df_retained <- readRDS(glue("./Data/Processed/dfRetained_{dataDate}.rds"))
 
 subsetData_outputPath <- "./Data/Processed/Subsets"
@@ -795,6 +798,9 @@ df <- df %>%
 # table(df$subset_onlyDx)
 # table(df$subset_noMedNoDx)
 # table(df$subset_noDxNoSSRI)
+
+write.csv(df, file = glue("./Data/Processed/df_IndicatedSubsets_{getDate()}.csv")) # exports cleaned dataframe with all variables ready for analysis
+saveRDS(df, file = glue("./Data/Processed/df_IndicatedSubsets_{getDate()}.rds"))
 
 # Save
 # subsetNames <- c("noMedNoDx")
