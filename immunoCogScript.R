@@ -1173,7 +1173,7 @@ for(subset in subsetNames){
   
   for(outputFile in outputFileNames){
     path <- getwd()
-    corTxtFormat(filePath = path, files = outputFileNames, X = X, listOfCovars = listOfCovarLevels)
+    corTxtFormat(filePath = outputPath, files = outputFileNames, X = X, listOfCovars = listOfCovarLevels)
   } # summarise outputs
   
   for(i in cogOutcomes_fctr_names){
@@ -1209,7 +1209,7 @@ fileName <- "cor_summary"
 outputPath <- "./outputs/cor/summary"
 outputName <- "cor_summary_pCor"
 
-fileName <- glue("{dataPath}/{file}_dataDate.csv")
+fileName <- glue("{dataPath}/{fileName}_dataDate.csv")
 summaryDF <- read_csv(fileName, show_col_types = F)
 outputDF <- matrix() # ncol = 16, dimnames = list(c(), c(colnames(summaryDF)))
 
