@@ -423,7 +423,7 @@ df <- df %>%
 # dataDate <- "04_15_2023"
 # df <- readRDS(glue("./Data/Processed/df_preLobes_{dataDate}.rds"))
 
-vars_BrainRegion <- read_csv("  ./Variables/brainVarsbyLobe.csv")
+vars_BrainRegion <- read_csv("./Variables/brainVarsbyLobe.csv")
 vars_BrainRegion$varNameDf <- glue("{vars_BrainRegion$VariableName}_t2")
 
 cat("\n Create lobar brain variable columns.")
