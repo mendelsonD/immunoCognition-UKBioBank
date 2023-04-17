@@ -13,6 +13,7 @@ library(DescTools)
 library(DiagrammeR)
 library(DiagrammeRsvg)
 library(dplyr)
+library(effsize)
 library(factoextra)
 library(ggplot2)
 library(ggseg)
@@ -818,7 +819,7 @@ for(subset in subsetNames){
 dataDate <- getDate()
 # dataDate <- "12_14_2022"
 
-complete_df <- readRDS(glue("./Data/Processed/dfFormatted_full_{dataDate}.rds"))
+df <- readRDS(glue("./Data/Processed/dfFormatted_full_{dataDate}.rds"))
 
 dataPath <- "./Data/Processed/Subsets"
 # subsetNames <- "noDxNoSSRI"
@@ -839,18 +840,18 @@ for(subset in subsetNames){
   
   write.csv(psych::describe(subset_df), file = glue("{genDescriptionOutputPath}/described_{subset}_{getDate()}.csv")) # exports description file
   
-  complete_df <- complete_df %>%  mutate(subset = case_when(
-    complete_df$eid %in% subset_df$eid ~ T, # Find cases in this subset
+  df <- df %>%  mutate(subset = case_when(
+    df$eid %in% subset_df$eid ~ T, # Find cases in this subset
     TRUE ~ F   # Find complementary set of cases to the subset
-  )) # Create new column in 'complete_df' indicating if the case is in this subset
+  )) # Create new column in 'df' indicating if the case is in this subset
   
-  if(all.equal(complete_df$eid[complete_df$subset == T], subset_df$eid) != TRUE){
+  if(all.equal(df$eid[df$subset == T], subset_df$eid) != TRUE){
     cat("Error. Unable to find subset cases in the complete unsubsetted data. Skipping wilcox test.")
   } else {
-    runWilcox(varsOfInterest = nonParaVars_names, df = complete_df, by = "subset", outputDir = WilcoxOutputPath, outputName = glue("{subset}_Wilcox"))# wilcoxOutput to a CSV file
+    runWilcox(varsOfInterest = nonParaVars_names, df = df, by = "subset", outputDir = WilcoxOutputPath, outputName = glue("{subset}_Wilcox"))# wilcoxOutput to a CSV file
   }
   
-  nonParaVars_summary <- TOne(as.data.frame(complete_df[nonParaVars_names]), grp = complete_df$subset, colnames = c("Excluded", subset), add.length = T, total = T,
+  nonParaVars_summary <- TOne(as.data.frame(df[nonParaVars_names]), grp = df$subset, colnames = c("Excluded", subset), add.length = T, total = T,
                               FUN = function(x) gettextf("%s (%s)",
                                                          Format(median(x, na.rm = T), digits = 2, big.mark = ","),
                                                          Format(IQR(x, na.rm = T), digits = 2, big.mark = ",")),
@@ -887,40 +888,45 @@ nonParaToCompare <- c(3,10,11,14,15,18,19,20,21,22,25,47,48,49,50,713,719,720,75
 #### Make Table 1 for those excluded based on missing variables
 summaryMissing <- list()
 
-comparisonDroppedCases <- TOne(complete_df[varsToCompare], grp = complete_df$missingEssentialVar, add.length = T, total = T,
-                               FUN = function(x) gettextf("%s (%s)",
-                                                          Format(mean(x, na.rm = T), digits = 2, big.mark = ","),
-                                                          Format(sd(x, na.rm = T), digits = 2, big.mark = ",")),
-                               TEST = list(
-                                 num  = list(fun = function(x, g){paste(
-                                   "F(",
-                                   summary(aov(x ~ g))[[1]][1, "Df"], ",",
-                                   summary(aov(x ~ g))[[1]][2, "Df"], ") = ",
-                                   formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5),
-                                   ", p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "g", digits = 3),
-                                   ", g = ", formatC(::cohen.d(x ~ g, data = complete_df, pooled = T, hedges.correction = T)$estimate, format = "g", digits = 3), # calculate g. See Durlak 2009, J. Ped. Psyc.
-                                   sep = "")},
-                                   lbl = "ANOVA"),
-                                 cat  = list(fun = function(x, g){paste(
-                                   "χ²(", chisq.test(table(x, g))$parameter, ") = ",
-                                   formatC(chisq.test(table(x, g))$statistic, digits = 5),
-                                   ", p = ", formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3),
-                                   ", v = ", formatC(sqrt(chisq.test(table(x, g))$statistic)/(length(x)*chisq.test(table(x, g))$parameter), format = "g", digits = 2),
-                                   sep = "")},
-                                   lbl = "Chi-Square test"),
-                                 dich = list(fun = function(x, g){paste(
-                                   "χ²(", chisq.test(table(x, g))$parameter, ") =",
-                                   formatC(chisq.test(table(x, g))$statistic, digits = 2),
-                                   ", p = ",  formatC(chisq.test(table(x, g))$p.val, format = "g", digits = 3),
-                                   ", v = ", formatC(sqrt(chisq.test(table(x, g))$statistic)/(length(x)*chisq.test(table(x, g))$parameter), format = "g", digits = 2),
-                                   sep = "")},
-                                   lbl = "Chi-Square test")),
-                               fmt = list(abs  = Fmt("abs"),
-                                          num  = Fmt("num"),
-                                          per  = Fmt("per"),
-                                          pval = as.fmt(fmt = "p*")))
-
-write.csv(comparisonDroppedCases, file = paste("compareMissingCases_TOne", getDate(), ".csv", sep = ""))
+# subsetNames <- "noDxNoSSRI"
+for(subset in subsetNames){
+  groupingVar <- glue("subset_{subset}")
+  groupingVarCol <- which(colnames(df) == groupingVar)
+  comparisonFormula <- glue("x ~ {groupingVar}")
+  comparisonDroppedCases <- TOne(df[varsToCompare], grp = df[[groupingVarCol]], add.length = T, total = T,
+                                 FUN = function(x) gettextf("%s (%s)",
+                                                            Format(mean(x, na.rm = T), digits = 2, big.mark = ","),
+                                                            Format(sd(x, na.rm = T), digits = 2, big.mark = ",")),
+                                 TEST = list(
+                                   num  = list(fun = function(x, g){paste(
+                                     "F(",
+                                     summary(aov(x ~ g))[[1]][1, "Df"], ",",
+                                     summary(aov(x ~ g))[[1]][2, "Df"], ") = ",
+                                     formatC(summary(aov(x ~ g))[[1]][1, "F value"], digits = 5),
+                                     ", p = ", formatC(summary(aov(x ~ g))[[1]][1, "Pr(>F)"], format = "f", digits = 3),
+                                     ", g = ", formatC(effsize::cohen.d(x ~ g, data = df, pooled = T, hedges.correction = T)$estimate, format = "f", digits = 3), # calculate g. See Durlak 2009, J. Ped. Psyc.
+                                     sep = "")},
+                                     lbl = "ANOVA"),
+                                   cat  = list(fun = function(x, g){paste(
+                                     "χ²(", chisq.test(table(x, g))$parameter, ") = ",
+                                     formatC(chisq.test(table(x, g))$statistic, digits = 5),
+                                     ", p = ", formatC(chisq.test(table(x, g))$p.val, format = "f", digits = 3),
+                                     ", v = ", formatC(sqrt(chisq.test(table(x, g))$statistic)/(length(x)*chisq.test(table(x, g))$parameter), format = "g", digits = 2),
+                                     sep = "")},
+                                     lbl = "Chi-Square test"),
+                                   dich = list(fun = function(x, g){paste(
+                                     "χ²(", chisq.test(table(x, g))$parameter, ") =",
+                                     formatC(chisq.test(table(x, g))$statistic, digits = 2),
+                                     ", p = ",  formatC(chisq.test(table(x, g))$p.val, format = "f", digits = 3),
+                                     ", v = ", formatC(sqrt(chisq.test(table(x, g))$statistic)/(length(x)*chisq.test(table(x, g))$parameter), format = "g", digits = 2),
+                                     sep = "")},
+                                     lbl = "Chi-Square test")),
+                                 fmt = list(abs  = Fmt("abs"),
+                                            num  = Fmt("num"),
+                                            per  = Fmt("per"),
+                                            pval = as.fmt(fmt = "p*")))
+  write.csv(comparisonDroppedCases, file = glue("./outputs/descriptive/TOne_{subset}_{getDate()}.csv"))
+}
 
 ## 1.M Preliminary correlation analyses ----
 ### CRP and blood draw characteristics  ----
