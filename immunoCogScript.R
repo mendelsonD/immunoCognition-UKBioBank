@@ -733,7 +733,7 @@ df <- readRDS(glue("./Data/Processed/df_PreSubset_{dataDate}.rds"))
 df_retained <- readRDS(glue("./Data/Processed/dfRetained_{dataDate}.rds"))
 
 subsetData_outputPath <- "./Data/Processed/Subsets"
-subsetNames <- c("noMedNoDx", "All", "oldest","onlyDx","noDx","onlyMed","noMed","onlySSRI","youngest","noDxNoSSRI","noSSRI")
+subsetNames <- c("noMedNoDx", "all", "oldest","onlyDx","noDx","onlyMed","noMed","onlySSRI","youngest","noDxNoSSRI","noSSRI")
 
 df <- df %>%
   mutate(subset_all = factor(case_when(
