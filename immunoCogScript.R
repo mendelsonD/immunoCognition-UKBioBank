@@ -746,7 +746,7 @@ df <- df %>%
   mutate(subset_youngest = factor(case_when(
      missingEssentialVar == TRUE ~ FALSE,
      demo_age_assess0_t0 <= quantile(df_retained$demo_age_assess0_t0, c(.33))  ~ TRUE,
-     TRUE ~ FALSE)))` %>% 
+     TRUE ~ FALSE))) %>% 
   mutate(subset_noMed = factor(case_when(
      missingEssentialVar == TRUE ~ FALSE,
      med_AnyOfInterest0 == "1" ~ FALSE,
