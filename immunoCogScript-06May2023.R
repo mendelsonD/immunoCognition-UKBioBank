@@ -6,28 +6,36 @@
 ###
 
 # Preamble -----
-library(readr)
-library(stringr)
+library(DescTools)
+library(DiagrammeR)
+library(DiagrammeRsvg)
 library(dplyr)
-library(tidyr)
-library(arsenal)
-library(reticulate)
-library(psych)
-library(lubridate)
+library(effsize)
+library(factoextra)
+library(ggplot2)
+library(ggseg)
+library(ggthemes)
 library(glue)
-library(knitr)
+library(lubridate) 
+library(psych)
+library(rcompanion)
+library(readr)
+library(RMediation)
+library(rsvg)
+library(stats)
+library(stringr)
+library(tidyr)
+
+
+library(arsenal)
 library(finalfit)
 library(Hmisc)
-library(DescTools)
 library(coin)
 library(esc)
 library(effsize)
 library(glmnet)
-library(ggplot2)
 library(car)
 library(gridExtra)
-library(psych)
-library(stats)
 
 # 0 - Functions ----
 ## Assumption checks ----
