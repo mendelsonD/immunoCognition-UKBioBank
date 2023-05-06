@@ -589,6 +589,7 @@ df <- df %>%
   mutate(sleep_duration_mean02 = (sleep_duration0_t0 + sleep_duration2_t2)/2)
 
 ## 1.G Save cleaned df -----
+
 df_interim <- df
 saveRDS(df_interim, file = glue("./Data/Processed/dfFormatted_full_{getDate()}.rds"))
 rm(df_interim)

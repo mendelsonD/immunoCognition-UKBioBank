@@ -82,14 +82,19 @@ runWilcox <- function(varsOfInterest, df, by, outputDir, fileName){
   require(stringr)
   require(glue)
   
-  date <- getDate() # set todays date for easier output filenaming
   # wilcoxOutput <- data.frame("value type" = c("statistic","p", "n1", "n2", "r(effSize)"), row.names = 1) # initialize dataframe for the output
   wilcoxOutput <- data.frame("value type" = c("statistic","p", "r(effSize)"), row.names = 1) # initialize dataframe for the output
   i <- integer(0)
   for(i in varsOfInterest){ # iterate through the variables of interest. Run wilcoxon-paired rank test. Put results into a dataframe 
     # print(i)
+
+    n1 <- length(df[[i]][df$subset == T]) - sum(is.na(df[[i]][df$subset == T]))
+    n2 <- length(df[[i]][df$subset == F]) - sum(is.na(df[[i]][df$subset == F]))
+
     x <- as.numeric(unlist(df[i])) # put variable {i} for completers into a temporary vector, make numeric.
-    
+if(n1 <= 1 | n2 <= 1){
+      print(paste("Not enough observations to compare ", i, ". This variable was skipped."))
+    } else {    
     wilcoxRaw <- wilcox.test(x ~ unlist(df[by]), alternative = c("two.sided"), paired = F) # run wilcoxon paired-rank
     wilcoxStat <- format(wilcoxRaw$statistic, scientific = T, digits = 3) # Extract W statistic of test. N.b., the 'W' statistic reported here is equivalent to the U statistic: https://stats.stackexchange.com/questions/79843/is-the-w-statistic-output-by-wilcox-test-in-r-the-same-as-the-u-statistic
     wilcoxP <- format(wilcoxRaw$p.value, scientific = T, digits = 3) # Extract P statistic of test
@@ -97,26 +102,12 @@ runWilcox <- function(varsOfInterest, df, by, outputDir, fileName){
     wilcoxInterest <- c(wilcoxStat, wilcoxP, r) # combine W statistic, p, n1 and n2 into a vector
     wilcoxOutput[[i]] <- with(wilcoxOutput, wilcoxInterest) # Add the results for variable {i} to the output dataframe
     # print(wilcoxInterest)
-    
-    # n1 <- length(x) - sum(is.na(x)) # counts number of non-NA values in x
-    # n2 <- length(y) - sum(is.na(y)) # counts number of non-NA values in y
-    
-    # if(n1 <= 1 | n2 <= 1){
-    #   print(paste("Not enough observations to compare ", i, ". This variable was skipped."))
-    # } else {
-    #   wilcoxRaw <- wilcox.test(x, y, alternative = c("two.sided"), paired = F) # run wilcoxon paired-rank
-    #   wilcoxStat <- format(wilcoxRaw$statistic, scientific = F, digits = 3) # Extract W statistic of test. N.b., the 'W' statistic reported here is equivalent to the U statistic: https://stats.stackexchange.com/questions/79843/is-the-w-statistic-output-by-wilcox-test-in-r-the-same-as-the-u-statistic
-    #   wilcoxP <- format(wilcoxRaw$p.value, scientific = F, digits = 3) # Extract P statistic of test
-    #   r <- wilcoxonR()
-    #   wilcoxInterest <- c(wilcoxStat, wilcoxP, n1, n2, r) # combine W statistic, p, n1 and n2 into a vector
-    #   wilcoxOutput[[i]] <- with(wilcoxOutput, wilcoxInterest) # Add the results for variable {i} to the output dataframe
-    #   # print(wilcoxInterest)
-    # }
-  }
+    }
+  }  
   # return(wilcoxonOutput)
-  write.csv(wilcoxOutput, file = glue("{outputDir}/{fileName}_{date}.csv")) #exports wilcoxOutput to a CSV file
-  print(paste("The Wilcoxon comparison has been saved as:", glue("{fileName}_{date}.csv")))
-} # "varsOfInterest" - list of variable names to compare between groups; "df" data frame with all vars of interest and grouping variable; "by" - grouping variable;
+  write.csv(wilcoxOutput, file = glue("{outputDir}/{fileName}_{getDate()}.csv")) #exports wilcoxOutput to a CSV file
+  print(paste("The Wilcoxon comparison has been saved as:", glue("{fileName}_{getDate()}.csv")))
+} # "varsOfInterest" - list of variable names to compare between groups; "df" data frame with all vars of interest and grouping variable; "by" - grouping variable; "outputDir" - path to output directory; "fileName" - desired name of output file
 
 ## Compare kept cases to excluded cases 
 
@@ -386,12 +377,12 @@ dxVars <- c(dxVars, which(colnames(df) == "dx_AnyOfInterest"))
 
 dxVarsNoCases <- c()
 for(i in dxVars){
-  if(levels(as.factor(df[i])) == FALSE){
+  if(n_distinct(df[i]) == 1){
     print(paste("No participant has dx ", colnames(df[i]), "(column ", i, " ); levels: ", levels(as.factor(df[i]))))
     dxVarsNoCases <- append(dxVarsNoCases, i)
   }
 }
-if(is.null(dxVarsNoCases) == FALSE){
+if(n_distinct(df[i]) == 1){
   for(i in dxVarsNoCases){
     dxVars <- dxVars[-which(dxVars == i)]
   }
@@ -430,7 +421,7 @@ medVars0 <- c(medVars0, which(colnames(df) == "med_AnyOfInterest0"))
 medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2"))
 medVars0NoCases <- c()
 for(i in medVars0){
-  if(levels(as.factor(df[i])) == FALSE){
+  if(n_distinct(df[i]) == 1){
     print(paste("No participant takes med ", colnames(df[i]), "; levels: ", levels(as.factor(df[i]))))
     medVars0NoCases <- append(medVars0NoCases, i)
   }
@@ -439,7 +430,7 @@ for(i in medVars0){
 medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2"))
 medVars2NoCases <- c()
 for(i in medVars2){
-  if(levels(as.factor(df[i])) == FALSE){
+  if(n_distinct(df[i]) == 1){
     print(paste("No participant takes med ", colnames(df[i]), "; levels: ", levels(as.factor(df[i]))))
     medVars2NoCases <- append(medVars2NoCases, i)
   }
@@ -457,19 +448,21 @@ if(is.null(medVars2NoCases) == FALSE){
 }
 # table(df$anyMed)
 
+### Waist:hip ratio
+df <- df %>%
+  mutate(weight_waistToHip_t0 = weight_waistCirc0_t0/weight_hipCirc0_t0) %>%
+  mutate(weight_waistToHip_t2 = weight_waistCirc2_t2/weight_hipCirc2_t2)
+
 # Num days between assessment 2 and assessment 0
 df <- df %>% 
   mutate(demo_daysBtwAssess = as.numeric(df$date_assess2_t2 - df$date_assess0_t0, units = "days"))
 
-# Hour of day of assessments
-# Goal: take variables with form: 'YYYY-MM-DDTHH:MM:SS' and return the hour
+# saveRDS(df, file = glue("./Data/Processed/df_preLobes_{getDate()}.rds"))
+# rm(df)
 df <- df %>% 
   mutate(crp_hourCollected = hour(df$crp_timeCollected_t0)) %>% 
   mutate(cog_hourCompleted = hour(df$cog_timeCompleted_t2)) %>% 
   mutate(brain_hourCompleted = hour(df$brain_timeCompleted_t2))
-
-# df <- df %>% mutate(timeDif_brainHourMinusCogHourCompleted = df[124] - df[123]) # number of hours difference between cognitive assessment and MRI
-# hourColNums <- c(contains("_hourCompleted", vars = colnames(df)),contains("_hourCollected", vars = colnames(df))
 
 ### Make columns appropriate data types ----
 
@@ -548,6 +541,26 @@ df <- df %>%
   mutate(med_SSRI_t2 = factor(case_when(
     med_SSRI_t2 == "FALSE" ~ 0,
     med_SSRI_t2 == "TRUE" ~ 1))) %>% 
+     mutate(med_Statin_t0 = factor(case_when(
+    med_Statin_t0 == "FALSE" ~ 0,
+    med_Statin_t0 == "TRUE" ~ 1))) %>%
+  mutate(med_Statin_t2 = factor(case_when(
+    med_Statin_t2 == "FALSE" ~ 0,
+    med_Statin_t2 == "TRUE" ~ 1))) %>%
+  mutate(med_Statin_t02 = factor(case_when(
+    med_Statin_t0 == 1 ~ 1,
+    med_Statin_t2 == 1 ~ 1, 
+    TRUE ~ 0))) %>% # if using statin at either time point, will code as 1, else 0  
+  mutate(med_Antihypertensive_t0 = factor(case_when(
+    med_Antihypertensive_t0 == "FALSE" ~ 0,
+    med_Antihypertensive_t0 == "TRUE" ~ 1))) %>%
+  mutate(med_Antihypertensive_t2 = factor(case_when(
+    med_Antihypertensive_t2 == "FALSE" ~ 0,
+    med_Antihypertensive_t2 == "TRUE" ~ 1))) %>%
+  mutate(med_Antihypertensive_t02 = factor(case_when(
+    med_Antihypertensive_t0 == 1 ~ 1,
+    med_Antihypertensive_t2 == 1 ~ 1, 
+    TRUE ~ 0))) %>% # if using Antihypertensive at either time point, will code as 1, else 0
   mutate(med_AnyOfInterest0 = factor(med_AnyOfInterest0)) %>% 
   mutate(med_AnyOfInterest0_excludingSSRI = factor(med_AnyOfInterest0_excludingSSRI)) %>% 
   mutate(med_AnyOfInterest2 = factor(med_AnyOfInterest2)) %>% 
@@ -564,48 +577,63 @@ df <- df %>%
   mutate(sleep_duration_mean02 = (sleep_duration0_t0 + sleep_duration2_t2)/2)
 
 ### Compute and add lobular brain volumes ----
-vars_BrainRegion <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/Variables/VariableLists/brainVarsbyLobe.csv")
-vars_BrainRegion$varNameDf <- glue("{vars_BrainRegion$VariableName}_t2")
 
-for(lobe in unique(vars_BrainRegion$AssociatedLobe)){
-  for(metric_counter in unique(vars_BrainRegion$metric)){
+# dataDate <- "04_15_2023"
+# df <- readRDS(glue("./Data/Processed/df_preLobes_{dataDate}.rds"))
+vars_BrainRegion <- read_csv("./Variables/brainVarsbyLobe.csv")
+vars_BrainRegion$varNameDf <- glue("{vars_BrainRegion$VariableName}_t2")
+cat("\n Create lobar brain variable columns.")
+
+for(metric_counter in unique(vars_BrainRegion$metric)){
+  # cat("\n\t Metric: ", metric_counter)
+  if(metric_counter %in% c("area", "mThick", "vol")){
+    for(lobe in unique(vars_BrainRegion$AssociatedLobe)){
+      # cat("\n\t\t Lobe: ", lobe)
+      
+        vars_lobe_metric_L <- vars_BrainRegion %>%
+          filter(AssociatedLobe == lobe) %>%
+          filter(metric == metric_counter) %>%
+          filter(hemisphere == "L")
+        vars_lobe_metric_R <- vars_BrainRegion %>%
+          filter(AssociatedLobe == lobe) %>%
+          filter(metric == metric_counter) %>%
+          filter(hemisphere == "R")
+        
+        if(metric_counter == "area"){
+          metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+          metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+          metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+        } else if (metric_counter == "mThick"){
+          metric_lobe_L <- rowMeans(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+          metric_lobe_R <- rowMeans(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+          metric_lobe_WB <- rowMeans(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+        } else if (metric_counter == "vol"){
+          metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
+          metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
+          metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
+        }
+        
+        tempMatrix <- as.matrix(cbind(metric_lobe_L,metric_lobe_R, metric_lobe_WB))
+        colnames(tempMatrix) <- c(glue("{metric_counter}_{lobe}_L_t2"),glue("{metric_counter}_{lobe}_R_t2"),glue("{metric_counter}_{lobe}_WB_t2"))
+        df <- cbind(df, as.data.frame(tempMatrix)) # creates columns in df for later computation of lobar brain metrics
+        rm(vars_lobe_metric_L,vars_lobe_metric_R, metric_lobe_L, metric_lobe_R, metric_lobe_WB, tempMatrix)
+      
+      } 
     
-    vars_lobe_metric_L <- vars_BrainRegion %>% 
-      filter(AssociatedLobe == lobe) %>% 
-      filter(metric == metric_counter) %>% 
-      filter(hemisphere == "L")
-    vars_lobe_metric_R <- vars_BrainRegion %>% 
-      filter(AssociatedLobe == lobe) %>% 
-      filter(metric == metric_counter) %>% 
-      filter(hemisphere == "R")
-    
-    if(metric_counter == "area"){
-      metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
-      metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
-      metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
-    } else if (metric_counter == "mThick"){
-      metric_lobe_L <- rowMeans(df[vars_lobe_metric_L$varNameDf], na.rm = F)
-      metric_lobe_R <- rowMeans(df[vars_lobe_metric_R$varNameDf], na.rm = F)
-      metric_lobe_WB <- rowMeans(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
-    } else if (metric_counter == "vol"){
-      metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
-      metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
-      metric_lobe_WB <- rowSums(data.frame(metric_lobe_L, metric_lobe_R), na.rm = F)
     } else {
-      cat("Error. The metric `", metric_counter, "` defined in the brain variables by brain lobe dataframe is undefined. \n Skipping computation of variables of this metric.")
-    }
-    tempMatrix <- as.matrix(cbind(metric_lobe_L,metric_lobe_R, metric_lobe_WB))
-    colnames(tempMatrix) <- c(glue("{metric_counter}_{lobe}_L_t2"),glue("{metric_counter}_{lobe}_R_t2"),glue("{metric_counter}_{lobe}_WB_t2"))
-    df <- cbind(df, as.data.frame(tempMatrix))
+      cat("\n\t\t Error. The metric `", metric_counter, "` defined in the brain variables by brain lobe dataframe is not one of \'area\', \'vol\' or \'mthick\'. \n Skipping computation of variables of this metric.")
   }
 }
 
 ### Save cleaned DF ----
 df_interim <- df
-save(df_interim, file = "UKBB_dfFormatted_full_05_11_2022.RData")
+save(df_interim, file = glue("./Data/Processed/df_full_{getDate()}.rds"))
 rm(df_interim)
-# load("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/UKBB_dfFormatted_full_05_02_2022.RData")
 # df <- df_interim
+
+dataDate <- getDate()
+# dataDate <- "12_14_2022" # For testing purposes. Format: MM_DD_YYYY
+df <- readRDS(glue("./Data/Processed/df_full_{dataDate}.rds"))
 
 ## Exclusions ----
 demoVars <- starts_with("demo_", vars = colnames(df))
@@ -613,7 +641,7 @@ sesVars <- starts_with("ses_", vars = colnames(df))
 crpAliqVars <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log", "crp_aliquot_fctr"))
 crpToZ <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log"))
 
-brainPrefix <- c("area_","mThick_", "vol_", "weigted_mFA_")
+brainPrefix <- c("area_","gmVol_", "GWcont_","mIntensity","mThick_", "vol_", "weigted_mFA_", "weigted_mICVF_", "weigted_mISOVF_", "weigted_mL1_", "weigted_mL2_", "weigted_mL3_", "weigted_mMD_", "weigted_mMO_", "weigted_mOD_")
 brainMorphVars <- c()
 for(i in brainPrefix){
   iVars <- starts_with(i, vars = colnames(df))
@@ -622,7 +650,6 @@ for(i in brainPrefix){
 }
 # length(brainMorphVars)
 # sort(colnames(df[brainMorphVars]))
-# cor(df$vol_Hippocampus_L_FIRST_t2, df$vol_Hippocampus_L_t2, use = "pairwise.complete.obs")
 # colnames(df[demoVars])
 
 dietVars <- starts_with("diet_", vars = colnames(df))
@@ -632,8 +659,6 @@ dietVarsToCor <- which(colnames(df) %in% c("diet_cookedVeg0_t0", "diet_cookedVeg
 smokingVars <- starts_with("smoke_", vars = colnames(df))
 weightVars <- c(starts_with("weight_", vars = colnames(df)), which(colnames(df) == "waistToHip"))
 # colnames(df[weightVars])
-# cor(df$weight_BMI0_t0, df$weight_BMI2_t2, use = "pairwise.complete.obs")
-# cor(df$weight_waistToHip_t0, df$weight_waistToHip_t2, use = "pairwise.complete.obs")
 
 exerciseVars <- starts_with("exercise_", vars = colnames(df))
 
@@ -657,24 +682,19 @@ df <- cbind(df, df_varsToZ[vars_Z])
 
 df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
 
-finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "exercise_IPAQActivityGroup_t0"))
+finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "exercise_IPAQActivityGroup_t0", "med_Antihypertensive_t02", "med_Statin_t02"))
 # sort(colnames(df))
 # colnames(df[sesVars])
 # View(df[1:100, c(1,cogPCAVars)])
-
-### Remove CRP > 10 ----
-cat(sum(df$crp_aliquot_t0 > 10, na.rm = T), " cases to remove given CRP > 10.", sep = "")
-df <- df %>%
-  mutate(excludeFromSample = if_else(df$crp_aliquot_t0 > 10, "Remove", "Keep", missing = "Remove")) # mark CRP > 10 to remove
 
 ### Remove missing ----
 essentialVars <- c(finalCovars, completionTimeVars, crpAliqVars, brainMorphVars) # list of variable names that must be complete in order for case to be retained
 
 df <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
+  mutate(missingEssentialVar = factor(case_when(
     if_any(.cols = essentialVars, function(x)(
-      is.na(x))) ~ "Remove",
-    TRUE ~ "Keep")))
+      is.na(x))) ~ TRUE,
+    TRUE ~ FALSE)))
 
 df_removed <- df %>%
   filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # make new df of cases with missing values
@@ -687,6 +707,11 @@ for(i in 1:length(essentialVars)){
 
 numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
 write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", date, ".csv", sep = ""))
+
+### Remove CRP > 10 ----
+cat(sum(df$crp_aliquot_t0 > 10, na.rm = T), " cases to remove given CRP > 10.", sep = "")
+df <- df %>%
+  mutate(missingEssentialVar = if_else(df$crp_aliquot_t0 > 10, TRUE, FALSE, missing = TRUE)) # mark CRP > 10 to remove
 
 
 ## Assumption checks ----
@@ -725,10 +750,10 @@ nonParaToCompare <- c(3,10,11,14,15,18,19,20,21,22,25,47,48,49,50,713,719,720,76
 
 ### Subset 1: no further exclusions (only missing data and CRP > 10) ----
 
-comparisonExcluded_all <- compareExcluded(df, varsToCompare, grp = "excludeFromSample", subset = "all", simplified = T) 
-#runWilcox(df = df, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "all_wilcox")
+comparisonExcluded_all <- compareExcluded(df, varsToCompare, grp = "missingEssentialVar", subset = "all", simplified = T) 
+#runWilcox(df = df, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "all_wilcox")
 
-df_all <- df %>% filter(excludeFromSample == "Keep")
+df_all <- df %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_all_", getDate(), sep = "")
 write.csv(df_all, file = glue("{fileName}.csv")) # exports cleaned dataframe with all variables ready for analysis
 cat("Subset only with complete cases and CRP < 10 saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_all))
@@ -736,17 +761,17 @@ cat("Subset only with complete cases and CRP < 10 saved as: `", fileName, "`. \n
 ### Subset 2: oldest tertile ----
 tertCutOff <- quantile(df$demo_age_assess0_t0, c(.66))
 df_oldest <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    demo_age_assess0_t0 >= tertCutOff ~ "Keep",
-    TRUE ~ "Remove")))
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    demo_age_assess0_t0 >= tertCutOff ~ FALSE,
+    TRUE ~ TRUE)))
 
-# table(df_oldest$excludeFromSample)
-# str(df_oldest$excludeFromSample)
-comparisonExcluded_oldest <- compareExcluded(df_oldest, varsToCompare, grp = "excludeFromSample", subset = "oldestTert", simplified = T) 
-#runWilcox(df = df_oldest, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "oldest_wilcox")
+# table(df_oldest$missingEssentialVar)
+# str(df_oldest$missingEssentialVar)
+comparisonExcluded_oldest <- compareExcluded(df_oldest, varsToCompare, grp = "missingEssentialVar", subset = "oldestTert", simplified = T) 
+#runWilcox(df = df_oldest, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "oldest_wilcox")
 
-df_oldest <- df_oldest %>% filter(excludeFromSample == "Keep")
+df_oldest <- df_oldest %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_oldestTert_", getDate(), ".csv", sep = "")
 write.csv(df_oldest, file = fileName)
 cat("Subset with the oldest tertile of cases at instrance 0 (", tertCutOff, ") saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_oldest))
@@ -754,133 +779,133 @@ cat("Subset with the oldest tertile of cases at instrance 0 (", tertCutOff, ") s
 ### Subset 3: youngest tertile ----
 tertCutOff <- quantile(df$demo_age_assess0_t0, c(.33))
 df_youngest <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    demo_age_assess0_t0 <= tertCutOff ~ "Keep",
-    TRUE ~ "Remove")))
-comparisonExcluded_youngest <- compareExcluded(df_youngest, varsToCompare, grp = "excludeFromSample", subset = "youngestTert", simplified = T) 
-#runWilcox(df = df_youngest, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "youngest_wilcox")
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    demo_age_assess0_t0 <= tertCutOff ~ FALSE,
+    TRUE ~ TRUE)))
+comparisonExcluded_youngest <- compareExcluded(df_youngest, varsToCompare, grp = "missingEssentialVar", subset = "youngestTert", simplified = T) 
+#runWilcox(df = df_youngest, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "youngest_wilcox")
 
-df_youngest <- df_youngest %>% filter(excludeFromSample == "Keep")
+df_youngest <- df_youngest %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_youngestTert_", getDate(), ".csv", sep = "")
 write.csv(df_youngest, file = fileName)
 cat("Subset with the youngest tertile of cases at instrance 0 (", tertCutOff, ") saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_youngest))
 
 ### Subset 4: Exclude Diagnoses -------
 df_noDx <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    dx_AnyOfInterest == 0 ~ "Keep",
-    TRUE ~ "Remove")))
-comparisonExcluded_noDx <- compareExcluded(df_noDx, varsToCompare, grp = "excludeFromSample", subset = "NoDx", simplified = T)
-#runWilcox(df = df_noDx, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "noDx_wilcox")
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    dx_AnyOfInterest == 0 ~ FALSE,
+    TRUE ~ TRUE)))
+comparisonExcluded_noDx <- compareExcluded(df_noDx, varsToCompare, grp = "missingEssentialVar", subset = "NoDx", simplified = T)
+#runWilcox(df = df_noDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noDx_wilcox")
 
-df_noDx <- df_noDx %>% filter(excludeFromSample == "Keep")
+df_noDx <- df_noDx %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_noDx_", getDate(), ".csv", sep = "")
 write.csv(df_noDx, file = fileName)
 cat("Subset excluding those with diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noDx))
 
 ### Subset 5: Only Diagnoses ------------
 df_onlyDx <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    dx_AnyOfInterest == 1 ~ "Keep",
-    TRUE ~ "Remove")))
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    dx_AnyOfInterest == 1 ~ FALSE,
+    TRUE ~ TRUE)))
 
-comparisonExcluded_onlyDx <- compareExcluded(df_onlyDx, varsToCompare, grp = "excludeFromSample", subset = "OnlyDx", simplified = T)
-#runWilcox(df = df_onlyDx, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "onlyDx_wilcox")
+comparisonExcluded_onlyDx <- compareExcluded(df_onlyDx, varsToCompare, grp = "missingEssentialVar", subset = "OnlyDx", simplified = T)
+#runWilcox(df = df_onlyDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlyDx_wilcox")
 
-df_onlyDx <- df_onlyDx %>% filter(excludeFromSample == "Keep")
+df_onlyDx <- df_onlyDx %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_onlyDx_", getDate(), ".csv", sep = "")
 write.csv(df_onlyDx, file = fileName)
 cat("Subset only those with a diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyDx))
 
 ### Subset 6: Exclude medications -----------
 df_noMed <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    med_AnyOfInterest0 == 0 & med_AnyOfInterest2 == 0 ~ "Keep",
-    TRUE ~ "Remove")))
-comparisonExcluded_noMed <- compareExcluded(df_noMed, varsToCompare, grp = "excludeFromSample", subset = "NoMed", simplified = T)
-#runWilcox(df = df_noMed, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "noMed_wilcox")
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    med_AnyOfInterest0 == 0 & med_AnyOfInterest2 == 0 ~ FALSE,
+    TRUE ~ TRUE)))
+comparisonExcluded_noMed <- compareExcluded(df_noMed, varsToCompare, grp = "missingEssentialVar", subset = "NoMed", simplified = T)
+#runWilcox(df = df_noMed, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noMed_wilcox")
 
-df_noMed <- df_noMed %>% filter(excludeFromSample == "Keep")
+df_noMed <- df_noMed %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_noMed_", getDate(), ".csv", sep = "")
 write.csv(df_noMed, file = fileName)
 cat("Subset excluding those using medications of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed))
 
 ### Subset 7: Only medications ----
 df_onlyMed <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    med_AnyOfInterest0 == 1 | med_AnyOfInterest2 == 1 ~ "Keep",
-    TRUE ~ "Remove")))
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    med_AnyOfInterest0 == 1 | med_AnyOfInterest2 == 1 ~ FALSE,
+    TRUE ~ TRUE)))
 
-comparisonExcluded_onlyMed <- compareExcluded(df_onlyMed, varsToCompare, grp = "excludeFromSample", subset = "OnlyMed", simplified = T)
-#runWilcox(df = df_onlyMed, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "onlyMed_wilcox")
+comparisonExcluded_onlyMed <- compareExcluded(df_onlyMed, varsToCompare, grp = "missingEssentialVar", subset = "OnlyMed", simplified = T)
+#runWilcox(df = df_onlyMed, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlyMed_wilcox")
 
-df_onlyMed <- df_onlyMed %>% filter(excludeFromSample == "Keep")
+df_onlyMed <- df_onlyMed %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_onlyMed_", getDate(), ".csv", sep = "")
 write.csv(df_onlyMed, file = fileName)
 cat("Subset only with those using medications of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyMed))
 
 ### Subset 8: Exclude SSRI -----------
 df_noSSRI <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    med_SSRI_t0 == 0 & med_SSRI_t2 == 0 ~ "Keep",
-    TRUE ~ "Remove")))
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    med_SSRI_t0 == 0 & med_SSRI_t2 == 0 ~ FALSE,
+    TRUE ~ TRUE)))
 
-comparisonExcluded_noSSRI <- compareExcluded(df_noSSRI, varsToCompare, grp = "excludeFromSample", subset = "NoSSRI", simplified = T)
-#runWilcox(df = df_noSSRI, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "noSSRI_wilcox")
+comparisonExcluded_noSSRI <- compareExcluded(df_noSSRI, varsToCompare, grp = "missingEssentialVar", subset = "NoSSRI", simplified = T)
+#runWilcox(df = df_noSSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noSSRI_wilcox")
 
-df_noSSRI <- df_noSSRI %>% filter(excludeFromSample == "Keep")
+df_noSSRI <- df_noSSRI %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_noSSRI_", getDate(), ".csv", sep = "")
 write.csv(df_noSSRI, file = fileName)
 cat("Subset excluding those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noSSRI))
 
 ### Subset 9: Only SSRI ----
 df_onlySSRI <- df %>% 
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    med_SSRI_t0 == 1 | med_SSRI_t2 == 1 ~ "Keep",
-    TRUE ~ "Remove")))
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    med_SSRI_t0 == 1 | med_SSRI_t2 == 1 ~ FALSE,
+    TRUE ~ TRUE)))
 
-comparisonExcluded_onlySSRI <- compareExcluded(df_onlySSRI, varsToCompare, grp = "excludeFromSample", subset = "onlySSRI", simplified = T)
-#runWilcox(df = df_onlySSRI, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "onlySSRI_wilcox")
+comparisonExcluded_onlySSRI <- compareExcluded(df_onlySSRI, varsToCompare, grp = "missingEssentialVar", subset = "onlySSRI", simplified = T)
+#runWilcox(df = df_onlySSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlySSRI_wilcox")
 
-df_noSSRI <- df_noSSRI %>% filter(excludeFromSample == "Keep")
+df_noSSRI <- df_noSSRI %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_onlySSRI_", getDate(), ".csv", sep = "")
 write.csv(df_noSSRI, file = fileName)
 cat("Subset onlly with those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlySSRI))
 
 ### Subset 10: exclude Med and Dx --------
 df_noMedNoDx <- df %>%
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    dx_AnyOfInterest == 0 & med_AnyOfInterest0 == 0 & med_AnyOfInterest2 == 0 ~ "Keep",
-    TRUE ~ "Remove")))
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    dx_AnyOfInterest == 0 & med_AnyOfInterest0 == 0 & med_AnyOfInterest2 == 0 ~ FALSE,
+    TRUE ~ TRUE)))
 
-comparisonExcluded_noMedNoDx <- compareExcluded(df_noMedNoDx, varsToCompare, grp = "excludeFromSample", subset = "NoMedNoDx", simplified = T)
-#runWilcox(df = df_noMedNoDx, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "noMedNoDx_wilcox")
+comparisonExcluded_noMedNoDx <- compareExcluded(df_noMedNoDx, varsToCompare, grp = "missingEssentialVar", subset = "NoMedNoDx", simplified = T)
+#runWilcox(df = df_noMedNoDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noMedNoDx_wilcox")
 
-df_noMedNoDx <- df_noMedNoDx %>% filter(excludeFromSample == "Keep")
+df_noMedNoDx <- df_noMedNoDx %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_NoMedNoDx_", getDate(), ".csv", sep = "")
 write.csv(df_noMedNoDx, file = fileName)
 cat("Subset excluding those with diagnoses or using any medication of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMedNoDx))
 
 ### Subset 11: exclude Dx and SSRI --------
 df_noDxNoSSRI <- df %>%
-  mutate(excludeFromSample = factor(case_when(
-    excludeFromSample == "Remove" ~ "Remove",
-    dx_AnyOfInterest == 0 & med_SSRI_t0 == 0 & med_SSRI_t2 == 0 ~ "Keep",
-    TRUE ~ "Remove")))
+  mutate(missingEssentialVar = factor(case_when(
+    missingEssentialVar == TRUE ~ TRUE,
+    dx_AnyOfInterest == 0 & med_SSRI_t0 == 0 & med_SSRI_t2 == 0 ~ FALSE,
+    TRUE ~ TRUE)))
 
-comparisonExcluded_noDxNoSSRI <- compareExcluded(df_noDxNoSSRI, varsToCompare, grp = "excludeFromSample", subset = "NoDxNoSSRI", simplified = T)
-#runWilcox(df = df_noDxNoSSRI, varsOfInterest = , by = "excludeFromSample", outputDir = "./outputs/descriptive/wilcox", fileName = "noDxNoSSRI_wilcox")
+comparisonExcluded_noDxNoSSRI <- compareExcluded(df_noDxNoSSRI, varsToCompare, grp = "missingEssentialVar", subset = "NoDxNoSSRI", simplified = T)
+#runWilcox(df = df_noDxNoSSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noDxNoSSRI_wilcox")
 
 fileName <- paste("df_noDxNoSSRI_", getDate(), ".csv", sep = "")
-df_noDxNoSSRI <- df_noDxNoSSRI %>% filter(excludeFromSample == "Keep")
+df_noDxNoSSRI <- df_noDxNoSSRI %>% filter(missingEssentialVar == FALSE)
 write.csv(df_noDxNoSSRI, file = fileName)
 cat("Subset excluding those with diagnoses or using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noDxNoSSRI))
 
