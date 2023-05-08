@@ -114,7 +114,7 @@ if(n1 <= 1 | n2 <= 1){
 compareExcluded <- function(df_subset, varsToCompare, grp, subset, simplified){
   require(DescTools)
   require(effsize)
-  date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
+  date <- getDate() # set todays date for easier output filenaming
   
   if(simplified == T){
     output <- TOne(df_subset[varsToCompare], grp = df_subset[[grp]], add.length = T, total = T, 
@@ -689,6 +689,7 @@ finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "de
 
 ### Remove missing ----
 essentialVars <- c(finalCovars, completionTimeVars, crpAliqVars, brainMorphVars) # list of variable names that must be complete in order for case to be retained
+# essentialVars <- readRDS("revisedEssentialVarsAnalysis.rds")
 
 df <- df %>% 
   mutate(missingEssentialVar = factor(case_when(
@@ -696,6 +697,7 @@ df <- df %>%
       is.na(x))) ~ TRUE,
     TRUE ~ FALSE)))
 
+saveRDS(df, file = glue("./Data/Processed/df_PreSubset_{getDate()}.rds"))
 df_removed <- df %>%
   filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # make new df of cases with missing values
 
@@ -705,7 +707,7 @@ for(i in 1:length(essentialVars)){
   numMissing[i,] <- c(sum(is.na(df_removed[essentialVars[i]])), sum(!is.na(df_removed[essentialVars[i]])))
 }
 
-numMissing_df <- as.data.frame(numMissing) %>%  arrange(desc(NACount))
+numMissing_df <- as.data.frame(numMissing) %>% arrange(desc(NACount))
 write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", date, ".csv", sep = ""))
 
 ### Remove CRP > 10 ----
@@ -716,7 +718,7 @@ df <- df %>%
 
 ## Assumption checks ----
 ### Normality ----
-varsToCompare <- c("demo_sex_t0", "demo_birthYear_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_age_assess2_t2", "age_mean02", "ses_townsend_t0", "crp_aliquot_t0", "crp_log", "med_AnyOfInterest0", "med_AnyOfInterest2", "med_AnyOfInterest0_excludingSSRI", "med_AnyOfInterest2_excludingSSRI", "med_SSRI_t0","med_SSRI_t2", "dx_AnyOfInterest", "dx_Dementia", "dx_SSD", "dx_MoodDisorder", "smoke_currently0_t0", "smoke_currently2_t2", "exercise_IPAQActivityGroup_t0", "weight_BMI0_t0","weight_BMI2_t2", "weight_waistToHip_t0","weight_waistToHip_t2","weight_waistToHip_mean02", "diet_processedMeat0_t0", "diet_processedMeat2_t2",  "sleep_duration0_t0", "sleep_duration2_t2", "sleep_duration_mean02", "menopause0_t0", "menopause2_t2", "hand_t0", "crp_hourCollected", "crp_timeFasting_t0", "crp_aliquotdelay", "diet_cookedVeg0_t0", "diet_cookedVeg2_t2", "diet_rawVeg_t0", "diet_fruit0_t0", "diet_fruit2_t2", "diet_water_t0", "diet_alc_freq0_t0", "diet_alc_freq2_t2", "diet_alcohol_yesterdayIntake0_t0", "diet_alcohol_yesterdayIntake2_t2")
+varsToCompare <- c("demo_sex_t0", "demo_birthYear_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_age_assess2_t2", "age_mean02", "ses_townsend_t0", "crp_aliquot_t0", "crp_log", "med_AnyOfInterest0", "med_AnyOfInterest2", "med_AnyOfInterest0_excludingSSRI", "med_AnyOfInterest2_excludingSSRI", "med_SSRI_t0","med_SSRI_t2", "dx_AnyOfInterest", "dx_Dementia", "dx_SSD", "dx_MoodDisorder", "smoke_currently0_t0", "smoke_currently2_t2", "exercise_IPAQActivityGroup_t0", "weight_BMI0_t0","weight_BMI2_t2", "weight_waistToHip_t0","weight_waistToHip_t2","weight_waistToHip_mean02", "sleep_duration0_t0", "sleep_duration2_t2", "sleep_duration_mean02", "menopause0_t0", "menopause2_t2", "hand_t0", "crp_hourCollected", "crp_timeFasting_t0", "crp_aliquotdelay",  "diet_water_t0", "diet_alc_freq0_t0", "diet_alc_freq2_t2", "diet_alcohol_yesterdayIntake0_t0", "diet_alcohol_yesterdayIntake2_t2") # Add variables to compare between excluded and retained participants
 
 varsToCompare_ColNum <- which(colnames(df) %in% varsToCompare)
 
@@ -728,11 +730,6 @@ for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
     }
   }
 }
-
-# if("dx_CVD.1" %in% colnames(df[varsToCompare_ColNum])){
-#   colNum <- which(colnames(df[varsToCompare_ColNum]) == "dx_CVD.1")
-#   varsToCompare_ColNum <- varsToCompare_ColNum[-which(varsToCompare_ColNum == colNum)]
-# }
 
 # create list of non-factor numeric variables for normality check
 numVarsToCompare <- lapply(df[varsToCompare_ColNum], numNotFactor)
@@ -746,16 +743,16 @@ normalityPlots <- mapply(normalCheck, df[c(numVarColsToCompare)], colName = coln
 nonParaToCompare <- c(3,10,11,14,15,18,19,20,21,22,25,47,48,49,50,713,719,720,762)
 
 ## Subset ----
-# df <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/UKBB_dfForAnal_All_05_05_2022.csv", lazy = T) # import df if desired
+# df <- read_csv("./data/forAnalysis/UKBB_dfForAnal_All_05_05_2022.csv", lazy = T) # import df if desired
+subsetData_outputPath <- "./Data/Processed/Subsets"
+subsetNames <- c("noMedNoDx", "all", "oldest","onlyDx","noDx","onlyMed","noMed","onlySSRI","youngest","noDxNoSSRI","noSSRI")
 
 ### Subset 1: no further exclusions (only missing data and CRP > 10) ----
-
 comparisonExcluded_all <- compareExcluded(df, varsToCompare, grp = "missingEssentialVar", subset = "all", simplified = T) 
 #runWilcox(df = df, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "all_wilcox")
-
 df_all <- df %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_all_", getDate(), sep = "")
-write.csv(df_all, file = glue("{fileName}.csv")) # exports cleaned dataframe with all variables ready for analysis
+write.csv(df_all, file = glue("{subsetData_outputPath}/{fileName}.csv")) # exports cleaned dataframe with all variables ready for analysis
 cat("Subset only with complete cases and CRP < 10 saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_all))
 
 ### Subset 2: oldest tertile ----
@@ -772,8 +769,8 @@ comparisonExcluded_oldest <- compareExcluded(df_oldest, varsToCompare, grp = "mi
 #runWilcox(df = df_oldest, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "oldest_wilcox")
 
 df_oldest <- df_oldest %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_oldestTert_", getDate(), ".csv", sep = "")
-write.csv(df_oldest, file = fileName)
+fileName <- paste("df_oldest_", getDate(), sep = "")
+write.csv(df_oldest, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset with the oldest tertile of cases at instrance 0 (", tertCutOff, ") saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_oldest))
 
 ### Subset 3: youngest tertile ----
@@ -787,8 +784,8 @@ comparisonExcluded_youngest <- compareExcluded(df_youngest, varsToCompare, grp =
 #runWilcox(df = df_youngest, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "youngest_wilcox")
 
 df_youngest <- df_youngest %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_youngestTert_", getDate(), ".csv", sep = "")
-write.csv(df_youngest, file = fileName)
+fileName <- paste("df_youngest_", getDate(), sep = "")
+write.csv(df_youngest, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset with the youngest tertile of cases at instrance 0 (", tertCutOff, ") saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_youngest))
 
 ### Subset 4: Exclude Diagnoses -------
@@ -801,8 +798,8 @@ comparisonExcluded_noDx <- compareExcluded(df_noDx, varsToCompare, grp = "missin
 #runWilcox(df = df_noDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noDx_wilcox")
 
 df_noDx <- df_noDx %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_noDx_", getDate(), ".csv", sep = "")
-write.csv(df_noDx, file = fileName)
+fileName <- paste("df_noDx_", getDate(), sep = "")
+write.csv(df_noDx, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those with diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noDx))
 
 ### Subset 5: Only Diagnoses ------------
@@ -816,8 +813,8 @@ comparisonExcluded_onlyDx <- compareExcluded(df_onlyDx, varsToCompare, grp = "mi
 #runWilcox(df = df_onlyDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlyDx_wilcox")
 
 df_onlyDx <- df_onlyDx %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_onlyDx_", getDate(), ".csv", sep = "")
-write.csv(df_onlyDx, file = fileName)
+fileName <- paste("df_onlyDx_", getDate(), sep = "")
+write.csv(df_onlyDx, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset only those with a diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyDx))
 
 ### Subset 6: Exclude medications -----------
@@ -830,8 +827,8 @@ comparisonExcluded_noMed <- compareExcluded(df_noMed, varsToCompare, grp = "miss
 #runWilcox(df = df_noMed, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noMed_wilcox")
 
 df_noMed <- df_noMed %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_noMed_", getDate(), ".csv", sep = "")
-write.csv(df_noMed, file = fileName)
+fileName <- paste("df_noMed_", getDate(), sep = "")
+write.csv(df_noMed, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those using medications of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed))
 
 ### Subset 7: Only medications ----
@@ -845,8 +842,8 @@ comparisonExcluded_onlyMed <- compareExcluded(df_onlyMed, varsToCompare, grp = "
 #runWilcox(df = df_onlyMed, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlyMed_wilcox")
 
 df_onlyMed <- df_onlyMed %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_onlyMed_", getDate(), ".csv", sep = "")
-write.csv(df_onlyMed, file = fileName)
+fileName <- paste("df_onlyMed_", getDate(), sep = "")
+write.csv(df_onlyMed, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset only with those using medications of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyMed))
 
 ### Subset 8: Exclude SSRI -----------
@@ -860,8 +857,8 @@ comparisonExcluded_noSSRI <- compareExcluded(df_noSSRI, varsToCompare, grp = "mi
 #runWilcox(df = df_noSSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noSSRI_wilcox")
 
 df_noSSRI <- df_noSSRI %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_noSSRI_", getDate(), ".csv", sep = "")
-write.csv(df_noSSRI, file = fileName)
+fileName <- paste("df_noSSRI_", getDate(), sep = "")
+write.csv(df_noSSRI, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noSSRI))
 
 ### Subset 9: Only SSRI ----
@@ -875,8 +872,8 @@ comparisonExcluded_onlySSRI <- compareExcluded(df_onlySSRI, varsToCompare, grp =
 #runWilcox(df = df_onlySSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlySSRI_wilcox")
 
 df_noSSRI <- df_noSSRI %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_onlySSRI_", getDate(), ".csv", sep = "")
-write.csv(df_noSSRI, file = fileName)
+fileName <- paste("df_onlySSRI_", getDate(), sep = "")
+write.csv(df_noSSRI, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset onlly with those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlySSRI))
 
 ### Subset 10: exclude Med and Dx --------
@@ -890,8 +887,8 @@ comparisonExcluded_noMedNoDx <- compareExcluded(df_noMedNoDx, varsToCompare, grp
 #runWilcox(df = df_noMedNoDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noMedNoDx_wilcox")
 
 df_noMedNoDx <- df_noMedNoDx %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_NoMedNoDx_", getDate(), ".csv", sep = "")
-write.csv(df_noMedNoDx, file = fileName)
+fileName <- paste("df_NoMedNoDx_", getDate(), sep = "")
+write.csv(df_noMedNoDx, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those with diagnoses or using any medication of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMedNoDx))
 
 ### Subset 11: exclude Dx and SSRI --------
@@ -904,28 +901,29 @@ df_noDxNoSSRI <- df %>%
 comparisonExcluded_noDxNoSSRI <- compareExcluded(df_noDxNoSSRI, varsToCompare, grp = "missingEssentialVar", subset = "NoDxNoSSRI", simplified = T)
 #runWilcox(df = df_noDxNoSSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noDxNoSSRI_wilcox")
 
-fileName <- paste("df_noDxNoSSRI_", getDate(), ".csv", sep = "")
+fileName <- paste("df_noDxNoSSRI_", getDate(), sep = "")
 df_noDxNoSSRI <- df_noDxNoSSRI %>% filter(missingEssentialVar == FALSE)
-write.csv(df_noDxNoSSRI, file = fileName)
+write.csv(df_noDxNoSSRI, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those with diagnoses or using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noDxNoSSRI))
 
 # Describe Subsets ----
-path <- "./Data/Subsets"
-fileNames <- c("dfForAnal_All_05_11_2022","dfForAnal_onlyDx_05_11_2022","dfForAnal_noDx_05_11_2022","dfForAnal_onlyMed_05_11_2022","dfForAnal_NoMedNoDx_05_11_2022","dfForAnal_onlySSRI_05_11_2022","dfForAnal_noSSRI_05_11_2022","dfForAnal_youngestTert_05_11_2022","dfForAnal_oldestTert_05_11_2022", "dfForAnal_noDxNoSSRI_05_11_2022", "dfForAnal_noMed_05_11_2022")
+path <- subsetData_outputPath
+#path <- "./Data/Subsets"
+subsetNames <- c("noMedNoDx", "all", "oldest","onlyDx","noDx","onlyMed","noMed","onlySSRI","youngest","noDxNoSSRI","noSSRI")
+dataDate <- getDate()
+#dataDate <- ""
 
-fileNames <- c("dfForAnal_noDxNoSSRI_05_11_2022", "dfForAnal_noMed_05_11_2022")
-for(file in fileNames){
-  fileName <- glue("{path}/{file}.csv")
+for(subset in subsetNames){
+  fileName <- glue("{path}/df_{subset}_dataDate.csv")
   subset_df <- read_csv(fileName, lazy = T, show_col_types = F)
-  subsetName <- unlist(strsplit(file, "_"))[2]
-  print(subsetName)
-  write.csv(psych::describe(subset_df), file = glue("./output/descriptive/{subsetName}_summary_{getDate()}.csv"))
+  print(subset)
+  write.csv(psych::describe(subset_df), file = glue("./output/descriptive/{subset}_summary_{getDate()}.csv"))
+  rm(subset_df)
 }
 
 ### Summarise
+write.csv(df_retained, file = paste("./data/processed/dfRetained_", getDate(), ".csv", sep = ""))
 df <- df_retained
-write.csv(df_retained, file = paste("UKBB_dfRetained_", getDate(), ".csv", sep = ""))
-write.csv(psych::describe(df), file = glue("UKBB_describedRetainedCases_{getDate()}.csv"))
 varsToSummarise <- c(1:ncol(df))
 
 numVars<- lapply(df, numNotFactor)
@@ -942,7 +940,7 @@ for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
   }
 }
 
-write.csv(summary(df[-numVars]), file = paste("UKBB_dfRetained_Summary_fctrVars", getDate(), ".csv", sep = "")) # save counts of categorical variables
+write.csv(summary(df[-numVars]), file = paste("./outputs/descriptive/df_all_summary_fctrVars", getDate(), ".csv", sep = "")) # save counts of categorical variables
 
 # Varia correlations
 ## Correl of CRP vars 
@@ -994,7 +992,7 @@ runCor <- function(df, X, Y, M, covars, contrasts, YisFactor, name){
   }
   
   fileName <- glue("{name}_{getDate()}.txt")
-  
+
   capture.output(
     cat(" -- Linear Model Analysis Output -- "),
     print(c("\n ------------------ \n Model expression: \n\t", expression)),
@@ -1003,6 +1001,128 @@ runCor <- function(df, X, Y, M, covars, contrasts, YisFactor, name){
   
   return(model)
 }
+
+corTxtFormat <- function(filePath, files, X, listOfCovars, logReg, outputPath){  
+  require(stringr)
+  
+  df_main <- matrix(ncol = 13, dimnames = list(c(), c("subset", "Y", "X", "b", "SE", "t", "p_predictor", "F", "df1", "df2", "p_model", "R2", "R2adj")))
+  
+  df_covarForModel_tmp <- c()
+  
+  for(file in files){
+    specificFilePath <- glue("{filePath}/{file}.txt")
+    fileObj <- readLines(specificFilePath)
+    
+    date <- str_match(file, "t2_z_(.*2)")[2]
+    subsetName <- gsub("_","",str_match(file, "cor_*(.*?)_cog"))[2]
+    Y <- str_match(file, "cog_*(.*?)_t2_z")[,2]
+    modelDetails <- c(subsetName, Y)
+    
+    cat("\n\t", glue("{Y}"))
+    
+    # Results of interest for model
+    effectSizes <- grep("Multiple R-squared",fileObj, value = TRUE)
+    effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
+    R2 <- substr(effectSizes[3], 1, nchar(effectSizes[3])-1)
+    R2adj <- effectSizes[6]
+    
+    FTest <- grep("F-statistic",fileObj, value = TRUE)
+    FTest <- unlist(strsplit(FTest, "\\s+"))
+    FStat <- FTest[2]
+    df1 <- FTest[4]
+    df2 <- FTest[6]
+    
+    p_model <- FTest[which(FTest == grep("p-value",FTest, value = TRUE)):length(FTest)]
+    # print(p_model)
+    if(TRUE %in% grepl("<", p_model) && nchar(p_model[grep("<",p_model)]) == 1){
+      p_model <- glue("{p_model[[2]]}{p_model[[3]]}")
+    } else {
+      p_model <- p_model[2]
+    }
+    
+    modelResults <- c(FStat, df1, df2, p_model, R2, R2adj)
+    
+    for(predictor in c(X,listOfCovars)){
+      result <- grep(predictor, fileObj, value = T)
+      results_seperated <- unlist(strsplit(result, "\\s+"))
+      # print(results_seperated)
+      # results of interest for each predictor
+      b <- results_seperated[2]
+      SE <-results_seperated[3] 
+      t <- results_seperated[4]
+      if("<" %in% results_seperated == TRUE){
+        p_predictor <- glue("{results_seperated[[5]]}{results_seperated[[6]]}")
+      } else {
+        p_predictor <- results_seperated[5]
+      }
+      
+      df_main <- rbind(df_main, c(modelDetails, predictor, b, SE, t, p_predictor, modelResults))
+      # cat(paste(name, depVarValuesNoSigChar, sep = "\n\t"))
+    } 
+  }
+  
+  df_main <- df_main[-1,]
+  write.csv(df_main, file = glue("{outputPath}/{subsetName}_corSummary_{date}.csv"))
+} # 'filePath' - path to folder housing files, 'files' - name of files (without extensions), 'x' - independent variable (usually 'CRP_log_z'), 'listOfCovars' - list of covariate variable names as listed in LM output (include level of contrast for categorical variables). If no covars, define as '""'. 'logReg': logical specifying if file is logistic regression. N.B. takes subset name and dependent variable from file name.
+
+corCSVFormat <- function(modelName, corResultPath, dataFilePrefix, subsets, cogVars, dataDate, depVar, listOfCovars, outputPrefix, outputPath){  
+  df_main <- matrix(ncol = 15, dimnames = list(c(), c("subset",  "X","Y", "b", "b_SE", "b_95CI_Lo", "b_95CI_hi", "b_t", "b_p", "R2", "R2adj", "F", "df1", "df2", "p")))
+  df_covarForModel <- matrix(ncol = length(listOfCovars)+2)
+  df_covarForModel_tmp <- c()
+  
+  for(subset in subsets){
+    for(cogVar in cogVars){
+      name <- glue("{subset}_{cogVar}")
+      fileName <- glue("{dataFilePrefix}_{name}_{dataDate}.txt")
+      # cat(fileName, "\n")
+      if(fileName %in% list.files(corResultPath)){
+        fileObj <- readLines(glue("{corResultPath}/{fileName}"))
+        
+        depVarValues <- grep(depVar, fileObj, value = TRUE)
+        depVarValues <- unlist(strsplit(depVarValues, "\\s+"))
+
+        if(TRUE %in% grepl("<", depVarValues)){
+          pAndSymbol <- glue("{depVarValues[[5]]}{depVarValues[[6]]}")
+          depVarValuesNoSigChar <- c(depVarValues[1:4], pAndSymbol)
+        } else {
+          depVarValuesNoSigChar <- depVarValues[1:5]
+        }
+        # cat(paste(name, depVarValuesNoSigChar, sep = "\n\t"))
+
+        CI_lo <- as.numeric(depVarValuesNoSigChar[2]) - abs(qnorm(.025))*as.numeric(depVarValuesNoSigChar[3]) # b - 1.96*SE
+        CI_hi <- as.numeric(depVarValuesNoSigChar[2]) + abs(qnorm(.025))*as.numeric(depVarValuesNoSigChar[3]) # b + 1.96*SE
+        # cat("95%CI: ", CI_lo, CI_hi)
+        
+        effectSizes <- grep("Multiple R-squared",fileObj, value = TRUE)
+        effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
+        R2 <- substr(effectSizes[3], 1, nchar(effectSizes[3])-1)
+        R2adj <- effectSizes[6]
+        
+        FTest <- grep("F-statistic",fileObj, value = TRUE)
+        FTest <- unlist(strsplit(FTest, "\\s+"))
+        FStat <- FTest[2]
+        df1 <- FTest[4]
+        df2 <- FTest[6]
+        p <- FTest[which(FTest == grep("p-value",FTest, value = TRUE)):length(FTest)]
+        
+        if(TRUE %in% grepl("<", p)){
+          p <- glue("{FTest[[9]]}{FTest[[10]]}")
+          # p <- paste(FTest[[9]], FTest[[10]], sep = "")
+        } else {
+          p <- FTest[which(FTest == grep("p-value",FTest, value = TRUE))+1]
+        }
+        
+        df_mainRow <- c(subset, depVarValuesNoSigChar[1], cogVar, depVarValuesNoSigChar[2:3], CI_lo, CI_hi, depVarValuesNoSigChar[4:length(depVarValuesNoSigChar)], R2, R2adj, FStat, df1, df2, p)  # "Model name", "indep var", "dep var", "parameter estimate", "SE", "t", "p", "R2", "R2adj", "F", "df1", "df2", "p"
+        df_main <- rbind(df_main, " " = df_mainRow)
+        
+      } else {
+        cat("\n Warning. The file ", fileName, " is not in the provided path. This analysis is not added to the summary file.")
+      }
+    }
+  }
+  df_main <- df_main[-1,]
+  write.csv(df_main, file = glue("{outputPath}/{outputPrefix}_{getDate()}.csv"))
+} # 'modelName' - name of model for labeling output rows (usually 'cor' or 'med'), 'corResultPath' - path to folder housing correlation text files, 'dataFilePrefix' - prefix of correlation files, 'subsets' - list of subset names, 'cogVars' - list of cognitive variables correlation analyses performed on, 'depVar' - dependent variable (usually CRP_log_z), 'dataDate' - date of correlational analysis (as in file name), 'listOfCovars' - list of covariate variable names as listed in LM output (include level of contrast for categorical variables). If no covars, define as '""', 'outputPrefix' - string indicating the prefix for the output file. Note, independent variable is assumed to be the variable beginning with "cog_", 'outputPath' - string defining path to save summary file.
 
 ### Mediation Analysis functions ----
 runRMediation <- function(df, X, Y, M, covars, contrasts, YisFactor, name, alpha){
@@ -1097,77 +1217,6 @@ formatMedOutput <- function(outputDF, filePath, fileName, analysisName, logReg){
     } else {
       depVarValuesNoSigChar <- depVarValues[2:5]
     }
-    
-    ########################################################33
-    # bPathRows <- grep("b path", sectionText, value = TRUE)
-    # if(is.null(bPathRows) == FALSE){ # extract med -> Y in b path model
-    #   brainVarValues <- sectionText[starts_with("brain_", vars = sectionText)]
-    #   for(i in length(brainVarValues)){
-    #     splitRow <- strsplit(brainVarValues[i], "\\s+")
-    #     for(j in splitRow){
-    #       if(splitRow %in% listOfMediators == T){
-    #         print("hi")
-    #       }
-    #     }
-    #   }
-    #   
-    #   contains(brainVarValues, vars = listOfMediators)
-    #   brainVarValues <- unlist(strsplit(brainVarValues, "\\s+"))
-    #   if(TRUE %in% grepl("<", brainVarValues) && nchar(brainVarValues[grep("<", brainVarValues)]) == 1){
-    #     pAndSymbol <- glue("{brainVarValues[[5]]}{brainVarValues[[6]]}")
-    #     brainVarValuesNoSigChar <- c(brainVarValues[2:4], pAndSymbol)
-    #   } else {
-    #     brainVarValuesNoSigChar <- brainVarValues[2:5]
-    #   }73.18
-    #   df_covarsSpecificModel <- cbind(df_covarsSpecificModel,  brainVarValuesNoSigChar)
-    # }
-    #####################################################################333
-    
-    # listOfCovars <- c(, )
-    # if(listOfCovars[1] != ""){
-    #   for(covar in listOfCovars){
-    #   #   covarValues <- grep(covar, sectionText, value = TRUE)
-    #   #   if(is.null(covarValues) == F){
-    #   #     if(length(covarValues) == 2){
-    #   #       covarValues <- covarValues[2]
-    #   #     }
-    #   #     indexNumBegin <- length(unlist(strsplit(covar, "\\s+")))
-    #   #     covarValues <- unlist(strsplit(covarValues, "\\s+"))
-    #   # 
-    #   #     indexOfFirstNum <- indexNumBegin + 1
-    #   #     indexOfLastNum <- indexNumBegin + 4
-    #   #     
-    #   #     if(TRUE %in% grepl("<", covarValues)){
-    #   #       indexPreP <- indexOfLastNum - 1
-    #   #       covarValues <- c(covar, covarValues[indexOfFirstNum : indexPreP], glue("{covarValues[[indexOfLastNum]]}{covarValues[[indexOfLastNum+1]]}"))
-    #   #     # p <- paste(FTest[[9]], FTest[[10]], sep = "")
-    #   #     } else {
-    #   #       covarValues <- c(covar, covarValues[indexOfFirstNum:indexOfLastNum])
-    #   #     }
-    #   #   } else{
-    #   #     covarValues <- rep("Error, missing data.", 5)
-    #   #   }
-    #   #   df_covarsSpecificModel <- cbind(df_covarsSpecificModel, covarValues)
-    #   # }
-    #   # name <- glue("{name}_C")
-    #   # if(sum(is.na(df_covarsSpecificModel[,1])) == nrow(df_covarsSpecificModel)){
-    #   #     df_covarsSpecificModel <-  df_covarsSpecificModel[,-1]
-    #   # }
-    #   # dimnames(df_covarsSpecificModel) <- list(c(), listOfCovars)
-    #   # df_covarsSpecificModel_tmp <- df_covarsSpecificModel[-1,]
-    #   # df_covarsSpecificModel_tmp <- cbind("modelName" = name, "statistic" = c("parameter estimate", "SE", "t", "p"), df_covarsSpecificModel_tmp)
-    #   # if(nrow(df_covarForModel) == 1){
-    #   #   df_covarForModel <- rbind(df_covarForModel[-1,], df_covarsSpecificModel_tmp)
-    #   # } else {
-    #   #   df_covarForModel <- rbind(df_covarForModel, df_covarsSpecificModel_tmp)
-    #   # }
-    #   # df_covarsSpecificModel <- c()
-    #   # write.csv(df_covarForModel, file = glue("{outputPrefix}_CovarWeights_{getDate()}.csv"))
-    #   }
-    # } else {
-    #   # name <- glue("{name}_noC")
-    # }
-    
     if(logReg == F || i == 2){ # the b path will always be linear regression as all brain morphology variables are continuous
       effectSizes <- grep("Multiple R-squared",sectionText, value = TRUE)
       effectSizes <- unlist(strsplit(effectSizes, "\\s+"))
@@ -1254,15 +1303,19 @@ formatMedOutput <- function(outputDF, filePath, fileName, analysisName, logReg){
 
 ## Run analyses -----
 ### Import data -----
-df <- read.csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/Subsets/dfForAnal_All_05_11_2022.csv") # import df
-# write.csv(describe(df), file = glue("UKBB_allVarSummary_{date}.csv"))
+path <- subsetData_outputPath
+#path <- ""
+fileName <- "df_noMedNoDx"
+dataDate <- getDate()
+#dataDate <- ""
+
+df <- read.csv("./{path}/{fileName}_{dataDate}.csv") # import df
 
 ### Vars of interest ----
 # sort(colnames(df))
-crp_fctrCol <- which(colnames(df) == "crp_aliquot_fctr")
 crp_log <-  which(colnames(df) == "crp_log")
 crp_log_z <- which(colnames(df) == "crp_log_z")
-crp <- c(which(colnames(df) == "crp_aliquot_t0"), crp_fctrCol, crp_log, crp_log_z)
+crp <- c(which(colnames(df) == "crp_aliquot_t0"), crp_log, crp_log_z)
 
 brainPrefix <- c("area_","mThick_", "vol_", "weigted_mFA_")
 brainMorphVars <- c()
@@ -1289,7 +1342,6 @@ for(i in c("area", "mThick", "vol")){
     }
   }
 }
-
 generalMetrics <- c("vol_BrainSeg_WB_t2","vol_BrainSegNotVent_WB_t2","vol_BrainSegNotVentSurf_WB_t2","vol_SubCortGray_WB_t2","vol_TotalGray_WB_t2","vol_SupraTentorial_WB_t2","vol_SupraTentorialNotVent_WB_t2","vol_EstimatedTotalIntraCranial_WB_t2","vol_BrainStem_WB_t2","vol_CSF_WB_t2","vol_wmHyperintensities_WB_t2","vol_WMhypointensities_WB_t2","vol_Hippocampus_L_t2","vol_Hippocampus_R_t2","vol_CerebellumCortex_R_t2","vol_CerebellumCortex_L_t2","vol_CerebellumWhiteMatter_L_t2","vol_CerebellumWhiteMatter_R_t2")
 
 aseg_brainVars <- c("vol_VentricleChoroid_WB_t2","vol_3rdVentricle_WB_t2","vol_4thVentricle_WB_t2","vol_5thVentricle_WB_t2","vol_nonWMhypointensities_WB_t2","vol_OpticChiasm_WB_t2","vol_CCPosterior_WB_t2","vol_CCMidPosterior_WB_t2","vol_CCCentral_WB_t2","vol_CCMidAnterior_WB_t2","vol_CCAnterior_WB_t2","area_Accumbensarea_L_t2","vol_Cortex_L_t2","vol_CerebralWhiteMatter_L_t2","vol_LateralVentricle_L_t2","vol_InfLatVent_L_t2","vol_thalamusProper_L_t2","vol_Caudate_L_t2","vol_Putamen_L_t2","vol_Pallidum_L_t2","vol_Amygdala_L_t2","vol_Accumbensarea_L_t2","vol_VentralDC_L_t2","vol_choroidplexus_L_t2","area_Accumbensarea_R_t2","vol_Cortex_R_t2","vol_CerebralWhiteMatter_R_t2","vol_LateralVentricle_R_t2","vol_InfLatVent_R_t2","vol_thalamusProper_R_t2","vol_Caudate_R_t2","vol_Putamen_R_t2","vol_Pallidum_R_t2","vol_Amygdala_R_t2","vol_Accumbensarea_R_t2","vol_VentralDC_R_t2","vol_vessel_L_t2","vol_vessel_R_t2","vol_choroidplexus_R_t2") # all Freesurfer ASEG variables in UKBB
@@ -1318,7 +1370,8 @@ cogOutcomes_fctr <- c(prospMemCol)
 cogOutcomes_fctr_names <- colnames(df[cogOutcomes_fctr])
 
 df$cog_hourCompleted_z <- scale(df$cog_hourCompleted)
-covars_colNames <- c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "smoke_currently0_t0", "smoke_currently2_t2","exercise_IPAQActivityGroup_t0")
+covars_colNames <- c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "smoke_currently0_t0", "smoke_currently2_t2","exercise_IPAQActivityGroup_t0", "med_Antihypertensive_t02", "med_Statin_t02")
+
 covars_colNum <-  which(colnames(df) %in% covars_colNames)
 
 covars_brain_colNames <- c("hand_t0", "brain_headScale_t2")
@@ -1338,44 +1391,54 @@ ordinalFactorContrasts <- list(exercise_IPAQActivityGroup_t0 = "contr.treatment"
 
 ### Correlation analyses ----
 individualAnalysis <- list()
-mainCor_C <- list()
+output_path <- "./outputs/cor/model" 
+subsetDF_path <- subsetData_outputPath
+#subsetDF_path <- ""
+#subsetNames <- c("noMedNoDx")
 
-subsetPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/Subsets"
-fileNames <- c("dfForAnal_All","dfForAnal_NoMedNoDx","dfForAnal_onlySSRI","dfForAnal_youngestTert","dfForAnal_oldestTert","dfForAnal_noDx","dfForAnal_onlyDx","dfForAnal_noMed","dfForAnal_onlyMed","dfForAnal_noSSRI", "dfForAnal_noDxNoSSRI") # list of subset names to run through
+dataDate <- getDate()
+#dataDate <- ""
+X <- "crp_log_z"
+varsOfInterest <- c(X, covars, cogOutcomes_colNames,cogOutcomes_fctr_names) 
+listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z", "hand_t0LH","hand_t0Not","hand_t0RH", "brain_headScale_t2", "med_Antihypertensive_t021", "med_Statin_t021")
+outputFileNames <- c()
 
-subsetDate <- "05_11_2022" # date of subsets, to recreate file name
-fileNames <- c("dfForAnal_noDxNoSSRI")
-# for numeric variables
-for(file in fileNames){
-  print(file)
-  subsetFileName <- glue("{file}_{subsetDate}.csv")
-  subsetName <- unlist(strsplit(file, "_"))[2]
-  subsetDf <- read.csv(glue("{subsetPath}/{subsetFileName}"))
-  analysisName <- glue("cor_{subsetName}")
+for(subset in subsetNames){
+  cat("\n", subset, ": performing correlation analysis and saving text files... \n")
+
+  fileName <- glue("df_{subset}_{dataDate}.csv")
+  subsetDf <- read.csv(glue("{subsetDF_path}/{fileName}"))
+  subsetDf <- subsetDf[varsOfInterest]
+  analysisName <- glue("cor_{subset}")
   
+  # for numeric variables
   for(i in cogOutcomes_colNames){
     analysisName <- glue("{analysisName}_{i}")
-    individualAnalysis <- runCor(df = subsetDf, X = "crp_log_z", Y = i, covars = colnames(df[covars_colNames]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
-    mainCor_allC <- c(mainCor_C, individualAnalysis)
-    capture.output(summary(individualAnalysis), file = glue("{analysisName}_{getDate()}.txt"))
-    # print(summary(listAnalyses_cor_noC))
-    analysisName <- glue("cor_{subsetName}_")
+    fileName <- glue("{analysisName}_{getDate()}")
+    individualAnalysis <- runCor(df = subsetDf, X = X, Y = i, covars = colnames(df[covars_colNames]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
+    capture.output(summary(individualAnalysis), file = glue("{output_path}/{fileName}.txt"))
+    cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}")
+    outputFileNames <- c(outputFileNames, fileName)
+    analysisName <- glue("cor_{subset}_")
   }
+
+  corTxtFormat(filePath = output_path, files = outputFileNames, X = X, listOfCovars = listOfCovars, outputPath = "./outputs/cor/summary", logReg = FALSE) # summarise outputs
   
   # for factor variables
   for(i in cogOutcomes_fctr_names){
     analysisName <- glue("{analysisName}_{i}")
+    fileName <- glue("{analysisName}_{getDate()}")
     individualAnalysis <- runCor(df = subsetDf, X = "crp_log_z", Y = i, covars = colnames(df[covars_colNames]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
-    mainCor_allC <- c(mainCor_C, individualAnalysis)
-    capture.output(summary(individualAnalysis), file = glue("{analysisName}_{getDate()}.txt"))
+    capture.output(summary(individualAnalysis), file = glue("{output_path}/{fileName}.txt"))
+    cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}")
+    outputFileNames <- c(outputFileNames, fileName)
     # print(summary(listAnalyses_cor_noC))
-    analysisName <- glue("cor_{subsetName}_")
+    analysisName <- glue("cor_{subset}_")
   }
-}
 
-# save analysis outputs
-# capture.output(mainCor_noC, file = paste("UKBB_corAnalyses_noC_", getDate(), ".csv", sep=""))
-# capture.output(mainCor_C, file = paste("UKBB_corAnalyses_C_", getDate(), ".csv", sep=""))
+  rm(subsetDf)
+  outputFileNames <- c()
+}
 
 ### Mediation analyses -----
 covarsMed <- c(covars_colNames, covars_brain_colNames) # Add  cognition only covars
@@ -1387,14 +1450,14 @@ mainMed_C <- list()
 
 # mediators <- c("area_Caudalanteriorcingulate_L_t2") # for testing purposes
 
-subsetPath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/forAnalysis/Subsets"
-alldfs <- c("dfForAnal_All","dfForAnal_NoMedNoDx","dfForAnal_onlySSRI","dfForAnal_youngestTert","dfForAnal_oldestTert","dfForAnal_noDx","dfForAnal_onlyDx","dfForAnal_noMed","dfForAnal_onlyMed","dfForAnal_noSSRI") # list of subset names to run through
-subsetDate <- "05_11_2022" # date of subsets, to recreate file name
-# alldfs <- c("dfForAnal_noDxNoSSRI")
+subsetPath <- subsetData_outputPath
+#subsetNames <- c("noMedNoDx")# list of subset names to run through
+#dataDate <- "05_11_2022" # date of subsets, to recreate file name
 
-# alldfs <- c("UKBB_dfForAnal_excludingSSRI") # for testing purposes
+
+alldfs <- c("df_noMedNoDx")
 for(j in alldfs){
-  subsetFileName <- glue("{j}_{subsetDate}.csv")
+  subsetFileName <- glue("{j}_{dataDate}.csv")
   subsetName <- unlist(strsplit(j, "_"))[2]
   subsetDf <- read.csv(glue("{subsetPath}/{subsetFileName}"))
   
@@ -1428,16 +1491,16 @@ for(j in alldfs){
   }
   outputDF <- as.data.frame(outputDF)
   outputDF <- outputDF[-1,] # remove first row if as it is all NA values
-  write.csv(outputDF, file = glue("UKBB_{analysisName}_results_{getDate()}.csv"))
+  write.csv(outputDF, file = glue("{analysisName}_results_{getDate()}.csv"))
 }
 
 # Format outputs -------
 
-listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z")
+listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z", "hand_t0LH","hand_t0Not","hand_t0RH", "brain_headScale_t2", "med_Antihypertensive_t021", "med_Statin_t021")
 
 list_covarAllModels <- list() # this will store all dataframes with covariate information
 
-filePath <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/Correl-WithC"
+filePath <- "./outputs/cor"
 files <- c("UKBB_Anal_cor_cog_digsub_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_digsub_numAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_QsAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_score_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_numViewed_t2_z_05_05_2022","UKBB_Anal_cor_cog_numMem_maxDigitRemem_t2_z_05_05_2022","UKBB_Anal_cor_cog_prospMem_timeDelay_t2_z_05_05_2022","UKBB_Anal_cor_cog_reactiontime_mean_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_tower_cor_t2_z_05_05_2022")
 catFile <- c("UKBB_Anal_cor_cog_prospMem_result_t2_05_05_2022") # cor analysis output of categorical variables
 
@@ -1545,10 +1608,16 @@ corFormat <- function(modelName, filePath, files, depVar, listOfCovars, outputPr
 
 # Correlational analyses -----
 listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z")
+dataDate <- getDate()
+corOutput_path <- "./outputs/cor" 
 
-corFormat(depVar = "crp_log_z", modelName = "cor_revC", outputPrefix = "UKBB_cor_anal_crpCog_revC", filePath = "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/CorAnalyses/NoC/04_01_2022", listOfCovars = listOfCovars, files = list("UKBB_Anal_cor_noC_cog_PC_1_z_04_01_2022","UKBB_Anal_cor_noC_cog_PC_2_z_04_01_2022","UKBB_Anal_cor_noC_cog_PC_3_z_04_01_2022"))
+fileNames <-list()
+for(subset in subsetNames){
+  temp <- glue("{subset}_{dataDate}.txt")
+  fileNames <- c(fileNames,temp)
+}
 
-corFormat(depVar = "crp_log_z", modelName = "cor_noC", outputPrefix = "UKBB_cor_anal_crpCog_noC", filePath = "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/CorAnalyses/NoC", listOfCovars = "", files = list("UKBB_Anal_cor_cog_digsub_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_digsub_numAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_QsAttempted_t2_z_05_05_2022","UKBB_Anal_cor_cog_fluidIntel_score_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_cor_t2_z_05_05_2022","UKBB_Anal_cor_cog_matrix_numViewed_t2_z_05_05_2022","UKBB_Anal_cor_cog_numMem_maxDigitRemem_t2_z_05_05_2022","UKBB_Anal_cor_cog_prospMem_result_t2_05_05_2022","UKBB_Anal_cor_cog_prospMem_timeDelay_t2_z_05_05_2022","UKBB_Anal_cor_cog_reactiontime_mean_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_alphanumErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericDuration_t2_z_05_05_2022","UKBB_Anal_cor_cog_TMT_numericErrors_t2_z_05_05_2022","UKBB_Anal_cor_cog_tower_cor_t2_z_05_05_2022"))
+corFormat(depVar = "crp_log_z", modelName = "cor_", outputPrefix = "cor_", filePath = corOutput_path, listOfCovars = listOfCovars, files = fileNames)
 
 # Mediation analyses
 ## !!!! NEED UPDATING !!!! -----
@@ -1743,7 +1812,7 @@ df_main <- df_main[-1,]
 write.csv(df_main, file = glue("{outputPrefix}_CRPWeights_{getDate()}.csv"))
 
 # 3 - Compute p-Values and FDR correction ----
-path <- "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/Outputs/Summary/Med_C/Raw" # path to raw mediation output summary files
+path <- "./outputs/med/summary" # path to raw mediation output summary files
 fileNames <- c("UKBB_med_C_results_CRPWeights_05_05_2022","UKBB_excludingDx_med_C_results_05_06_2022","UKBB_excludingSSRI_med_C_results_05_06_2022","UKBB_oldestTert_med_C_results_05_06_2022","UKBB_onlyDx_med_C_results_05_06_2022","UKBB_onlyMedUsers_med_C_results_05_06_2022","UKBB_youngestTert_med_C_results_05_06_2022", "UKBB_NoSSRINoDx_med_C_results_05_09_2022", "UKBB_NoMedNoDx_med_C_results_05_08_2022", "UKBB_noMed_med_C_results_05_08_2022") # name of summary mediation outcome files
 fileNames <- c("UKBB_noDxNoSSRI_med_C_results_05_11_2022")
 
