@@ -887,7 +887,7 @@ comparisonExcluded_noMedNoDx <- compareExcluded(df_noMedNoDx, varsToCompare, grp
 #runWilcox(df = df_noMedNoDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noMedNoDx_wilcox")
 
 df_noMedNoDx <- df_noMedNoDx %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_NoMedNoDx_", getDate(), sep = "")
+fileName <- paste("df_noMedNoDx_", getDate(), sep = "")
 write.csv(df_noMedNoDx, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those with diagnoses or using any medication of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMedNoDx))
 
