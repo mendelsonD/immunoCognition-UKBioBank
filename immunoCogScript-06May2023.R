@@ -914,7 +914,7 @@ dataDate <- getDate()
 #dataDate <- ""
 
 for(subset in subsetNames){
-  fileName <- glue("{path}/df_{subset}_dataDate.csv")
+  fileName <- glue("{path}/df_{subset}_{dataDate}.csv")
   subset_df <- read_csv(fileName, lazy = T, show_col_types = F)
   print(subset)
   write.csv(psych::describe(subset_df), file = glue("./output/descriptive/{subset}_summary_{getDate()}.csv"))
