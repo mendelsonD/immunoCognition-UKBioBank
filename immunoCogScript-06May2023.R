@@ -31,7 +31,6 @@ library(finalfit)
 library(Hmisc)
 library(coin)
 library(esc)
-library(effsize)
 library(glmnet)
 library(car)
 library(gridExtra)
@@ -216,18 +215,20 @@ compareExcluded <- function(df_subset, varsToCompare, grp, subset, simplified){
   return(output)
 } # df: dataframe with all observations, all variables of interest (listed in 'varsToCompare') and the grouping variable; varsToCompare: list of variables that should be compared between groups; grp: name of grouping variable; subset: name of subset for use in output file naming; simplified: logical indicating if the comprehensive table or a shortened version should be produced.
 
+setwd("C:/Users/katie/OneDrive - McGill University/publishing/_rev_Mendelson_UKBB/res")
+
 # 1 - Biobank data analysis----
 
-## Data Preperation -----
-df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/RawData/Daniel_2022-05-02.csv") # import df
-eidToRemove <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/eidToRemove-w45551_20220222.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
+## Data Preparation -----
+df_all <- read_csv("../data/RawData/Daniel_2022-05-02.csv") # import df
+eidToRemove <- read_csv("../data/RawData/w45551_2023-04-25.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
 
 df_all <- df_all %>% filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
-write.csv(df_all, "/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/RawData/Daniel_2022-05-02_ProperEID.csv", row.names=FALSE)
+write.csv(df_all, "../data/RawData/Daniel_2022-05-02_ProperEID.csv", row.names=FALSE)
 rm(df_all, eidToRemove) # remove dataframes not in use
 
 date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
-df_all <- read_csv("/home/doodlefish/Documents/Research/LepageLab/immunologyAndSz/Analysis/immunoCognition-new/data/RawData/Daniel_2022-05-02_ProperEID.csv", guess_max = 10000) # import df
+df_all <- read_csv("../data/RawData/Daniel_2022-05-02_ProperEID.csv", guess_max = 10000) # import df
 
 cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
 df_all <- df_all %>%
@@ -238,7 +239,6 @@ df <- df_all # specifies what df to use. In final analyses will want to use df_a
 # rm(df_small) # remove dataframes not in use
 # sort(colnames(df))
 # View(df)
-
 
 ### Standardize categorical vars ----
 # standardize categorical variable responses
@@ -627,7 +627,7 @@ for(metric_counter in unique(vars_BrainRegion$metric)){
 
 ### Save cleaned DF ----
 df_interim <- df
-save(df_interim, file = glue("./Data/Processed/df_full_{getDate()}.rds"))
+saveRDS(df_interim, file = glue("./Data/Processed/df_full_{getDate()}.rds"))
 rm(df_interim)
 # df <- df_interim
 
