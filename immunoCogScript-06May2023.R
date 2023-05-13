@@ -1310,7 +1310,6 @@ dataDate <- getDate()
 #dataDate <- ""
 
 df <- read.csv(glue("./{path}/{fileName}_{dataDate}.csv")) # import df
-
 ### Vars of interest ----
 # sort(colnames(df))
 crp_log <-  which(colnames(df) == "crp_log")
@@ -1382,7 +1381,7 @@ essentialVarsAnalysis_colNames <- colnames(df[essentialVarsAnalysis_colNum])
 eid <- which(colnames(df) == "eid")
 missingEssVar <- which(colnames(df) == "missingEssentialVar")
 
-df <- df[[c(eid, essentialVarsAnalysis_colNum, missingEssVar)]]
+df <- df[c(eid, essentialVarsAnalysis_colNum, missingEssVar)]
 # colnames(df_small)
 
 ordinalFactorContrasts <- list(exercise_IPAQActivityGroup_t0 = "contr.treatment")
@@ -1415,7 +1414,7 @@ for(subset in subsetNames){
     fileName <- glue("{analysisName}_{getDate()}")
     individualAnalysis <- runCor(df = subsetDf, X = X, Y = i, covars = covars_colNames, M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
     capture.output(summary(individualAnalysis), file = glue("{output_path}/{fileName}.txt"))
-    cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}")
+    #cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}"))
     outputFileNames <- c(outputFileNames, fileName)
     analysisName <- glue("cor_{subset}_")
   }
@@ -1428,7 +1427,7 @@ for(subset in subsetNames){
     fileName <- glue("{analysisName}_{getDate()}")
     individualAnalysis <- runCor(df = subsetDf, X = "crp_log_z", Y = i, covars = covars_colNames, M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
     capture.output(summary(individualAnalysis), file = glue("{output_path}/{fileName}.txt"))
-    cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}")
+    cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}"))
     outputFileNames <- c(outputFileNames, fileName)
     # print(summary(listAnalyses_cor_noC))
     analysisName <- glue("cor_{subset}_")
