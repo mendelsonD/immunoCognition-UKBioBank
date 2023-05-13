@@ -688,6 +688,12 @@ finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "de
 
 
 ### Remove missing ----
+
+### Remove CRP > 10 ----
+cat(sum(df$crp_aliquot_t0 > 10, na.rm = T), " cases to remove given CRP > 10.", sep = "")
+df <- df %>%
+  mutate(missingEssentialVar = if_else(df$crp_aliquot_t0 > 10, TRUE, FALSE, missing = TRUE)) # mark CRP > 10 to remove
+
 essentialVars <- c(finalCovars, completionTimeVars, crpAliqVars, brainMorphVars) # list of variable names that must be complete in order for case to be retained
 # essentialVars <- readRDS("revisedEssentialVarsAnalysis.rds")
 
@@ -709,12 +715,6 @@ for(i in 1:length(essentialVars)){
 
 numMissing_df <- as.data.frame(numMissing) %>% arrange(desc(NACount))
 write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", date, ".csv", sep = ""))
-
-### Remove CRP > 10 ----
-cat(sum(df$crp_aliquot_t0 > 10, na.rm = T), " cases to remove given CRP > 10.", sep = "")
-df <- df %>%
-  mutate(missingEssentialVar = if_else(df$crp_aliquot_t0 > 10, TRUE, FALSE, missing = TRUE)) # mark CRP > 10 to remove
-
 
 ## Assumption checks ----
 ### Normality ----
@@ -917,13 +917,13 @@ for(subset in subsetNames){
   fileName <- glue("{path}/df_{subset}_{dataDate}.csv")
   subset_df <- read_csv(fileName, lazy = T, show_col_types = F)
   print(subset)
-  write.csv(psych::describe(subset_df), file = glue("./output/descriptive/{subset}_summary_{getDate()}.csv"))
+  write.csv(psych::describe(subset_df), file = glue("./outputs/descriptive/{subset}_summary_{getDate()}.csv"))
   rm(subset_df)
 }
 
 ### Summarise
-write.csv(df_retained, file = paste("./data/processed/dfRetained_", getDate(), ".csv", sep = ""))
-df <- df_retained
+write.csv(df_all, file = paste("./data/processed/dfRetained_", getDate(), ".csv", sep = ""))
+df <- df_all
 varsToSummarise <- c(1:ncol(df))
 
 numVars<- lapply(df, numNotFactor)
@@ -1309,7 +1309,7 @@ fileName <- "df_noMedNoDx"
 dataDate <- getDate()
 #dataDate <- ""
 
-df <- read.csv("./{path}/{fileName}_{dataDate}.csv") # import df
+df <- read.csv(glue("./{path}/{fileName}_{dataDate}.csv")) # import df
 
 ### Vars of interest ----
 # sort(colnames(df))
