@@ -686,7 +686,6 @@ finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "de
 # sort(colnames(df))
 # colnames(df[sesVars])
 
-
 ### Remove missing ----
 
 ### Remove CRP > 10 ----
@@ -865,7 +864,8 @@ cat("Subset excluding those using SSRIs saved as: `", fileName, "`. \n\t complet
 df_onlySSRI <- df %>% 
   mutate(missingEssentialVar = factor(case_when(
     missingEssentialVar == TRUE ~ TRUE,
-    med_SSRI_t0 == 1 | med_SSRI_t2 == 1 ~ FALSE,
+    med_SSRI_t0 == 1 ~ FALSE,
+    med_SSRI_t2 == 1 ~ FALSE,
     TRUE ~ TRUE)))
 
 comparisonExcluded_onlySSRI <- compareExcluded(df_onlySSRI, varsToCompare, grp = "missingEssentialVar", subset = "onlySSRI", simplified = T)
@@ -1369,9 +1369,7 @@ prospMemCol <- which(colnames(df) == "cog_prospMem_result_t2")
 cogOutcomes_fctr <- c(prospMemCol)
 cogOutcomes_fctr_names <- colnames(df[cogOutcomes_fctr])
 
-df$cog_hourCompleted_z <- scale(df$cog_hourCompleted)
 covars_colNames <- c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "smoke_currently0_t0", "smoke_currently2_t2","exercise_IPAQActivityGroup_t0", "med_Antihypertensive_t02", "med_Statin_t02")
-
 covars_colNum <-  which(colnames(df) %in% covars_colNames)
 
 covars_brain_colNames <- c("hand_t0", "brain_headScale_t2")
@@ -1384,7 +1382,7 @@ essentialVarsAnalysis_colNames <- colnames(df[essentialVarsAnalysis_colNum])
 eid <- which(colnames(df) == "eid")
 missingEssVar <- which(colnames(df) == "missingEssentialVar")
 
-df <- df[c(eid, essentialVarsAnalysis_colNum, missingEssVar)]
+df <- df[[c(eid, essentialVarsAnalysis_colNum, missingEssVar)]]
 # colnames(df_small)
 
 ordinalFactorContrasts <- list(exercise_IPAQActivityGroup_t0 = "contr.treatment")
@@ -1399,9 +1397,8 @@ subsetDF_path <- subsetData_outputPath
 dataDate <- getDate()
 #dataDate <- ""
 X <- "crp_log_z"
-finalCovars_colnames <- colnames(df[finalCovars]) 
-varsOfInterest <- c(X, finalCovars_colnames, cogOutcomes_colNames,cogOutcomes_fctr_names) 
-listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently0_t0Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z", "hand_t0LH","hand_t0Not","hand_t0RH", "brain_headScale_t2", "med_Antihypertensive_t021", "med_Statin_t021")
+varsOfInterest <- c(X, covars_colNames, cogOutcomes_colNames,cogOutcomes_fctr_names) 
+listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently2_t2Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z", "hand_t0LH","hand_t0Not","hand_t0RH", "brain_headScale_t2", "med_Antihypertensive_t021", "med_Statin_t021")
 outputFileNames <- c()
 
 for(subset in subsetNames){
@@ -1416,7 +1413,7 @@ for(subset in subsetNames){
   for(i in cogOutcomes_colNames){
     analysisName <- glue("{analysisName}_{i}")
     fileName <- glue("{analysisName}_{getDate()}")
-    individualAnalysis <- runCor(df = subsetDf, X = X, Y = i, covars = colnames(df[finalCovars_colnames]), M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
+    individualAnalysis <- runCor(df = subsetDf, X = X, Y = i, covars = covars_colNames, M = "", YisFactor = F, name = analysisName, contrasts = ordinalFactorContrasts)
     capture.output(summary(individualAnalysis), file = glue("{output_path}/{fileName}.txt"))
     cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}")
     outputFileNames <- c(outputFileNames, fileName)
@@ -1429,7 +1426,7 @@ for(subset in subsetNames){
   for(i in cogOutcomes_fctr_names){
     analysisName <- glue("{analysisName}_{i}")
     fileName <- glue("{analysisName}_{getDate()}")
-    individualAnalysis <- runCor(df = subsetDf, X = "crp_log_z", Y = i, covars = colnames(df[finalCovars_colnames]), M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
+    individualAnalysis <- runCor(df = subsetDf, X = "crp_log_z", Y = i, covars = covars_colNames, M = "", YisFactor = T, name = analysisName, contrasts = ordinalFactorContrasts)
     capture.output(summary(individualAnalysis), file = glue("{output_path}/{fileName}.txt"))
     cat("Correlation model for subset ", subset, "and cog var", i, "saved as ", glue("./outputs/cor/model/{fileName}")
     outputFileNames <- c(outputFileNames, fileName)
@@ -1442,7 +1439,7 @@ for(subset in subsetNames){
 }
 
 ### Mediation analyses -----
-covarsMed <- c(finalCovars_colnames, covars_brain_colNames) # Add  cognition only covars
+covarsMed <- c(covars_colNames, covars_brain_colNames) # Add  cognition only covars
 # colnames(df[covarsMed ])
 
 individualAnalysis <- list()
