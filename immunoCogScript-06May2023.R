@@ -874,7 +874,7 @@ comparisonExcluded_onlySSRI <- compareExcluded(df_onlySSRI, varsToCompare, grp =
 df_noSSRI <- df_noSSRI %>% filter(missingEssentialVar == FALSE)
 fileName <- paste("df_onlySSRI_", getDate(), sep = "")
 write.csv(df_noSSRI, file = glue("{subsetData_outputPath}/{fileName}.csv"))
-cat("Subset onlly with those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlySSRI))
+cat("Subset only with those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlySSRI))
 
 ### Subset 10: exclude Med and Dx --------
 df_noMedNoDx <- df %>%
@@ -996,7 +996,7 @@ runCor <- function(df, X, Y, M, covars, contrasts, YisFactor, name){
   capture.output(
     cat(" -- Linear Model Analysis Output -- "),
     print(c("\n ------------------ \n Model expression: \n\t", expression)),
-    cat(summary(model)),
+    print(summary(model)),
     file = fileName)
   
   return(model)
