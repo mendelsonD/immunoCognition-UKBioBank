@@ -1,39 +1,30 @@
-###
-# This file contains is the analysis script for the immunology, cognition and brain mediation analysis of the UKBB.
+#####
+# This file contains is the analysis script for the immunology, cognition and 
+# brain mediation analysis of the UKBB.
 # Prepared by Daniel Mendelson with help from Katie M. Lavigne and Joshua Unrau.
 # Work performed under the supervision of Dr. Martin Lepage.
-# 06 May 2023
-###
+# 15 May 2023
+# RStudio v2023.03.1 Build 446
+# R v4.3.0
+#####
 
 # Preamble -----
-library(DescTools)
-library(DiagrammeR)
-library(DiagrammeRsvg)
-library(dplyr)
-library(effsize)
-library(factoextra)
-library(ggplot2)
-library(ggseg)
-library(ggthemes)
-library(glue)
-library(lubridate) 
-library(psych)
-library(rcompanion)
-library(readr)
-library(RMediation)
-library(rsvg)
-library(stats)
-library(stringr)
-library(tidyr)
+packages <- c("arsenal", "car", "coin", "DescTools", "DiagrammeR", "DiagrammeRsvg", 
+          "dplyr", "effsize", "esc", "factoextra", "finalfit", "ggplot2", 
+          "ggseg", "ggthemes", "glmnet", "glue", "gridExtra", "Hmisc", 
+          "lubridate", "psych", "rcompanion", "readr", "RMediation", "rsvg", 
+          "stats", "stringr", "tidyr")
 
-library(arsenal)
-library(finalfit)
-library(Hmisc)
-library(coin)
-library(esc)
-library(glmnet)
-library(car)
-library(gridExtra)
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg))
+    install.packages(new.pkg, dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE)
+}
+
+ipak(packages)
+
+setwd("C:/Users/katie/OneDrive - McGill University/publishing/_rev_Mendelson_UKBB/res")
 
 # 0 - Functions ----
 getDate <- function(){
@@ -48,7 +39,6 @@ numNotFactor <- function(x){
     return(x)
   }
 } # This function is made to be used by mapply(). 'x' - a column from a df.
-
 normalCheck <- function(x, colName, colNum){
   require(psych)
   plotList <- c()
@@ -75,7 +65,7 @@ normalCheck <- function(x, colName, colNum){
   return(plotList)
 } # This function is made to be used by mapply(). 'x' - a column from a df; 'colName' - a string specifying the name of this column; 'colNum' - a number specifying the column number of this variable in df
 
-## Compare non-normal vairables
+## Compare non-normal variables
 runWilcox <- function(varsOfInterest, df, by, outputDir, fileName){
   require(rcompanion)
   require(stringr)
@@ -84,7 +74,7 @@ runWilcox <- function(varsOfInterest, df, by, outputDir, fileName){
   # wilcoxOutput <- data.frame("value type" = c("statistic","p", "n1", "n2", "r(effSize)"), row.names = 1) # initialize dataframe for the output
   wilcoxOutput <- data.frame("value type" = c("statistic","p", "r(effSize)"), row.names = 1) # initialize dataframe for the output
   i <- integer(0)
-  for(i in varsOfInterest){ # iterate through the variables of interest. Run wilcoxon-paired rank test. Put results into a dataframe 
+  for(i in varsOfInterest){ # iterate through the variables of interest. Run wilcoxon-paired rank test. Put results into a dataframe
     # print(i)
 
     n1 <- length(df[[i]][df$subset == T]) - sum(is.na(df[[i]][df$subset == T]))
@@ -109,7 +99,6 @@ if(n1 <= 1 | n2 <= 1){
 } # "varsOfInterest" - list of variable names to compare between groups; "df" data frame with all vars of interest and grouping variable; "by" - grouping variable; "outputDir" - path to output directory; "fileName" - desired name of output file
 
 ## Compare kept cases to excluded cases 
-
 compareExcluded <- function(df_subset, varsToCompare, grp, subset, simplified){
   require(DescTools)
   require(effsize)
@@ -215,30 +204,17 @@ compareExcluded <- function(df_subset, varsToCompare, grp, subset, simplified){
   return(output)
 } # df: dataframe with all observations, all variables of interest (listed in 'varsToCompare') and the grouping variable; varsToCompare: list of variables that should be compared between groups; grp: name of grouping variable; subset: name of subset for use in output file naming; simplified: logical indicating if the comprehensive table or a shortened version should be produced.
 
-setwd("C:/Users/katie/OneDrive - McGill University/publishing/_rev_Mendelson_UKBB/res")
+# 1 - UK BioBank data analysis----
 
-# 1 - Biobank data analysis----
+dataDate <- getDate()
 
 ## Data Preparation -----
-df_all <- read_csv("../data/RawData/Daniel_2022-05-02.csv") # import df
+df <- read_csv("../data/RawData/Daniel_2022-05-02.csv") # import df
 eidToRemove <- read_csv("../data/RawData/w45551_2023-04-25.csv", col_names = "eid") # file with EID of participants who withdrew consent from UKBB
 
-df_all <- df_all %>% filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
-write.csv(df_all, "../data/RawData/Daniel_2022-05-02_ProperEID.csv", row.names=FALSE)
-rm(df_all, eidToRemove) # remove dataframes not in use
-
-date <- str_c(format(Sys.time(), "%m"), "_", format(Sys.time(), "%d"), "_", format(Sys.time(), "%Y")) # set todays date for easier output filenaming
-df_all <- read_csv("../data/RawData/Daniel_2022-05-02_ProperEID.csv", guess_max = 10000) # import df
-
-cat(paste("There are ", sum(is.na(df_all$date_assess2_t2)), "cases that have not completed time point 2. These cases will be removed."))
-df_all <- df_all %>%
-  filter(!(is.na(df_all$date_assess2_t2))) # remove rows without timepoint 2 assessment date
-
-# df_small <- df_all[1:10000,]
-df <- df_all # specifies what df to use. In final analyses will want to use df_all but want to use smaller df while developing code.
-# rm(df_small) # remove dataframes not in use
-# sort(colnames(df))
-# View(df)
+df <- df %>% filter(!(eid %in% eidToRemove)) # remove rows with eid in this file
+write.csv(df, "../data/RawData/Daniel_{dataDate}_ProperEID.csv", row.names=FALSE)
+rm(eidToRemove) # remove dataframe(s) not in use
 
 ### Standardize categorical vars ----
 # standardize categorical variable responses
@@ -382,16 +358,15 @@ for(i in dxVars){
     dxVarsNoCases <- append(dxVarsNoCases, i)
   }
 }
+
 if(n_distinct(df[i]) == 1){
   for(i in dxVarsNoCases){
     dxVars <- dxVars[-which(dxVars == i)]
   }
 }
-# table(df$anyDx)
 
 # Medication - any of interest
 medVars <- starts_with("med_", vars = colnames(df))
-# colnames(df[medVars])
 medVars0 <- ends_with("t0", vars = colnames(df[medVars]))
 medVars0 <- which(colnames(df) %in% colnames(df[medVars[medVars0]]))
 
@@ -400,6 +375,7 @@ medVars2 <- which(colnames(df) %in% colnames(df[medVars[medVars2]]))
 
 medVars0_excludingSSRI <- medVars0[-which(colnames(df[medVars0]) == "med_SSRI_t0")]
 medVars2_excludingSSRI <- medVars2[-which(colnames(df[medVars2]) == "med_SSRI_t2")]
+
 df <- df %>% 
   mutate("med_AnyOfInterest0_excludingSSRI" = factor(case_when(
     if_any(any_of(medVars0_excludingSSRI), function(x) (x == "TRUE")) ~ 1,
@@ -407,8 +383,10 @@ df <- df %>%
   mutate("med_AnyOfInterest2_excludingSSRI" = factor(case_when(
     if_any(any_of(medVars2_excludingSSRI), function(x) (x == "TRUE")) ~ 1,
     if_all(all_of(medVars2_excludingSSRI), function(x) (x == "FALSE")) ~ 0)))
+
 medVars0 <- c(medVars0, which(colnames(df) == "med_AnyOfInterest0_excludingSSRI"))
 medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2_excludingSSRI"))
+
 df <- df %>% 
   mutate("med_AnyOfInterest0" = factor(case_when(
     if_any(any_of(medVars0), function(x) (x == "TRUE")) ~ 1,
@@ -419,6 +397,7 @@ df <- df %>%
 
 medVars0 <- c(medVars0, which(colnames(df) == "med_AnyOfInterest0"))
 medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2"))
+
 medVars0NoCases <- c()
 for(i in medVars0){
   if(n_distinct(df[i]) == 1){
@@ -429,6 +408,7 @@ for(i in medVars0){
 
 medVars2 <- c(medVars2, which(colnames(df) == "med_AnyOfInterest2"))
 medVars2NoCases <- c()
+
 for(i in medVars2){
   if(n_distinct(df[i]) == 1){
     print(paste("No participant takes med ", colnames(df[i]), "; levels: ", levels(as.factor(df[i]))))
@@ -441,12 +421,12 @@ if(is.null(medVars0NoCases) == FALSE){
     medVars0 <- medVars0[-which(medVars0 == i)]
   }
 }
+
 if(is.null(medVars2NoCases) == FALSE){
   for(i in medVars2NoCases){
     medVars2 <- medVars2[-which(medVars2 == i)]
   }
 }
-# table(df$anyMed)
 
 ### Waist:hip ratio
 df <- df %>%
@@ -457,8 +437,6 @@ df <- df %>%
 df <- df %>% 
   mutate(demo_daysBtwAssess = as.numeric(df$date_assess2_t2 - df$date_assess0_t0, units = "days"))
 
-# saveRDS(df, file = glue("./Data/Processed/df_preLobes_{getDate()}.rds"))
-# rm(df)
 df <- df %>% 
   mutate(crp_hourCollected = hour(df$crp_timeCollected_t0)) %>% 
   mutate(cog_hourCompleted = hour(df$cog_timeCompleted_t2)) %>% 
@@ -577,19 +555,15 @@ df <- df %>%
   mutate(sleep_duration_mean02 = (sleep_duration0_t0 + sleep_duration2_t2)/2)
 
 ### Compute and add lobular brain volumes ----
-
-# dataDate <- "04_15_2023"
-# df <- readRDS(glue("./Data/Processed/df_preLobes_{dataDate}.rds"))
 vars_BrainRegion <- read_csv("./Variables/brainVarsbyLobe.csv")
 vars_BrainRegion$varNameDf <- glue("{vars_BrainRegion$VariableName}_t2")
-cat("\n Create lobar brain variable columns.")
+cat("\n Create lobar brain variable columns...")
 
 for(metric_counter in unique(vars_BrainRegion$metric)){
   # cat("\n\t Metric: ", metric_counter)
   if(metric_counter %in% c("area", "mThick", "vol")){
     for(lobe in unique(vars_BrainRegion$AssociatedLobe)){
       # cat("\n\t\t Lobe: ", lobe)
-      
         vars_lobe_metric_L <- vars_BrainRegion %>%
           filter(AssociatedLobe == lobe) %>%
           filter(metric == metric_counter) %>%
@@ -598,7 +572,6 @@ for(metric_counter in unique(vars_BrainRegion$metric)){
           filter(AssociatedLobe == lobe) %>%
           filter(metric == metric_counter) %>%
           filter(hemisphere == "R")
-        
         if(metric_counter == "area"){
           metric_lobe_L <- rowSums(df[vars_lobe_metric_L$varNameDf], na.rm = F)
           metric_lobe_R <- rowSums(df[vars_lobe_metric_R$varNameDf], na.rm = F)
@@ -617,7 +590,7 @@ for(metric_counter in unique(vars_BrainRegion$metric)){
         colnames(tempMatrix) <- c(glue("{metric_counter}_{lobe}_L_t2"),glue("{metric_counter}_{lobe}_R_t2"),glue("{metric_counter}_{lobe}_WB_t2"))
         df <- cbind(df, as.data.frame(tempMatrix)) # creates columns in df for later computation of lobar brain metrics
         rm(vars_lobe_metric_L,vars_lobe_metric_R, metric_lobe_L, metric_lobe_R, metric_lobe_WB, tempMatrix)
-      
+
       } 
     
     } else {
@@ -626,16 +599,11 @@ for(metric_counter in unique(vars_BrainRegion$metric)){
 }
 
 ### Save cleaned DF ----
-df_interim <- df
-saveRDS(df_interim, file = glue("./Data/Processed/df_full_{getDate()}.rds"))
-rm(df_interim)
-# df <- df_interim
+saveRDS(df, file = glue("./Data/Processed/df_full_{dataDate}.rds"))
 
-dataDate <- getDate()
-# dataDate <- "12_14_2022" # For testing purposes. Format: MM_DD_YYYY
+### Load cleaned df ----
 df <- readRDS(glue("./Data/Processed/df_full_{dataDate}.rds"))
-
-## Exclusions ----
+### Exclusions ----
 demoVars <- starts_with("demo_", vars = colnames(df))
 sesVars <- starts_with("ses_", vars = colnames(df))
 crpAliqVars <- which(colnames(df) %in% c("crp_aliquot_t0", "crp_log", "crp_aliquot_fctr"))
@@ -645,64 +613,51 @@ brainPrefix <- c("area_","gmVol_", "GWcont_","mIntensity","mThick_", "vol_", "we
 brainMorphVars <- c()
 for(i in brainPrefix){
   iVars <- starts_with(i, vars = colnames(df))
-  # cat(paste(i, ":", length(iVars), "\n"), sep = "")
   brainMorphVars <- c(brainMorphVars, iVars)
 }
-# length(brainMorphVars)
-# sort(colnames(df[brainMorphVars]))
-# colnames(df[demoVars])
 
 dietVars <- starts_with("diet_", vars = colnames(df))
-# colnames(df[dietVars])
 dietVarsToCor <- which(colnames(df) %in% c("diet_cookedVeg0_t0", "diet_cookedVeg2_t2", "diet_rawVeg_t0", "diet_fruit0_t0", "diet_fruit2_t2", "diet_processedMeat0_t0", "diet_processedMeat2_t2", "diet_water_t0"))
 
 smokingVars <- starts_with("smoke_", vars = colnames(df))
 weightVars <- c(starts_with("weight_", vars = colnames(df)), which(colnames(df) == "waistToHip"))
-# colnames(df[weightVars])
 
 exerciseVars <- starts_with("exercise_", vars = colnames(df))
 
 completionTimeVars <- c(contains("timeCompleted", vars = colnames(df)), contains("timeCollected", vars = colnames(df)))
-# colnames(df[completionTimeVars])
-# cogPCAVars <- which(colnames(df) %in% c("cog_numMem_maxDigitRemem_t2", "cog_TMT_numericDuration_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumDuration_t2", "cog_TMT_alphanumErrors_t2", "cog_matrix_cor_t2", "cog_reactiontime_mean_t2", "cog_tower_cor_t2", "cog_digsub_cor_t2"))
 
 cogVars <- starts_with("cog", vars = colnames(df))
 cogVars_t2 <- cogVars[ends_with("_t2", vars = colnames(df[cogVars]))]
 cogVarsToZ <- cogVars_t2[which(!colnames(df[c(cogVars_t2)]) %in% c("cog_prospMem_result_t2", "cog_timeCompleted_t2", "cog_hourCompleted"))]
-# colnames(df[cogVarsToZ])
 
 covarsToZ <- which(colnames(df) %in% c("demo_age_assess0_t0", "demo_age_assess2_t2", "age_mean02", "demo_daysBtwAssess", "ses_townsend_t0", "weight_waistToHip_t0", "weight_waistToHip_t2", "weight_waistToHip_mean02", "sleep_duration0_t0", "sleep_duration2_t2", "sleep_duration_mean02"))
 varsToZ <- c(crpToZ, cogVarsToZ, covarsToZ)
 
 df_varsToZ <- df[varsToZ] %>% 
   mutate(across(.fns = scale, .names = "{colnames(df[varsToZ])}_z"))
-# str(df_varsToZ)
-vars_Z <- which(! colnames(df_varsToZ) %in% colnames(df[varsToZ])) # matrix of z-scores made in above line to add to main df\
+vars_Z <- which(! colnames(df_varsToZ) %in% colnames(df[varsToZ])) # matrix of z-scores made in above line to add to main df
 df <- cbind(df, df_varsToZ[vars_Z])
 
 df$cog_prospMem_result_t2 <- as.factor(df$cog_prospMem_result_t2)
 
 finalCovars <- which(colnames(df) %in% c("demo_sex_t0", "demo_ethnicity_t0", "demo_age_assess0_t0_z", "demo_daysBtwAssess_z", "ses_townsend_t0_z", "weight_waistToHip_mean02_z", "sleep_duration_mean02_z", "exercise_IPAQActivityGroup_t0", "med_Antihypertensive_t02", "med_Statin_t02"))
-# sort(colnames(df))
-# colnames(df[sesVars])
 
 ### Remove missing ----
-
-### Remove CRP > 10 ----
-cat(sum(df$crp_aliquot_t0 > 10, na.rm = T), " cases to remove given CRP > 10.", sep = "")
-df <- df %>%
-  mutate(missingEssentialVar = if_else(df$crp_aliquot_t0 > 10, TRUE, FALSE, missing = TRUE)) # mark CRP > 10 to remove
-
+## Essential variables
 essentialVars <- c(finalCovars, completionTimeVars, crpAliqVars, brainMorphVars) # list of variable names that must be complete in order for case to be retained
-# essentialVars <- readRDS("revisedEssentialVarsAnalysis.rds")
-
 df <- df %>% 
   mutate(missingEssentialVar = factor(case_when(
     if_any(.cols = essentialVars, function(x)(
       is.na(x))) ~ TRUE,
-    TRUE ~ FALSE)))
+    TRUE ~ FALSE))) # mark missing essential to remove
 
-saveRDS(df, file = glue("./Data/Processed/df_PreSubset_{getDate()}.rds"))
+## CRP > 10
+cat(sum(df$crp_aliquot_t0 > 10, na.rm = T), " cases to remove given CRP > 10.", sep = "")
+df <- df %>%
+  mutate(highCRP = if_else(df$crp_aliquot_t0 > 10, TRUE, FALSE, missing = FALSE)) # mark CRP > 10 to remove
+
+saveRDS(df, file = glue("./Data/Processed/df_PreSubset_{dataDate}.rds"))
+
 df_removed <- df %>%
   filter(if_any(any_of(essentialVars), function(x)(is.na(x)))) # make new df of cases with missing values
 
@@ -713,10 +668,21 @@ for(i in 1:length(essentialVars)){
 }
 
 numMissing_df <- as.data.frame(numMissing) %>% arrange(desc(NACount))
-write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", date, ".csv", sep = ""))
+write.csv(numMissing_df, file = paste("UKBB_sourceOfNAValues_", dataDate, ".csv", sep = ""))
 
-## Assumption checks ----
-### Normality ----
+# Appendix C. # missing info
+missing_vars <- c("cog_TMT_alphanumDuration_t2", "cog_tower_cor_t2", "cog_TMT_numericDuration_t2", "cog_matrix_cor_t2", "cog_digsub_cor_t2", "cog_TMT_numericErrors_t2", "cog_TMT_alphanumErrors_t2", "cog_numMem_maxDigitRemem_t2", "cog_timeCompleted_t2", "exercise_IPAQActivityGroup_t0", "crp_aliquot_t0", "cog_reactiontime_mean_t2", "crp_aliquotdelay", "vol_EstimatedTotalIntraCranial_WB_t2", "crp_timeCollected_t0", "demo_ethnicity_t0", "ses_townsend_t0", "crp_timeFasting_t0")
+missing_varsCols = c()
+for(var in missing_vars){
+  missing_varsCols <- c(missing_varsCols, which(colnames(df) == var))
+}
+na_count <-sapply(df[missing_varsCols], function(y) sum(length(which(is.na(y)))))
+write.csv(na_count, file="appendix-C.csv")
+
+### Load filtered df ----
+df <- readRDS(glue("./Data/Processed/df_PreSubset_{dataDate}.rds"))
+### Assumption checks ----
+## Normality
 varsToCompare <- c("demo_sex_t0", "demo_birthYear_t0", "demo_ethnicity_t0", "demo_age_assess0_t0", "demo_age_assess2_t2", "age_mean02", "ses_townsend_t0", "crp_aliquot_t0", "crp_log", "med_AnyOfInterest0", "med_AnyOfInterest2", "med_AnyOfInterest0_excludingSSRI", "med_AnyOfInterest2_excludingSSRI", "med_SSRI_t0","med_SSRI_t2", "dx_AnyOfInterest", "dx_Dementia", "dx_SSD", "dx_MoodDisorder", "smoke_currently0_t0", "smoke_currently2_t2", "exercise_IPAQActivityGroup_t0", "weight_BMI0_t0","weight_BMI2_t2", "weight_waistToHip_t0","weight_waistToHip_t2","weight_waistToHip_mean02", "sleep_duration0_t0", "sleep_duration2_t2", "sleep_duration_mean02", "menopause0_t0", "menopause2_t2", "hand_t0", "crp_hourCollected", "crp_timeFasting_t0", "crp_aliquotdelay",  "diet_water_t0", "diet_alc_freq0_t0", "diet_alc_freq2_t2", "diet_alcohol_yesterdayIntake0_t0", "diet_alcohol_yesterdayIntake2_t2") # Add variables to compare between excluded and retained participants
 
 varsToCompare_ColNum <- which(colnames(df) %in% varsToCompare)
@@ -742,15 +708,19 @@ normalityPlots <- mapply(normalCheck, df[c(numVarColsToCompare)], colName = coln
 nonParaToCompare <- c(3,10,11,14,15,18,19,20,21,22,25,47,48,49,50,713,719,720,762)
 
 ## Subset ----
-# df <- read_csv("./data/forAnalysis/UKBB_dfForAnal_All_05_05_2022.csv", lazy = T) # import df if desired
 subsetData_outputPath <- "./Data/Processed/Subsets"
 subsetNames <- c("noMedNoDx", "all", "oldest","onlyDx","noDx","onlyMed","noMed","onlySSRI","youngest","noDxNoSSRI","noSSRI")
 
 ### Subset 1: no further exclusions (only missing data and CRP > 10) ----
 comparisonExcluded_all <- compareExcluded(df, varsToCompare, grp = "missingEssentialVar", subset = "all", simplified = T) 
 #runWilcox(df = df, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "all_wilcox")
-df_all <- df %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_all_", getDate(), sep = "")
+
+## Filter data
+df_all <- df %>% 
+  filter(missingEssentialVar == FALSE) %>%
+  filter(highCRP == FALSE)
+
+fileName <- paste("df_all_", dataDate, sep = "")
 write.csv(df_all, file = glue("{subsetData_outputPath}/{fileName}.csv")) # exports cleaned dataframe with all variables ready for analysis
 cat("Subset only with complete cases and CRP < 10 saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_all))
 
@@ -759,18 +729,16 @@ tertCutOff <- quantile(df$demo_age_assess0_t0, c(.66))
 df_oldest <- df %>% 
   mutate(missingEssentialVar = factor(case_when(
     missingEssentialVar == TRUE ~ TRUE,
-    demo_age_assess0_t0 >= tertCutOff ~ FALSE,
+    demo_age_assess0_t0 <= tertCutOff ~ FALSE,
     TRUE ~ TRUE)))
 
-# table(df_oldest$missingEssentialVar)
-# str(df_oldest$missingEssentialVar)
 comparisonExcluded_oldest <- compareExcluded(df_oldest, varsToCompare, grp = "missingEssentialVar", subset = "oldestTert", simplified = T) 
 #runWilcox(df = df_oldest, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "oldest_wilcox")
 
 df_oldest <- df_oldest %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_oldest_", getDate(), sep = "")
+fileName <- paste("df_oldest_", dataDate, sep = "")
 write.csv(df_oldest, file = glue("{subsetData_outputPath}/{fileName}.csv"))
-cat("Subset with the oldest tertile of cases at instrance 0 (", tertCutOff, ") saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_oldest))
+cat("Subset with the oldest tertile of cases at instance 0 (", tertCutOff, ") saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_oldest))
 
 ### Subset 3: youngest tertile ----
 tertCutOff <- quantile(df$demo_age_assess0_t0, c(.33))
@@ -779,13 +747,14 @@ df_youngest <- df %>%
     missingEssentialVar == TRUE ~ TRUE,
     demo_age_assess0_t0 <= tertCutOff ~ FALSE,
     TRUE ~ TRUE)))
+
 comparisonExcluded_youngest <- compareExcluded(df_youngest, varsToCompare, grp = "missingEssentialVar", subset = "youngestTert", simplified = T) 
 #runWilcox(df = df_youngest, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "youngest_wilcox")
 
 df_youngest <- df_youngest %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_youngest_", getDate(), sep = "")
+fileName <- paste("df_youngest_", dataDate, sep = "")
 write.csv(df_youngest, file = glue("{subsetData_outputPath}/{fileName}.csv"))
-cat("Subset with the youngest tertile of cases at instrance 0 (", tertCutOff, ") saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_youngest))
+cat("Subset with the youngest tertile of cases at instance 0 (", tertCutOff, ") saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_youngest))
 
 ### Subset 4: Exclude Diagnoses -------
 df_noDx <- df %>% 
@@ -793,11 +762,12 @@ df_noDx <- df %>%
     missingEssentialVar == TRUE ~ TRUE,
     dx_AnyOfInterest == 0 ~ FALSE,
     TRUE ~ TRUE)))
+
 comparisonExcluded_noDx <- compareExcluded(df_noDx, varsToCompare, grp = "missingEssentialVar", subset = "NoDx", simplified = T)
 #runWilcox(df = df_noDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noDx_wilcox")
 
 df_noDx <- df_noDx %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_noDx_", getDate(), sep = "")
+fileName <- paste("df_noDx_", dataDate, sep = "")
 write.csv(df_noDx, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those with diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noDx))
 
@@ -812,7 +782,7 @@ comparisonExcluded_onlyDx <- compareExcluded(df_onlyDx, varsToCompare, grp = "mi
 #runWilcox(df = df_onlyDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlyDx_wilcox")
 
 df_onlyDx <- df_onlyDx %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_onlyDx_", getDate(), sep = "")
+fileName <- paste("df_onlyDx_", dataDate, sep = "")
 write.csv(df_onlyDx, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset only those with a diagnosis of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyDx))
 
@@ -822,11 +792,12 @@ df_noMed <- df %>%
     missingEssentialVar == TRUE ~ TRUE,
     med_AnyOfInterest0 == 0 & med_AnyOfInterest2 == 0 ~ FALSE,
     TRUE ~ TRUE)))
+
 comparisonExcluded_noMed <- compareExcluded(df_noMed, varsToCompare, grp = "missingEssentialVar", subset = "NoMed", simplified = T)
 #runWilcox(df = df_noMed, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noMed_wilcox")
 
 df_noMed <- df_noMed %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_noMed_", getDate(), sep = "")
+fileName <- paste("df_noMed_", dataDate, sep = "")
 write.csv(df_noMed, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those using medications of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMed))
 
@@ -841,7 +812,7 @@ comparisonExcluded_onlyMed <- compareExcluded(df_onlyMed, varsToCompare, grp = "
 #runWilcox(df = df_onlyMed, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlyMed_wilcox")
 
 df_onlyMed <- df_onlyMed %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_onlyMed_", getDate(), sep = "")
+fileName <- paste("df_onlyMed_", dataDate, sep = "")
 write.csv(df_onlyMed, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset only with those using medications of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlyMed))
 
@@ -856,7 +827,7 @@ comparisonExcluded_noSSRI <- compareExcluded(df_noSSRI, varsToCompare, grp = "mi
 #runWilcox(df = df_noSSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noSSRI_wilcox")
 
 df_noSSRI <- df_noSSRI %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_noSSRI_", getDate(), sep = "")
+fileName <- paste("df_noSSRI_", dataDate, sep = "")
 write.csv(df_noSSRI, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noSSRI))
 
@@ -864,15 +835,14 @@ cat("Subset excluding those using SSRIs saved as: `", fileName, "`. \n\t complet
 df_onlySSRI <- df %>% 
   mutate(missingEssentialVar = factor(case_when(
     missingEssentialVar == TRUE ~ TRUE,
-    med_SSRI_t0 == 1 ~ FALSE,
-    med_SSRI_t2 == 1 ~ FALSE,
+    med_SSRI_t0 == 1 & med_SSRI_t2 == 1 ~ FALSE,
     TRUE ~ TRUE)))
 
 comparisonExcluded_onlySSRI <- compareExcluded(df_onlySSRI, varsToCompare, grp = "missingEssentialVar", subset = "onlySSRI", simplified = T)
 #runWilcox(df = df_onlySSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "onlySSRI_wilcox")
 
-df_noSSRI <- df_noSSRI %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_onlySSRI_", getDate(), sep = "")
+df_onlySSRI <- df_onlySSRI %>% filter(missingEssentialVar == FALSE)
+fileName <- paste("df_onlySSRI_", dataDate, sep = "")
 write.csv(df_noSSRI, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset only with those using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_onlySSRI))
 
@@ -887,7 +857,7 @@ comparisonExcluded_noMedNoDx <- compareExcluded(df_noMedNoDx, varsToCompare, grp
 #runWilcox(df = df_noMedNoDx, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noMedNoDx_wilcox")
 
 df_noMedNoDx <- df_noMedNoDx %>% filter(missingEssentialVar == FALSE)
-fileName <- paste("df_noMedNoDx_", getDate(), sep = "")
+fileName <- paste("df_noMedNoDx_", dataDate, sep = "")
 write.csv(df_noMedNoDx, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those with diagnoses or using any medication of interest saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noMedNoDx))
 
@@ -901,17 +871,14 @@ df_noDxNoSSRI <- df %>%
 comparisonExcluded_noDxNoSSRI <- compareExcluded(df_noDxNoSSRI, varsToCompare, grp = "missingEssentialVar", subset = "NoDxNoSSRI", simplified = T)
 #runWilcox(df = df_noDxNoSSRI, varsOfInterest = , by = "missingEssentialVar", outputDir = "./outputs/descriptive/wilcox", fileName = "noDxNoSSRI_wilcox")
 
-fileName <- paste("df_noDxNoSSRI_", getDate(), sep = "")
 df_noDxNoSSRI <- df_noDxNoSSRI %>% filter(missingEssentialVar == FALSE)
+fileName <- paste("df_noDxNoSSRI_", dataDate, sep = "")
 write.csv(df_noDxNoSSRI, file = glue("{subsetData_outputPath}/{fileName}.csv"))
 cat("Subset excluding those with diagnoses or using SSRIs saved as: `", fileName, "`. \n\t complete cases: ", nrow(df_noDxNoSSRI))
 
-# Describe Subsets ----
+### Describe Subsets ----
 path <- subsetData_outputPath
-#path <- "./Data/Subsets"
 subsetNames <- c("noMedNoDx", "all", "oldest","onlyDx","noDx","onlyMed","noMed","onlySSRI","youngest","noDxNoSSRI","noSSRI")
-dataDate <- getDate()
-#dataDate <- ""
 
 for(subset in subsetNames){
   fileName <- glue("{path}/df_{subset}_{dataDate}.csv")
@@ -921,8 +888,8 @@ for(subset in subsetNames){
   rm(subset_df)
 }
 
-### Summarise
-write.csv(df_all, file = paste("./data/processed/dfRetained_", getDate(), ".csv", sep = ""))
+## Summarise
+write.csv(df_all, file = paste("./data/processed/dfRetained_", dataDate, ".csv", sep = ""))
 df <- df_all
 varsToSummarise <- c(1:ncol(df))
 
@@ -940,9 +907,9 @@ for(i in c(medVars0NoCases, medVars2NoCases, dxVarsNoCases)){
   }
 }
 
-write.csv(summary(df[-numVars]), file = paste("./outputs/descriptive/df_all_summary_fctrVars", getDate(), ".csv", sep = "")) # save counts of categorical variables
+write.csv(summary(df[-numVars]), file = paste("./outputs/descriptive/df_all_summary_fctrVars", dataDate, ".csv", sep = "")) # save counts of categorical variables
 
-# Varia correlations
+### Varia correlations----
 ## Correl of CRP vars 
 print("Hour collected")
 median(hour(df$crp_timeCollected_t0), na.rm = T)
@@ -1304,14 +1271,9 @@ formatMedOutput <- function(outputDF, filePath, fileName, analysisName, logReg){
 ## Run analyses -----
 ### Import data -----
 path <- subsetData_outputPath
-#path <- ""
-fileName <- "df_noMedNoDx"
-dataDate <- getDate()
-#dataDate <- ""
-
+fileName <- "df_noDxNoSSRI"
 df <- read.csv(glue("./{path}/{fileName}_{dataDate}.csv")) # import df
 ### Vars of interest ----
-# sort(colnames(df))
 crp_log <-  which(colnames(df) == "crp_log")
 crp_log_z <- which(colnames(df) == "crp_log_z")
 crp <- c(which(colnames(df) == "crp_aliquot_t0"), crp_log, crp_log_z)
@@ -1342,17 +1304,12 @@ for(i in c("area", "mThick", "vol")){
   }
 }
 generalMetrics <- c("vol_BrainSeg_WB_t2","vol_BrainSegNotVent_WB_t2","vol_BrainSegNotVentSurf_WB_t2","vol_SubCortGray_WB_t2","vol_TotalGray_WB_t2","vol_SupraTentorial_WB_t2","vol_SupraTentorialNotVent_WB_t2","vol_EstimatedTotalIntraCranial_WB_t2","vol_BrainStem_WB_t2","vol_CSF_WB_t2","vol_wmHyperintensities_WB_t2","vol_WMhypointensities_WB_t2","vol_Hippocampus_L_t2","vol_Hippocampus_R_t2","vol_CerebellumCortex_R_t2","vol_CerebellumCortex_L_t2","vol_CerebellumWhiteMatter_L_t2","vol_CerebellumWhiteMatter_R_t2")
-
 aseg_brainVars <- c("vol_VentricleChoroid_WB_t2","vol_3rdVentricle_WB_t2","vol_4thVentricle_WB_t2","vol_5thVentricle_WB_t2","vol_nonWMhypointensities_WB_t2","vol_OpticChiasm_WB_t2","vol_CCPosterior_WB_t2","vol_CCMidPosterior_WB_t2","vol_CCCentral_WB_t2","vol_CCMidAnterior_WB_t2","vol_CCAnterior_WB_t2","area_Accumbensarea_L_t2","vol_Cortex_L_t2","vol_CerebralWhiteMatter_L_t2","vol_LateralVentricle_L_t2","vol_InfLatVent_L_t2","vol_thalamusProper_L_t2","vol_Caudate_L_t2","vol_Putamen_L_t2","vol_Pallidum_L_t2","vol_Amygdala_L_t2","vol_Accumbensarea_L_t2","vol_VentralDC_L_t2","vol_choroidplexus_L_t2","area_Accumbensarea_R_t2","vol_Cortex_R_t2","vol_CerebralWhiteMatter_R_t2","vol_LateralVentricle_R_t2","vol_InfLatVent_R_t2","vol_thalamusProper_R_t2","vol_Caudate_R_t2","vol_Putamen_R_t2","vol_Pallidum_R_t2","vol_Amygdala_R_t2","vol_Accumbensarea_R_t2","vol_VentralDC_R_t2","vol_vessel_L_t2","vol_vessel_R_t2","vol_choroidplexus_R_t2") # all Freesurfer ASEG variables in UKBB
-
 dkt_brainVars_area <- c("area_Caudalanteriorcingulate_L_t2","area_Caudalmiddlefrontal_L_t2","area_Cuneus_L_t2","area_Entorhinal_L_t2","area_Fusiform_L_t2","area_Inferiorparietal_L_t2","area_Inferiortemporal_L_t2","area_Isthmuscingulate_L_t2","area_Lateraloccipital_L_t2","area_Lateralorbitofrontal_L_t2","area_Lingual_L_t2","area_Medialorbitofrontal_L_t2","area_Middletemporal_L_t2","area_Parahippocampal_L_t2","area_Paracentral_L_t2","area_Parsopercularis_L_t2","area_Parsorbitalis_L_t2","area_Parstriangularis_L_t2","area_Pericalcarine_L_t2","area_Postcentral_L_t2","area_Posteriorcingulate_L_t2","area_Precentral_L_t2","area_Precuneus_L_t2","area_Rostralanteriorcingulate_L_t2","area_Rostralmiddlefrontal_L_t2","area_Superiorfrontal_L_t2","area_Superiorparietal_L_t2","area_Superiortemporal_L_t2","area_Supramarginal_L_t2","area_Transversetemporal_L_t2","area_Insula_L_t2", "area_Caudalanteriorcingulate_R_t2","area_Caudalmiddlefrontal_R_t2","area_Cuneus_R_t2","area_Entorhinal_R_t2","area_Fusiform_R_t2","area_Inferiorparietal_R_t2","area_Inferiortemporal_R_t2","area_Isthmuscingulate_R_t2","area_Lateraloccipital_R_t2","area_Lateralorbitofrontal_R_t2","area_Lingual_R_t2","area_Medialorbitofrontal_R_t2","area_Middletemporal_R_t2","area_Parahippocampal_R_t2","area_Paracentral_R_t2","area_Parsopercularis_R_t2","area_Parsorbitalis_R_t2","area_Parstriangularis_R_t2","area_Pericalcarine_R_t2","area_Postcentral_R_t2","area_Posteriorcingulate_R_t2","area_Precentral_R_t2","area_Precuneus_R_t2","area_Rostralanteriorcingulate_R_t2","area_Rostralmiddlefrontal_R_t2","area_Superiorfrontal_R_t2","area_Superiorparietal_R_t2","area_Superiortemporal_R_t2","area_Supramarginal_R_t2","area_Transversetemporal_R_t2","area_Insula_R_t2")
-
 dkt_brainVars_vol <- c("vol_Caudalanteriorcingulate_R_t2","vol_Caudalmiddlefrontal_R_t2","vol_Cuneus_R_t2","vol_Entorhinal_R_t2","vol_Fusiform_R_t2","vol_Inferiorparietal_R_t2","vol_Inferiortemporal_R_t2","vol_Isthmuscingulate_R_t2","vol_Lateraloccipital_R_t2","vol_Lateralorbitofrontal_R_t2","vol_Lingual_R_t2","vol_Medialorbitofrontal_R_t2","vol_Middletemporal_R_t2","vol_Parahippocampal_R_t2","vol_Paracentral_R_t2","vol_Parsopercularis_R_t2","vol_Parsorbitalis_R_t2","vol_Parstriangularis_R_t2","vol_Pericalcarine_R_t2","vol_Postcentral_R_t2","vol_Posteriorcingulate_R_t2","vol_Precentral_R_t2","vol_Precuneus_R_t2","vol_Rostralanteriorcingulate_R_t2","vol_Rostralmiddlefrontal_R_t2","vol_Superiorfrontal_R_t2","vol_Superiorparietal_R_t2","vol_Superiortemporal_R_t2","vol_Supramarginal_R_t2","vol_Transversetemporal_R_t2","vol_Insula_R_t2", "vol_Caudalanteriorcingulate_L_t2","vol_Caudalmiddlefrontal_L_t2","vol_Cuneus_L_t2","vol_Entorhinal_L_t2","vol_Fusiform_L_t2","vol_Inferiorparietal_L_t2","vol_Inferiortemporal_L_t2","vol_Isthmuscingulate_L_t2","vol_Lateraloccipital_L_t2","vol_Lateralorbitofrontal_L_t2","vol_Lingual_L_t2","vol_Medialorbitofrontal_L_t2","vol_Middletemporal_L_t2","vol_Parahippocampal_L_t2","vol_Paracentral_L_t2","vol_Parsopercularis_L_t2","vol_Parsorbitalis_L_t2","vol_Parstriangularis_L_t2","vol_Pericalcarine_L_t2","vol_Postcentral_L_t2","vol_Posteriorcingulate_L_t2","vol_Precentral_L_t2","vol_Precuneus_L_t2","vol_Rostralanteriorcingulate_L_t2","vol_Rostralmiddlefrontal_L_t2","vol_Superiorfrontal_L_t2","vol_Superiorparietal_L_t2","vol_Superiortemporal_L_t2","vol_Supramarginal_L_t2","vol_Transversetemporal_L_t2","vol_Insula_L_t2")
-
 dkt_brainVars_mThick <- c("mThick_Caudalanteriorcingulate_L_t2","mThick_Caudalmiddlefrontal_L_t2","mThick_Cuneus_L_t2","mThick_Entorhinal_L_t2","mThick_Fusiform_L_t2","mThick_Inferiorparietal_L_t2","mThick_Inferiortemporal_L_t2","mThick_Isthmuscingulate_L_t2","mThick_Lateraloccipital_L_t2","mThick_Lateralorbitofrontal_L_t2","mThick_Lingual_L_t2","mThick_Medialorbitofrontal_L_t2","mThick_Middletemporal_L_t2","mThick_Parahippocampal_L_t2","mThick_Paracentral_L_t2","mThick_Parsopercularis_L_t2","mThick_Parsorbitalis_L_t2","mThick_Parstriangularis_L_t2","mThick_Pericalcarine_L_t2","mThick_Postcentral_L_t2","mThick_Posteriorcingulate_L_t2","mThick_Precentral_L_t2","mThick_Precuneus_L_t2","mThick_Rostralanteriorcingulate_L_t2","mThick_Rostralmiddlefrontal_L_t2","mThick_Superiorfrontal_L_t2","mThick_Superiorparietal_L_t2","mThick_Superiortemporal_L_t2","mThick_Supramarginal_L_t2","mThick_Transversetemporal_L_t2","mThick_Insula_L_t2","mThick_Caudalanteriorcingulate_R_t2","mThick_Caudalmiddlefrontal_R_t2","mThick_Cuneus_R_t2","mThick_Entorhinal_R_t2","mThick_Fusiform_R_t2","mThick_Inferiorparietal_R_t2","mThick_Inferiortemporal_R_t2","mThick_Isthmuscingulate_R_t2","mThick_Lateraloccipital_R_t2","mThick_Lateralorbitofrontal_R_t2","mThick_Lingual_R_t2","mThick_Medialorbitofrontal_R_t2","mThick_Middletemporal_R_t2","mThick_Parahippocampal_R_t2","mThick_Paracentral_R_t2","mThick_Parsopercularis_R_t2","mThick_Parsorbitalis_R_t2","mThick_Parstriangularis_R_t2","mThick_Pericalcarine_R_t2","mThick_Postcentral_R_t2","mThick_Posteriorcingulate_R_t2","mThick_Precentral_R_t2","mThick_Precuneus_R_t2","mThick_Rostralanteriorcingulate_R_t2","mThick_Rostralmiddlefrontal_R_t2","mThick_Superiorfrontal_R_t2","mThick_Superiorparietal_R_t2","mThick_Superiortemporal_R_t2","mThick_Supramarginal_R_t2","mThick_Transversetemporal_R_t2","mThick_Insula_R_t2") 
 
 # all Freesurfer DKT volumes, area, mThickness variables in UKBB
-
 round1Mediators <- c(lobularBrainMetrics, generalMetrics)
 round2Mediators <- c(aseg_brainVars, dkt_brainVars_area, dkt_brainVars_vol, dkt_brainVars_mThick)
 
@@ -1376,13 +1333,10 @@ covars_brain_colNum <- which(colnames(df) %in% covars_brain_colNames)
 
 essentialVarsAnalysis_colNum <- c(crp, cogOutcomes_colNum, cogOutcomes_fctr, brainMorphVars_Z_colNum, covars_colNum, covars_brain_colNum) # list of variables used in correlation/mediation analyses
 essentialVarsAnalysis_colNames <- colnames(df[essentialVarsAnalysis_colNum]) 
-# essentialVarsAnalysisNum <- c(crp, crp_log_z, brainMorphVars_specific_z, cogPCOutputs_z, revisedCovars, covars_brain)
-# save(essentialVarsAnalysis, file = "revisedEssentialVarsAnalysis.RData")
 eid <- which(colnames(df) == "eid")
 missingEssVar <- which(colnames(df) == "missingEssentialVar")
 
 df <- df[c(eid, essentialVarsAnalysis_colNum, missingEssVar)]
-# colnames(df_small)
 
 ordinalFactorContrasts <- list(exercise_IPAQActivityGroup_t0 = "contr.treatment")
 
@@ -1390,11 +1344,7 @@ ordinalFactorContrasts <- list(exercise_IPAQActivityGroup_t0 = "contr.treatment"
 individualAnalysis <- list()
 output_path <- "./outputs/cor/model" 
 subsetDF_path <- subsetData_outputPath
-#subsetDF_path <- ""
-#subsetNames <- c("noMedNoDx")
 
-dataDate <- getDate()
-#dataDate <- ""
 X <- "crp_log_z"
 varsOfInterest <- c(X, covars_colNames, cogOutcomes_colNames,cogOutcomes_fctr_names) 
 listOfCovars <- c("demo_sex_t0Male","smoke_currently0_t0Yes","smoke_currently2_t2Yes","demo_ethnicity_t0White","exercise_IPAQActivityGroup_t0low","exercise_IPAQActivityGroup_t0moderate","ses_townsend_t0_z","demo_age_assess0_t0_z","demo_daysBtwAssess_z","weight_waistToHip_mean02_z","sleep_duration_mean02_z", "hand_t0LH","hand_t0Not","hand_t0RH", "brain_headScale_t2", "med_Antihypertensive_t021", "med_Statin_t021")
@@ -1439,18 +1389,11 @@ for(subset in subsetNames){
 
 ### Mediation analyses -----
 covarsMed <- c(covars_colNames, covars_brain_colNames) # Add  cognition only covars
-# colnames(df[covarsMed ])
 
 individualAnalysis <- list()
 listAnalyses_med_C <- list()
 mainMed_C <- list()
-
-# mediators <- c("area_Caudalanteriorcingulate_L_t2") # for testing purposes
-
 subsetPath <- subsetData_outputPath
-#subsetNames <- c("noMedNoDx")# list of subset names to run through
-#dataDate <- "05_11_2022" # date of subsets, to recreate file name
-
 
 alldfs <- c("df_noMedNoDx")
 for(j in alldfs){
