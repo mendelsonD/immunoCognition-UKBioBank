@@ -5,7 +5,7 @@
 # Work performed under the supervision of Dr. Martin Lepage.
 # 19 May 2023
 # RStudio v2023.03.1 Build 446
-# R v4.3.0
+# R v4.1.1
 #####
 
 # Preamble -----
